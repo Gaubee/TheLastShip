@@ -5962,7 +5962,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     exports.current_stage_wrap["keep_direction"] = "horizontal";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("button", "./res/game_0001_提示按钮.png");
+    exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", { font: common_3.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
@@ -6466,7 +6466,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     // current_stage_wrap["keep_direction"] = "vertical";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("logo", "res/dfrc_0010_logo.png");
+    exports.loader.add("logo", "res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("加载中……", { font: common_5.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);

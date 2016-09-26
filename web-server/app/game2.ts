@@ -44,7 +44,7 @@ current_stage_wrap["keep_direction"] = "horizontal";
 //加载图片资源
 export const loader = new PIXI.loaders.Loader();
 
-loader.add("button", "./res/game_0001_提示按钮.png")
+loader.add("button", "./res/game_res.png")
 
 loader.load();
 

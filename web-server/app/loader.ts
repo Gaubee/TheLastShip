@@ -34,7 +34,7 @@ current_stage_wrap.addChild(current_stage);
 // current_stage_wrap["keep_direction"] = "vertical";
 //加载图片资源
 export const loader = new PIXI.loaders.Loader();
-loader.add("logo", "res/dfrc_0010_logo.png");
+loader.add("logo", "res/game_res.png");
 loader.load();
 
 const loading_text = new PIXI.Text("加载中……", { font: pt2px(25) + "px 微软雅黑", fill: "#FFF" });

@@ -1,0 +1,12 @@
+{
+	"port": 8000,
+	"files": [
+		"./class/**/*.{js}",
+		"./app/**/*.{js}",
+		"./dist.js",
+		"./index.html"
+	],
+	"server": {
+		"baseDir": "./"
+	}
+}

@@ -1,0 +1,43 @@
+{
+  "development": {
+    "connector": [{
+      "id": "connector-server-1",
+      "host": "127.0.0.1",
+      "port": 4050,
+      "clientPort": 3050,
+      "frontend": true
+    }],
+    "gate": [{
+      "id": "gate-server-1",
+      "host": "127.0.0.1",
+      "port": 4051,
+      "clientPort": 3051,
+      "frontend": true
+    }],
+    "world": [{
+      "id": "world-server-1",
+      "host": "127.0.0.1",
+      "port": 4052
+    }]
+  },
+  "production": {
+    "connector": [{
+      "id": "connector-server-1",
+      "host": "120.25.238.30",
+      "port": 4050,
+      "clientPort": 3050,
+      "frontend": true
+    }],
+    "world": [{
+      "id": "world-server-1",
+      "host": "120.25.238.30",
+      "port": 6050
+    }],
+    "gate": [{
+      "id": "gate-server-1",
+      "host": "120.25.238.30",
+      "clientPort": 3014,
+      "frontend": true
+    }]
+  }
+}

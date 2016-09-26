@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "module": "amd",
+        "sourceMap": false,
+        "removeComments": false,
+        "outFile": "dist.js"
+    },
+    "exclude": [
+        "js",
+        "css",
+        "images",
+        "res",
+        "jspm_packages"
+    ]
+}

@@ -1,0 +1,290 @@
+/// <reference path="../typings/pixi.js/pixi.js.d.ts" />
+import BackgroundGaussianBlur from "../class/BackgroundGaussianBlur";
+import SVGGraphics from "../class/SVGGraphics";
+import TWEEN, {Tween} from "../class/Tween";
+import When from "../class/When";
+
+// import Dialog from "./Dialog";
+// import {Mask, MaskFactory} from "./Mask";
+import Flyer from "./class/Flyer";
+import Ship from "./class/Ship";
+import Wall from "./class/Wall";
+import Bullet from "./class/Bullet";
+
+import {P2I} from "./engine/Collision";
+import Victor from "./engine/Victor";
+import {engine} from "./engine/world";
+// import {pomelo} from "./engine/Pomelo";
+
+import {
+    VIEW,
+    L_ANI_TIME,
+    B_ANI_TIME,
+    M_ANI_TIME,
+    S_ANI_TIME,
+    on,
+    square,
+    stageManager,
+    renderer,
+    pt2px,
+    emitReisze,
+    mix_options
+} from "./common";
+
+
+const ani_ticker = new PIXI.ticker.Ticker();
+const ani_tween = new TWEEN();
+const jump_tween = new TWEEN();
+const FPS_ticker = new PIXI.ticker.Ticker();
+
+export const current_stage_wrap = new PIXI.Container();
+export const current_stage = new PIXI.Graphics();
+current_stage_wrap.addChild(current_stage);
+current_stage_wrap["keep_direction"] = "horizontal";
+//加载图片资源
+export const loader = new PIXI.loaders.Loader();
+
+loader.add("button", "./res/game_0001_提示按钮.png")
+
+loader.load();
+
+const loading_text = new PIXI.Text("游戏加载中……", { font: pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+current_stage.addChild(loading_text);
+
+loader.once("complete", renderInit);
+
+function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.ResourceDictionary) {
+    for (var i = 0, len = current_stage.children.length; i < len; i += 1) {
+        current_stage.removeChildAt(0)
+    }
+    /**素材加载
+     * 初始化场景
+     */
+    current_stage.on("resize", function () {
+        current_stage.clear();
+        current_stage.beginFill(0x333ddd, 0.5);
+        current_stage.drawRect(0, 0, VIEW.WIDTH, VIEW.HEIGHT);
+        current_stage.endFill();
+        // current_stage.scale.y = -1;
+        // current_stage.position.y = VIEW.HEIGHT;
+    });
+    // 子弹层
+    var bullets = new PIXI.Container();
+    current_stage.addChild(bullets);
+
+    var flyer = new Flyer({
+        x: 260,
+        y: 250,
+        x_speed: 10 * 2 * (Math.random() - 0.5),
+        y_speed: 10 * 2 * (Math.random() - 0.5),
+        body_color: 0x0f00dd
+    });
+    current_stage.addChild(flyer);
+    engine.add(flyer);
+    var flyer = new Flyer({
+        x: 480,
+        y: 250,
+        x_speed: 10 * 2 * (Math.random() - 0.5),
+        y_speed: 10 * 2 * (Math.random() - 0.5),
+        body_color: 0x0fdd00
+    });
+    current_stage.addChild(flyer);
+    engine.add(flyer);
+    var flyer = new Flyer({
+        x: 600,
+        y: 250,
+        x_speed: 10 * 2 * (Math.random() - 0.5),
+        y_speed: 10 * 2 * (Math.random() - 0.5),
+        body_color: 0xdd000f
+    });
+    current_stage.addChild(flyer);
+    engine.add(flyer);
+
+
+    // 四边限制
+
+    var top_edge = new Wall({
+        x: VIEW.CENTER.x, y: 5,
+        width: VIEW.WIDTH,
+        height: 10
+    });
+    current_stage.addChild(top_edge);
+    engine.add(top_edge);
+    var bottom_edge = new Wall({
+        x: VIEW.CENTER.x, y: VIEW.HEIGHT - 5,
+        width: VIEW.WIDTH,
+        height: 10
+    });
+    current_stage.addChild(bottom_edge);
+    engine.add(bottom_edge);
+    var left_edge = new Wall({
+        x: 5, y: VIEW.CENTER.y,
+        width: 10,
+        height: VIEW.HEIGHT
+    });
+    current_stage.addChild(left_edge);
+    engine.add(left_edge);
+    var right_edge = new Wall({
+        x: VIEW.WIDTH - 5, y: VIEW.CENTER.y,
+        width: 10,
+        height: VIEW.HEIGHT
+    });
+    current_stage.addChild(right_edge);
+    engine.add(right_edge);
+    (() => {
+        var x_len = 2;
+        var y_len = 2;
+        var x_unit = VIEW.WIDTH / (x_len + 1)
+        var y_unit = VIEW.HEIGHT / (y_len + 1)
+        var width = 40;
+        for (var _x = 1; _x <= x_len; _x += 1) {
+            for (var _y = 1; _y <= y_len; _y += 1) {
+                var mid_edge = new Wall({
+                    x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
+                    width: width,
+                    height: width
+                });
+
+                current_stage.addChild(mid_edge);
+                engine.add(mid_edge);
+            }
+        }
+    })();
+
+    var my_ship = new Ship({
+        x: VIEW.CENTER.x,
+        y: VIEW.CENTER.y,
+        body_color: 0x366345
+    });
+    current_stage.addChild(my_ship);
+    engine.add(my_ship);
+
+    var other_ship = new Ship({
+        x: VIEW.CENTER.x-100,
+        y: VIEW.CENTER.y-100,
+        body_color: 0x633645,
+        team_tag: 12
+    });
+    current_stage.addChild(other_ship);
+    engine.add(other_ship);
+
+    /**初始化动画
+     * 
+     */
+    var pre_time
+    ani_ticker.add(() => {
+        pre_time || (pre_time = performance.now());
+        var cur_time = performance.now();
+        var dif_time = cur_time - pre_time;
+        pre_time = cur_time;
+
+        // 物理引擎运作
+        engine.update(dif_time);
+
+    });
+
+    /**按钮事件
+     * 
+     */
+
+
+    /**交互动画
+     * 
+     */
+    const speed_ux = {
+        37:"-x",
+        65:"-x",
+        38:"-y",
+        87:"-y",
+        39:"+x",
+        68:"+x",
+        40:"+y",
+        83:"+y",
+    };
+    const effect_speed = {};
+    on(current_stage, "keydown", function (e) {
+        if(speed_ux.hasOwnProperty(e.keyCode)){
+            var speed_info = speed_ux[e.keyCode];
+            var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
+            var _dir = speed_info.charAt(1) + "_speed";
+            effect_speed[_dir] = _symbol;
+            my_ship.setConfig({ [_dir]: _symbol*my_ship.config.force });
+        }
+    });
+
+    on(current_stage, "keyup", function (e) {
+        
+        if(speed_ux.hasOwnProperty(e.keyCode)){
+            var speed_info = speed_ux[e.keyCode];
+            var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
+            var _dir = speed_info.charAt(1) + "_speed";
+            if(effect_speed[_dir] === _symbol){
+                my_ship.setConfig({ [_dir]: 0 });
+            }
+        }
+    });
+    on(current_stage, "rightclick", function (e) {
+        var to_point = VIEW.rotateXY(e.data.global);
+    });
+
+    on(current_stage, "click|tap", function () {
+        var bullet = my_ship.fire();
+        bullets.addChild(bullet);
+        engine.add(bullet);
+    });
+    on(current_stage, "mousemove|click|tap", function (e) {
+        var to_point = VIEW.rotateXY(e.data.global);
+        var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
+        my_ship.setConfig({ rotation: direction.angle() })
+    });
+    // setTimeout(function () {
+    //     rule.close();
+    // }, 3000)
+
+    // 动画控制器
+    ani_ticker.add(() => {
+        ani_tween.update();
+        jump_tween.update();
+        current_stage_wrap.x = VIEW.WIDTH / 2 - my_ship.x
+        // current_stage_wrap.y = my_ship.y - VIEW.HEIGHT / 2
+        current_stage_wrap.y = VIEW.HEIGHT / 2 - my_ship.y 
+    });
+
+    /**帧率
+     * 
+     */
+    var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
+
+    current_stage_wrap.addChild(FPS_Text);
+    FPS_ticker.add(function () {
+        FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + VIEW.WIDTH + " H:" + VIEW.HEIGHT;
+    });
+
+    // 触发布局计算
+    emitReisze(current_stage_wrap);
+
+    init_w.ok(0, []);
+}
+current_stage_wrap.on("init", initStage);
+current_stage_wrap.on("reinit", function () {
+    renderInit(loader, loader.resources);
+    emitReisze(current_stage);
+});
+current_stage_wrap["_has_custom_resize"] = true;
+current_stage_wrap.on("resize", function () {
+    jump_tween.clear();
+    ani_tween.clear();
+    emitReisze(this);
+});
+
+const init_w = new When(2, () => {
+    emitReisze(current_stage);
+    ani_tween.start();
+    jump_tween.start();
+    ani_ticker.start();
+    FPS_ticker.start();
+});
+export function initStage() {
+    init_w.ok(1, []);
+}
+

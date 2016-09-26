@@ -22,23 +22,23 @@
   },
   "production": {
     "connector": [{
-      "id": "connector-server-1",
+      "id": "connector-server-ship-1",
       "host": "120.25.238.30",
       "port": 4050,
       "clientPort": 3050,
       "frontend": true
     }],
-    "world": [{
-      "id": "world-server-1",
-      "host": "120.25.238.30",
-      "port": 4052
-    }],
     "gate": [{
-      "id": "gate-server-1",
+      "id": "gate-server-ship-1",
       "host": "120.25.238.30",
       "port": 4051,
       "clientPort": 3051,
       "frontend": true
+    }],
+    "world": [{
+      "id": "world-server-ship-1",
+      "host": "120.25.238.30",
+      "port": 4052
     }]
   }
 }

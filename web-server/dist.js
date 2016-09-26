@@ -5526,7 +5526,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.current_stage_wrap["keep_direction"] = "horizontal";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("button", "./res/game_res_再玩一次.png");
+    exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
         font: common_2.pt2px(25) + "px 微软雅黑",

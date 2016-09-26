@@ -1,3 +1,5 @@
+declare const process;
+
 import {
     P2I
 } from "../engine/Collision";

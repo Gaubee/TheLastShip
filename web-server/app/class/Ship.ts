@@ -1,4 +1,5 @@
-// import color2color from "../../class/color2color";
+declare const process;
+
 import {P2I} from "../engine/Collision";
 import Victor from "../engine/Victor";
 import Bullet from "./Bullet";

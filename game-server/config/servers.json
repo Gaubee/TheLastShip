@@ -31,12 +31,13 @@
     "world": [{
       "id": "world-server-1",
       "host": "120.25.238.30",
-      "port": 6050
+      "port": 4052
     }],
     "gate": [{
       "id": "gate-server-1",
       "host": "120.25.238.30",
-      "clientPort": 3014,
+      "port": 4051,
+      "clientPort": 3051,
       "frontend": true
     }]
   }

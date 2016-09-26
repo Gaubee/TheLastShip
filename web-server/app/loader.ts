@@ -6,8 +6,6 @@ import When from "../class/When";
 import FlowLayout from "../class/FlowLayout";
 import TextBuilder from "../class/TextBuilder";
 
-import Dialog from "./Dialog";
-import {Mask, MaskFactory} from "./Mask";
 import {
     VIEW,
     L_ANI_TIME,

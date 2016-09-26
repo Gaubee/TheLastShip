@@ -3475,167 +3475,6 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
     }
     exports.mix_options = mix_options;
 });
-define("app/Dialog", ["require", "exports", "class/SVGGraphics", "class/Tween", "app/common"], function (require, exports, SVGGraphics_1, Tween_3, common_1) {
-    "use strict";
-    function mix_options(tmp_options, new_options) {
-        for (var key in new_options) {
-            if (tmp_options.hasOwnProperty(key)) {
-                if (tmp_options[key] instanceof Object) {
-                    mix_options(tmp_options[key], new_options[key]);
-                }
-                else {
-                    tmp_options[key] = new_options[key];
-                }
-            }
-        }
-    }
-    var Dialog = (function (_super) {
-        __extends(Dialog, _super);
-        function Dialog(title, content, ani_control, options) {
-            var _this = this;
-            _super.call(this);
-            this.style = {
-                bg: {
-                    color: 0xe51928,
-                    alpha: 1,
-                    paddingLR: common_1.pt2px(40),
-                    paddingTB: common_1.pt2px(76),
-                    radius: common_1.pt2px(10)
-                },
-                closeButton: {
-                    show: true,
-                    size: common_1.pt2px(18),
-                    bold: common_1.pt2px(1),
-                    top: 0,
-                    left: 0
-                },
-                title: {
-                    padding: common_1.pt2px(20)
-                }
-            };
-            this._is_anining = false;
-            this.ani = ani_control;
-            options || (options = {});
-            var style = this.style;
-            mix_options(style, options);
-            // 焦点层: 0
-            // 背景层:1
-            var bg = this.bg = new PIXI.Graphics();
-            this.addChild(bg);
-            this._on_content_update = function () {
-                this.resize();
-            }.bind(this);
-            // 内容层:2
-            this.setContent(content);
-            // 标题层:3
-            if (title instanceof PIXI.Sprite) {
-                this.title = title;
-            }
-            else if (title instanceof PIXI.Texture) {
-                this.title = new PIXI.Sprite(title);
-            }
-            else {
-                this.title = PIXI.Sprite.fromImage(title);
-            }
-            this.addChild(this.title);
-            this.title.texture.on("update", function () {
-                console.log("Dialog resize..");
-                _this.resize();
-            });
-            // 关闭按钮:4
-            var _closeButton_font_size = style.closeButton.size / 3 * 2;
-            var _closeButton_font_bold = style.closeButton.bold;
-            this.closeButton = SVGGraphics_1.default.importFromSVG("<svg version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n            <circle cy=\"0\" cx=\"0\" r=\"" + style.closeButton.size + "\" fill=\"#ffc03a\" stroke-width=\"0\"/>\n            <path d=\"M " + _closeButton_font_size + " 0 L -" + _closeButton_font_size + " 0 \" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n            <path d=\"M 0 " + _closeButton_font_size + " L 0 -" + _closeButton_font_size + "\" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n        </svg>")._graphics;
-            this.closeButton.rotation = Math.PI / 4;
-            this.closeButton.interactive = true;
-            ["tap", "click"].forEach(function (eventName) { return _this.closeButton.on(eventName, _this.close.bind(_this)); });
-            if (style.closeButton.show) {
-                this.addChild(this.closeButton);
-            }
-            this.resize();
-        }
-        Dialog.prototype.resize = function () {
-            var style = this.style;
-            var bg = this.bg;
-            bg.clear();
-            bg.lineStyle(0);
-            bg.beginFill(style.bg.color, style.bg.alpha);
-            var bg_width = Math.max(this.content.width, this.title.width + style.title.padding) + style.bg.paddingLR; //14.10 / 16.94 * VIEW.WIDTH;
-            var bg_height = this.content.height + style.bg.paddingTB;
-            var bg_x = (common_1.VIEW.WIDTH - bg_width) / 2;
-            var bg_y = (common_1.VIEW.HEIGHT - bg_height) / 2;
-            bg.drawRoundedRect(bg_x, bg_y, bg_width, bg_height, style.bg.radius);
-            bg.endFill();
-            this.closeButton.x = bg_x + bg_width - this.closeButton.width / 4 + style.closeButton.left;
-            this.closeButton.y = bg_y + this.closeButton.height / 4 + style.closeButton.top;
-            this.content.x = bg_x + style.bg.paddingLR / 2;
-            this.content.y = bg_y + style.bg.paddingTB / 2;
-            this.title.x = bg_width / 2 + bg_x - this.title.width / 2;
-            this.title.y = bg_y - this.title.height + style.bg.paddingLR / 2;
-        };
-        Dialog.prototype._on_content_update = function () { };
-        Dialog.prototype.setContent = function (content) {
-            if (this.content) {
-                this.content.off("update", this._on_content_update);
-                this.removeChild(this.content);
-            }
-            else {
-                this.content = content;
-                content.on("update", this._on_content_update);
-                this.addChild(content);
-            }
-        };
-        Dialog.prototype.open = function (parent) {
-            var _this = this;
-            if (this._is_anining) {
-                return;
-            }
-            this.emit("open");
-            parent.addChild(this);
-            this._is_anining = true;
-            // 还原来计算出正确的宽高
-            this.scale.set(1, 1);
-            this.ani.Tween(this)
-                .to({ x: this.x, y: this.y }, common_1.B_ANI_TIME)
-                .set({ x: this.x + this.width / 2, y: this.y + this.height / 2 })
-                .easing(Tween_3.default.Easing.Quintic.Out)
-                .start();
-            this.ani.Tween(this.scale)
-                .set({ x: 0, y: 0 })
-                .to({ x: 1, y: 1 }, common_1.B_ANI_TIME)
-                .easing(Tween_3.default.Easing.Quintic.Out)
-                .start()
-                .onComplete(function () { _this._is_anining = false; });
-        };
-        Dialog.prototype.close = function () {
-            var _this = this;
-            if (this._is_anining) {
-                return;
-            }
-            this.emit("close");
-            this._is_anining = true;
-            this.ani.Tween(this.scale)
-                .set({ x: 1, y: 1 })
-                .to({ x: 0, y: 0 }, common_1.B_ANI_TIME)
-                .easing(Tween_3.default.Easing.Quintic.In)
-                .start();
-            var cur_x = this.x;
-            var cur_y = this.y;
-            this.ani.Tween(this)
-                .to({ x: this.x + this.width / 2, y: this.y + this.height / 2 }, common_1.B_ANI_TIME)
-                .easing(Tween_3.default.Easing.Quintic.In)
-                .start()
-                .onComplete(function () {
-                _this.position.set(cur_x, cur_y);
-                _this._is_anining = false;
-                _this.parent && _this.parent.removeChild(_this);
-            });
-        };
-        return Dialog;
-    }(PIXI.Container));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Dialog;
-});
 /**
  * Initialize a new `Emitter`.
  *
@@ -5514,11 +5353,11 @@ define("class/When", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = When;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_4, When_1, Flyer_1, Wall_1, Ship_2, Bullet_3, HP_1, shadowWorld_1, Victor_2, Pomelo_1, common_2) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_3, When_1, Flyer_1, Wall_1, Ship_2, Bullet_3, HP_1, shadowWorld_1, Victor_2, Pomelo_1, common_1) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_4.default();
-    var jump_tween = new Tween_4.default();
+    var ani_tween = new Tween_3.default();
+    var jump_tween = new Tween_3.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -5529,7 +5368,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: common_2.pt2px(25) + "px 微软雅黑",
+        font: common_1.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
@@ -5544,7 +5383,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         function drawPlan() {
             exports.current_stage_wrap.clear();
             exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
-            exports.current_stage_wrap.drawRect(0, 0, common_2.VIEW.WIDTH, common_2.VIEW.HEIGHT);
+            exports.current_stage_wrap.drawRect(0, 0, common_1.VIEW.WIDTH, common_1.VIEW.HEIGHT);
             exports.current_stage_wrap.endFill();
         }
         exports.current_stage_wrap.on("resize", drawPlan);
@@ -5631,8 +5470,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
                     x: 0,
                     y: 0,
-                    width: common_2.VIEW.WIDTH,
-                    height: common_2.VIEW.HEIGHT
+                    width: common_1.VIEW.WIDTH,
+                    height: common_1.VIEW.HEIGHT
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;
@@ -5674,7 +5513,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             83: "+y",
         };
         var effect_speed = {};
-        common_2.on(exports.current_stage_wrap, "keydown", function (e) {
+        common_1.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode)) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -5694,7 +5533,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             }
             var _a;
         });
-        common_2.on(exports.current_stage_wrap, "keyup", function (e) {
+        common_1.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode)) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -5714,9 +5553,9 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var _a;
         });
         // 转向
-        common_2.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
-            var to_point = common_2.VIEW.rotateXY(e.data.global);
-            var direction = new Victor_2.default(to_point.x - common_2.VIEW.CENTER.x, to_point.y - common_2.VIEW.CENTER.y);
+        common_1.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
+            var to_point = common_1.VIEW.rotateXY(e.data.global);
+            var direction = new Victor_2.default(to_point.x - common_1.VIEW.CENTER.x, to_point.y - common_1.VIEW.CENTER.y);
             var angle_value = direction.angle();
             if (angle_value < 0) {
                 angle_value += PIXI.PI_2;
@@ -5731,7 +5570,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             });
         });
         // 发射
-        common_2.on(exports.current_stage_wrap, "click|tap", function () {
+        common_1.on(exports.current_stage_wrap, "click|tap", function () {
             Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
                 // console.log("setConfig:fire", data);
             });
@@ -5792,8 +5631,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             isNewDataFrame = false;
             // 跟随主角移动
             if (view_ship) {
-                exports.current_stage.x = common_2.VIEW.WIDTH / 2 - view_ship.x;
-                exports.current_stage.y = common_2.VIEW.HEIGHT / 2 - view_ship.y;
+                exports.current_stage.x = common_1.VIEW.WIDTH / 2 - view_ship.x;
+                exports.current_stage.y = common_1.VIEW.HEIGHT / 2 - view_ship.y;
             }
             // 更新血量显示
             hp_stage["update"](dif_time);
@@ -5805,7 +5644,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         });
         exports.current_stage_wrap.addChild(FPS_Text);
         FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_2.VIEW.WIDTH + " H:" + common_2.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_1.VIEW.WIDTH + " H:" + common_1.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
             if (view_ship) {
                 var info = "\n";
                 for (var k in view_ship.config) {
@@ -5819,22 +5658,22 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             }
         });
         // 触发布局计算
-        common_2.emitReisze(exports.current_stage_wrap);
+        common_1.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
     exports.current_stage_wrap.on("reinit", function () {
         renderInit(exports.loader, exports.loader.resources);
-        common_2.emitReisze(exports.current_stage);
+        common_1.emitReisze(exports.current_stage);
     });
     exports.current_stage_wrap["_has_custom_resize"] = true;
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_2.emitReisze(this);
+        common_1.emitReisze(this);
     });
     var init_w = new When_1.default(2, function () {
-        common_2.emitReisze(exports.current_stage);
+        common_1.emitReisze(exports.current_stage);
         ani_tween.start();
         jump_tween.start();
         ani_ticker.start();
@@ -5950,11 +5789,11 @@ define("class/BackgroundGaussianBlur", ["require", "exports"], function (require
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = BackgroundGaussianBlur;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_5, When_2, Flyer_2, Ship_3, Wall_2, Victor_3, world_1, common_3) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_4, When_2, Flyer_2, Ship_3, Wall_2, Victor_3, world_1, common_2) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_5.default();
-    var jump_tween = new Tween_5.default();
+    var ani_tween = new Tween_4.default();
+    var jump_tween = new Tween_4.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Graphics();
@@ -5964,7 +5803,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: common_3.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: common_2.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     function renderInit(loader, resource) {
@@ -5977,7 +5816,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         exports.current_stage.on("resize", function () {
             exports.current_stage.clear();
             exports.current_stage.beginFill(0x333ddd, 0.5);
-            exports.current_stage.drawRect(0, 0, common_3.VIEW.WIDTH, common_3.VIEW.HEIGHT);
+            exports.current_stage.drawRect(0, 0, common_2.VIEW.WIDTH, common_2.VIEW.HEIGHT);
             exports.current_stage.endFill();
             // current_stage.scale.y = -1;
             // current_stage.position.y = VIEW.HEIGHT;
@@ -6014,38 +5853,38 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         world_1.engine.add(flyer);
         // 四边限制
         var top_edge = new Wall_2.default({
-            x: common_3.VIEW.CENTER.x, y: 5,
-            width: common_3.VIEW.WIDTH,
+            x: common_2.VIEW.CENTER.x, y: 5,
+            width: common_2.VIEW.WIDTH,
             height: 10
         });
         exports.current_stage.addChild(top_edge);
         world_1.engine.add(top_edge);
         var bottom_edge = new Wall_2.default({
-            x: common_3.VIEW.CENTER.x, y: common_3.VIEW.HEIGHT - 5,
-            width: common_3.VIEW.WIDTH,
+            x: common_2.VIEW.CENTER.x, y: common_2.VIEW.HEIGHT - 5,
+            width: common_2.VIEW.WIDTH,
             height: 10
         });
         exports.current_stage.addChild(bottom_edge);
         world_1.engine.add(bottom_edge);
         var left_edge = new Wall_2.default({
-            x: 5, y: common_3.VIEW.CENTER.y,
+            x: 5, y: common_2.VIEW.CENTER.y,
             width: 10,
-            height: common_3.VIEW.HEIGHT
+            height: common_2.VIEW.HEIGHT
         });
         exports.current_stage.addChild(left_edge);
         world_1.engine.add(left_edge);
         var right_edge = new Wall_2.default({
-            x: common_3.VIEW.WIDTH - 5, y: common_3.VIEW.CENTER.y,
+            x: common_2.VIEW.WIDTH - 5, y: common_2.VIEW.CENTER.y,
             width: 10,
-            height: common_3.VIEW.HEIGHT
+            height: common_2.VIEW.HEIGHT
         });
         exports.current_stage.addChild(right_edge);
         world_1.engine.add(right_edge);
         (function () {
             var x_len = 2;
             var y_len = 2;
-            var x_unit = common_3.VIEW.WIDTH / (x_len + 1);
-            var y_unit = common_3.VIEW.HEIGHT / (y_len + 1);
+            var x_unit = common_2.VIEW.WIDTH / (x_len + 1);
+            var y_unit = common_2.VIEW.HEIGHT / (y_len + 1);
             var width = 40;
             for (var _x = 1; _x <= x_len; _x += 1) {
                 for (var _y = 1; _y <= y_len; _y += 1) {
@@ -6060,15 +5899,15 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             }
         })();
         var my_ship = new Ship_3.default({
-            x: common_3.VIEW.CENTER.x,
-            y: common_3.VIEW.CENTER.y,
+            x: common_2.VIEW.CENTER.x,
+            y: common_2.VIEW.CENTER.y,
             body_color: 0x366345
         });
         exports.current_stage.addChild(my_ship);
         world_1.engine.add(my_ship);
         var other_ship = new Ship_3.default({
-            x: common_3.VIEW.CENTER.x - 100,
-            y: common_3.VIEW.CENTER.y - 100,
+            x: common_2.VIEW.CENTER.x - 100,
+            y: common_2.VIEW.CENTER.y - 100,
             body_color: 0x633645,
             team_tag: 12
         });
@@ -6103,7 +5942,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             83: "+y",
         };
         var effect_speed = {};
-        common_3.on(exports.current_stage, "keydown", function (e) {
+        common_2.on(exports.current_stage, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode)) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -6113,7 +5952,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             }
             var _a;
         });
-        common_3.on(exports.current_stage, "keyup", function (e) {
+        common_2.on(exports.current_stage, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode)) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -6124,17 +5963,17 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             }
             var _a;
         });
-        common_3.on(exports.current_stage, "rightclick", function (e) {
-            var to_point = common_3.VIEW.rotateXY(e.data.global);
+        common_2.on(exports.current_stage, "rightclick", function (e) {
+            var to_point = common_2.VIEW.rotateXY(e.data.global);
         });
-        common_3.on(exports.current_stage, "click|tap", function () {
+        common_2.on(exports.current_stage, "click|tap", function () {
             var bullet = my_ship.fire();
             bullets.addChild(bullet);
             world_1.engine.add(bullet);
         });
-        common_3.on(exports.current_stage, "mousemove|click|tap", function (e) {
-            var to_point = common_3.VIEW.rotateXY(e.data.global);
-            var direction = new Victor_3.default(to_point.x - common_3.VIEW.CENTER.x, to_point.y - common_3.VIEW.CENTER.y);
+        common_2.on(exports.current_stage, "mousemove|click|tap", function (e) {
+            var to_point = common_2.VIEW.rotateXY(e.data.global);
+            var direction = new Victor_3.default(to_point.x - common_2.VIEW.CENTER.x, to_point.y - common_2.VIEW.CENTER.y);
             my_ship.setConfig({ rotation: direction.angle() });
         });
         // setTimeout(function () {
@@ -6144,9 +5983,9 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         ani_ticker.add(function () {
             ani_tween.update();
             jump_tween.update();
-            exports.current_stage_wrap.x = common_3.VIEW.WIDTH / 2 - my_ship.x;
+            exports.current_stage_wrap.x = common_2.VIEW.WIDTH / 2 - my_ship.x;
             // current_stage_wrap.y = my_ship.y - VIEW.HEIGHT / 2
-            exports.current_stage_wrap.y = common_3.VIEW.HEIGHT / 2 - my_ship.y;
+            exports.current_stage_wrap.y = common_2.VIEW.HEIGHT / 2 - my_ship.y;
         });
         /**帧率
          *
@@ -6154,25 +5993,25 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
         exports.current_stage_wrap.addChild(FPS_Text);
         FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_3.VIEW.WIDTH + " H:" + common_3.VIEW.HEIGHT;
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_2.VIEW.WIDTH + " H:" + common_2.VIEW.HEIGHT;
         });
         // 触发布局计算
-        common_3.emitReisze(exports.current_stage_wrap);
+        common_2.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
     exports.current_stage_wrap.on("reinit", function () {
         renderInit(exports.loader, exports.loader.resources);
-        common_3.emitReisze(exports.current_stage);
+        common_2.emitReisze(exports.current_stage);
     });
     exports.current_stage_wrap["_has_custom_resize"] = true;
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_3.emitReisze(this);
+        common_2.emitReisze(this);
     });
     var init_w = new When_2.default(2, function () {
-        common_3.emitReisze(exports.current_stage);
+        common_2.emitReisze(exports.current_stage);
         ani_tween.start();
         jump_tween.start();
         ani_ticker.start();
@@ -6368,97 +6207,11 @@ define("class/TextBuilder", ["require", "exports"], function (require, exports) 
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = TextBuilder;
 });
-define("app/Mask", ["require", "exports", "class/BackgroundGaussianBlur", "app/common"], function (require, exports, BackgroundGaussianBlur_1, common_4) {
-    "use strict";
-    function MaskFactory(ani, parent, renderer) {
-        var mask_grap = new PIXI.Graphics();
-        mask_grap.clear();
-        mask_grap.lineStyle(0);
-        mask_grap.beginFill(0x000);
-        mask_grap.drawRect(0, 0, common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT);
-        mask_grap.endFill();
-        parent.addChild(mask_grap);
-        var mask = BackgroundGaussianBlur_1.default.ContainerToSprite(mask_grap, renderer);
-        parent.removeChild(mask_grap);
-        return new Mask(ani, mask.texture);
-    }
-    exports.MaskFactory = MaskFactory;
-    var Mask = (function (_super) {
-        __extends(Mask, _super);
-        function Mask(ani, tex) {
-            _super.call(this, tex);
-            this._is_ani = false;
-            this._is_open = false;
-            var self = this;
-            self.ani = ani;
-            self.alpha = 0.5;
-            common_4.on(self, "click|tap", function () {
-                console.log("拦截点击事件");
-            });
-            self.on("resize", function () {
-                self.width = common_4.VIEW.WIDTH;
-                self.height = common_4.VIEW.HEIGHT;
-            });
-        }
-        Mask.prototype.show = function (blur_stage, parent, option) {
-            var _this = this;
-            if (option === void 0) { option = {}; }
-            if (this._is_ani || this._is_open) {
-                return false;
-            }
-            this._bg_bulr_filter || (this._bg_bulr_filter = new BackgroundGaussianBlur_1.default(this, option.init_blur || 0, option.quality || 5));
-            if (blur_stage.filters) {
-                blur_stage.filters.push(this._bg_bulr_filter);
-            }
-            else {
-                blur_stage.filters = [this._bg_bulr_filter];
-            }
-            this._blur_target = blur_stage;
-            parent.addChild(this);
-            this._is_ani = true;
-            this._is_open = true;
-            this.emit("show");
-            this.ani.Tween(this._bg_bulr_filter)
-                .to({
-                blur: option.blur || 30
-            }, common_4.B_ANI_TIME)
-                .start()
-                .onComplete(function () {
-                _this._is_ani = false;
-            });
-        };
-        Mask.prototype.hide = function () {
-            var _this = this;
-            if (this._is_ani || !this._is_open) {
-                return false;
-            }
-            this._is_open = false;
-            this._is_ani = true;
-            this.emit("hide");
-            this.ani.Tween(this._bg_bulr_filter)
-                .to({
-                blur: 0
-            }, common_4.B_ANI_TIME)
-                .start()
-                .onComplete(function () {
-                _this._is_ani = false;
-                _this._blur_target.filters = _this._blur_target.filters.filter(function (f) { return f !== _this._bg_bulr_filter; });
-                if (_this._blur_target.filters.length == 0) {
-                    _this._blur_target.filters = null;
-                }
-                _this._blur_target = null;
-                _this.parent.removeChild(_this);
-            });
-        };
-        return Mask;
-    }(PIXI.Sprite));
-    exports.Mask = Mask;
-});
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/common"], function (require, exports, Tween_6, When_3, common_5) {
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/common"], function (require, exports, Tween_5, When_3, common_3) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_6.default();
-    var jump_tween = new Tween_6.default();
+    var ani_tween = new Tween_5.default();
+    var jump_tween = new Tween_5.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Container();
@@ -6468,17 +6221,17 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("logo", "res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("加载中……", { font: common_5.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("加载中……", { font: common_3.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     function renderInit(loader, resource) {
         for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
             exports.current_stage.removeChildAt(0);
         }
-        var waitting_text = new PIXI.Text("连接服务器中……", { font: common_5.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+        var waitting_text = new PIXI.Text("连接服务器中……", { font: common_3.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
         exports.current_stage.addChild(waitting_text);
-        waitting_text.x = common_5.VIEW.CENTER.x - waitting_text.width / 2;
-        waitting_text.y = common_5.VIEW.CENTER.y - waitting_text.height / 2;
+        waitting_text.x = common_3.VIEW.CENTER.x - waitting_text.width / 2;
+        waitting_text.y = common_3.VIEW.CENTER.y - waitting_text.height / 2;
         /**初始化动画
          *
          */
@@ -6493,7 +6246,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
          *
          */
         // 触发布局计算
-        common_5.emitReisze(exports.current_stage_wrap);
+        common_3.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
@@ -6504,7 +6257,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_5.emitReisze(this);
+        common_3.emitReisze(this);
     });
     var init_w = new When_3.default(2, function () {
         ani_tween.start();
@@ -6517,10 +6270,10 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     }
     exports.initStage = initStage;
 });
-define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_6, game2_1, game_oline_1, loader_1, Pomelo_2) {
+define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_4, game2_1, game_oline_1, loader_1, Pomelo_2) {
     "use strict";
-    common_6.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
-    common_6.stageManager.set(loader_1.current_stage_wrap);
+    common_4.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
+    common_4.stageManager.set(loader_1.current_stage_wrap);
     var host = location.hostname;
     var port = "3051";
     Pomelo_2.pomelo.init({
@@ -6544,7 +6297,7 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
                     }, function (game_info) {
                         console.log(game_info);
                         game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                        common_6.stageManager.set(game_oline_1.current_stage_wrap);
+                        common_4.stageManager.set(game_oline_1.current_stage_wrap);
                     });
                 });
             }
@@ -6555,323 +6308,10 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
     });
     // stageManager.set(g_stage);
     function animate() {
-        common_6.renderer.render(common_6.stageManager.get());
+        common_4.renderer.render(common_4.stageManager.get());
         requestAnimationFrame(animate);
     }
     animate();
-});
-define("app/Prop", ["require", "exports", "class/Tween", "app/common"], function (require, exports, Tween_7, common_7) {
-    "use strict";
-    var Prop = (function (_super) {
-        __extends(Prop, _super);
-        function Prop(tex) {
-            _super.call(this, tex);
-            this._is_effectted = false;
-            this._ani_configs = [
-                {
-                    target: "scale",
-                    to: {
-                        x: 0,
-                        y: 0
-                    },
-                    time: common_7.M_ANI_TIME,
-                    easing: Tween_7.default.Easing.Back.In
-                }, {
-                    target: "",
-                    to: {
-                        alpha: 0
-                    },
-                    time: common_7.L_ANI_TIME,
-                    easing: Tween_7.default.Easing.Linear.None
-                }
-            ];
-            this.anchor.set(0.5, 0.5);
-        }
-        Prop.prototype.effectted = function (target, ani) {
-            var self = this;
-            self._is_effectted = true;
-            var ani_configs = self._ani_configs;
-            var max_time = 0;
-            ani_configs.forEach((function (ani_config) {
-                var target = ani_config.target ? self[ani_config.target] : self;
-                max_time = Math.max(ani_config.time, max_time);
-                ani.Tween(target)
-                    .to(ani_config.to, ani_config.time)
-                    .easing(ani_config.easing)
-                    .start();
-            }));
-            setTimeout(function () {
-                self.parent && self.parent.removeChild(self);
-                self.destroy();
-            }, max_time + 100);
-        };
-        ;
-        return Prop;
-    }(PIXI.Sprite));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Prop;
-    var Prop_棒棒糖 = (function (_super) {
-        __extends(Prop_棒棒糖, _super);
-        function Prop_棒棒糖() {
-            _super.apply(this, arguments);
-        }
-        Prop_棒棒糖.prototype.effectted = function (target, ani) {
-            if (this._is_effectted) {
-                return;
-            }
-            this._ani_configs.push({
-                target: "",
-                to: {
-                    rotation: PIXI.PI_2
-                },
-                time: common_7.M_ANI_TIME,
-                easing: Tween_7.default.Easing.Circular.In
-            });
-            target.emit("prop-effect", { score: 100 });
-            _super.prototype.effectted.call(this, target, ani);
-        };
-        Prop_棒棒糖.tex_name = "棒棒糖";
-        return Prop_棒棒糖;
-    }(Prop));
-    exports.Prop_棒棒糖 = Prop_棒棒糖;
-    var Prop_钱 = (function (_super) {
-        __extends(Prop_钱, _super);
-        function Prop_钱() {
-            _super.apply(this, arguments);
-        }
-        Prop_钱.prototype.effectted = function (target, ani) {
-            if (this._is_effectted) {
-                return;
-            }
-            this._ani_configs.push({
-                target: "",
-                to: {
-                    y: this.y - this.height * 2
-                },
-                time: common_7.S_ANI_TIME,
-                easing: Tween_7.default.Easing.Quartic.Out
-            });
-            target.emit("prop-effect", { score: 100 });
-            _super.prototype.effectted.call(this, target, ani);
-        };
-        Prop_钱.tex_name = "钱";
-        return Prop_钱;
-    }(Prop));
-    exports.Prop_钱 = Prop_钱;
-    var Prop_路障 = (function (_super) {
-        __extends(Prop_路障, _super);
-        function Prop_路障() {
-            _super.apply(this, arguments);
-        }
-        Prop_路障.prototype.effectted = function (target, ani) {
-            if (this._is_effectted) {
-                return;
-            }
-            this._ani_configs.shift();
-            this._ani_configs.push({
-                target: "",
-                to: {
-                    rotation: PIXI.PI_2 / 4,
-                    x: this.x + this.width / 2,
-                    y: this.y + this.height / 2
-                },
-                time: common_7.M_ANI_TIME,
-                easing: Tween_7.default.Easing.Bounce.Out
-            });
-            target.emit("prop-effect", { time: -5000 });
-            _super.prototype.effectted.call(this, target, ani);
-        };
-        Prop_路障.tex_name = "路障";
-        return Prop_路障;
-    }(Prop));
-    exports.Prop_路障 = Prop_路障;
-    var Prop_炸弹鸟 = (function (_super) {
-        __extends(Prop_炸弹鸟, _super);
-        function Prop_炸弹鸟() {
-            _super.apply(this, arguments);
-        }
-        Prop_炸弹鸟.prototype.effectted = function (target, ani) {
-            if (this._is_effectted) {
-                return;
-            }
-            this._ani_configs[0].to = { x: 10, y: 10 };
-            this._ani_configs[0].easing = Tween_7.default.Easing.Bounce.Out;
-            this._ani_configs[1].time = common_7.M_ANI_TIME;
-            this._ani_configs.push({
-                target: "",
-                to: {
-                    rotation: PIXI.PI_2 * 2
-                },
-                time: common_7.M_ANI_TIME,
-                easing: Tween_7.default.Easing.Quadratic.In
-            });
-            target.emit("prop-effect", { time: -5000 });
-            _super.prototype.effectted.call(this, target, ani);
-        };
-        Prop_炸弹鸟.tex_name = "炸弹鸟";
-        return Prop_炸弹鸟;
-    }(Prop));
-    exports.Prop_炸弹鸟 = Prop_炸弹鸟;
-    var Prop_香蕉 = (function (_super) {
-        __extends(Prop_香蕉, _super);
-        function Prop_香蕉() {
-            _super.apply(this, arguments);
-        }
-        Prop_香蕉.prototype.effectted = function (target, ani) {
-            if (this._is_effectted) {
-                return;
-            }
-            this._ani_configs.shift();
-            this._ani_configs.push({
-                target: "",
-                to: {
-                    x: this.x + this.width * 5
-                },
-                time: common_7.M_ANI_TIME,
-                easing: Tween_7.default.Easing.Quadratic.Out
-            });
-            target.emit("prop-effect", { time: -5000 });
-            _super.prototype.effectted.call(this, target, ani);
-        };
-        Prop_香蕉.tex_name = "香蕉";
-        return Prop_香蕉;
-    }(Prop));
-    exports.Prop_香蕉 = Prop_香蕉;
-});
-define("class/pixelCollision", ["require", "exports"], function (require, exports) {
-    "use strict";
-    var canvas = document.createElement("canvas");
-    var canvas2 = document.createElement("canvas");
-    // canvas.style.background = "blue";
-    // canvas2.style.background = "red";
-    // setTimeout(function () {
-    //     document.body.appendChild(canvas);
-    //     document.body.appendChild(canvas2);
-    // });
-    var ctx = canvas.getContext("2d");
-    function drawImageTo(img, img_w, img_h, is_flip_horizontal, is_flip_vertical, can) {
-        if (img_w === void 0) { img_w = 0; }
-        if (img_h === void 0) { img_h = 0; }
-        can || (can = canvas);
-        var c_width = can.width = img_w || img.width;
-        var c_height = can.height = img_h || img.height;
-        var ctx = can.getContext("2d");
-        ctx.clearRect(0, 0, c_width, c_height);
-        ctx.clearRect(0, 0, c_width, c_height);
-        if (is_flip_horizontal || is_flip_vertical) {
-            ctx.translate(c_width, 0);
-            ctx.scale(is_flip_horizontal ? -1 : 1, is_flip_vertical ? -1 : 1);
-            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, c_width, c_height);
-            ctx.translate(c_width, 0);
-            ctx.scale(is_flip_horizontal ? -1 : 1, is_flip_vertical ? -1 : 1);
-        }
-        else {
-            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, c_width, c_height);
-        }
-        return ctx;
-    }
-    function pixelCollision(sprite_a, sprite_b) {
-        var bound_a = sprite_a.getBounds();
-        var bound_b = sprite_b.getBounds();
-        var w1 = bound_a.width;
-        var h1 = bound_a.height;
-        var x1 = bound_a.x;
-        var y1 = bound_a.y;
-        var w2 = bound_b.width;
-        var h2 = bound_b.height;
-        var x2 = bound_b.x;
-        var y2 = bound_b.y;
-        if (isCollisionWithRect(x1, y1, w1, h1, x2, y2, w2, h2)) {
-            var img_a = sprite_a.texture.source || sprite_a.texture.baseTexture.source;
-            var img_b = sprite_b.texture.source || sprite_b.texture.baseTexture.source;
-            // 重叠的矩形区域
-            var x, y, w, h;
-            x = Math.max(x1, x2);
-            y = Math.max(y1, y2);
-            // w = Math.min(x1 + w1, w2 + h2) - x;
-            w = Math.min(x1 + w1, x2 + w2) - x;
-            h = Math.min(y1 + h1, y2 + h2) - y;
-            var scale_a = sprite_a.scale;
-            var scale_b = sprite_b.scale;
-            var ctx_a = drawImageTo(img_a, w1, h1, scale_a.x < 0, scale_a.y < 0);
-            var ctx_b = drawImageTo(img_b, w2, h2, scale_b.x < 0, scale_b.y < 0, canvas2);
-            var rgba_a = ctx_a.getImageData(x - x1, y - y1, w, h).data;
-            var rgba_b = ctx_b.getImageData(x - x2, y - y2, w, h).data;
-            var total = w * h * 4;
-            for (var p = 0; p < total; p += 4) {
-                if (rgba_a[p + 3] != 0 && rgba_b[p + 3] != 0) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = pixelCollision;
-    function isCollisionWithRect(x1, y1, w1, h1, x2, y2, w2, h2) {
-        if (x1 >= x2 && x1 >= x2 + w2) {
-            return false;
-        }
-        else if (x1 <= x2 && x1 + w1 <= x2) {
-            return false;
-        }
-        else if (y1 >= y2 && y1 >= y2 + h2) {
-            return false;
-        }
-        else if (y1 <= y2 && y1 + h1 <= y2) {
-            return false;
-        }
-        return true;
-    }
-    exports.isCollisionWithRect = isCollisionWithRect;
-});
-define("app/pxCol", ["require", "exports", "class/pixelCollision", "app/common"], function (require, exports, pixelCollision_1, common_8) {
-    "use strict";
-    exports.current_stage = new PIXI.Container();
-    exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("人物", "res/game_0009_人物.png");
-    exports.loader.add("道具：钱", "res/game_0005_道具：钱.png");
-    exports.loader.load();
-    exports.loader.once("complete", renderInit);
-    function renderInit(loader, resource) {
-        var info = new PIXI.Text("zz", { font: "25px 微软雅黑", fill: "#000" });
-        info.position.y = common_8.VIEW.HEIGHT - info.height;
-        exports.current_stage.addChild(info);
-        var man = new PIXI.Sprite(resource["人物"].texture);
-        man.scale.set(-1.2, 1);
-        var _s = 0;
-        var _a = 0;
-        setInterval(function () {
-            man.scale.set(Math.sin(_s), 1);
-            man.anchor.set(Math.sin(_a), 0);
-            _s += 0.01;
-            _a += 0.001;
-        });
-        // man.anchor.set(0.5, 0.5);
-        man.position = common_8.VIEW.CENTER;
-        exports.current_stage.addChild(man);
-        var prop = new PIXI.Sprite(resource["道具：钱"].texture);
-        prop.anchor.set(0.5, 0.5);
-        common_8.on(exports.current_stage, "mousemove", function (e) {
-            prop.position.set(e.data.global.x, e.data.global.y);
-            if (pixelCollision_1.default(man, prop)) {
-                info.text = "!!";
-            }
-            else {
-                info.text = "zz";
-            }
-        });
-        exports.current_stage.addChild(prop);
-        var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "left" });
-        var FPS_ticker = new PIXI.ticker.Ticker();
-        exports.current_stage.addChild(FPS_Text);
-        FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " S:" + man.scale.x.toFixed(2) + " A:" + man.anchor.x.toFixed(2)
-                + "\n B:" + JSON.stringify(man.getBounds())
-                + "\n P:" + [man.x, man.y, man.width, man.height];
-        });
-        FPS_ticker.start();
-    }
 });
 define("class/DragAble", ["require", "exports"], function (require, exports) {
     "use strict";
@@ -7014,7 +6454,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_8, SVGGraphics_2, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_6, SVGGraphics_1, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -7039,7 +6479,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_8.default();
+            this._tween = new Tween_6.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -7103,7 +6543,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     var width = this._cache_line_width = this.line_width;
                     var color = this._cache_line_color = this.line_color;
                     var _cache_renderer = this._cache_renderer;
-                    var line = SVGGraphics_2.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
+                    var line = SVGGraphics_1.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
                     tex.width = tex.height = width;
                     tex.render(line);
                     this._line_texture = tex;
@@ -7119,7 +6559,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 if (!(this._cache_base_line_color === this.base_line_color)) {
                     var color = this._cache_base_line_color = this.base_line_color;
                     var _cache_renderer = this._cache_renderer;
-                    var line = SVGGraphics_2.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
+                    var line = SVGGraphics_1.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
                     tex.width = tex.height = 1;
                     tex.render(line);
                     this._base_line_texture = tex;
@@ -7315,7 +6755,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_8.default.Easing.Quartic.Out)
+                        .easing(Tween_6.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -7326,7 +6766,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_8.default.Easing.Quartic.Out)
+                    .easing(Tween_6.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -7341,7 +6781,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_8.default.Easing.Quartic.Out)
+                        .easing(Tween_6.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -7351,7 +6791,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_8.default.Easing.Quartic.Out)
+                        .easing(Tween_6.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -7377,7 +6817,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_8.default.Easing.Quartic.Out)
+                .easing(Tween_6.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -7466,7 +6906,94 @@ define("class/MouseWheel", ["require", "exports"], function (require, exports) {
         };
     }
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_9) {
+define("class/pixelCollision", ["require", "exports"], function (require, exports) {
+    "use strict";
+    var canvas = document.createElement("canvas");
+    var canvas2 = document.createElement("canvas");
+    // canvas.style.background = "blue";
+    // canvas2.style.background = "red";
+    // setTimeout(function () {
+    //     document.body.appendChild(canvas);
+    //     document.body.appendChild(canvas2);
+    // });
+    var ctx = canvas.getContext("2d");
+    function drawImageTo(img, img_w, img_h, is_flip_horizontal, is_flip_vertical, can) {
+        if (img_w === void 0) { img_w = 0; }
+        if (img_h === void 0) { img_h = 0; }
+        can || (can = canvas);
+        var c_width = can.width = img_w || img.width;
+        var c_height = can.height = img_h || img.height;
+        var ctx = can.getContext("2d");
+        ctx.clearRect(0, 0, c_width, c_height);
+        ctx.clearRect(0, 0, c_width, c_height);
+        if (is_flip_horizontal || is_flip_vertical) {
+            ctx.translate(c_width, 0);
+            ctx.scale(is_flip_horizontal ? -1 : 1, is_flip_vertical ? -1 : 1);
+            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, c_width, c_height);
+            ctx.translate(c_width, 0);
+            ctx.scale(is_flip_horizontal ? -1 : 1, is_flip_vertical ? -1 : 1);
+        }
+        else {
+            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, c_width, c_height);
+        }
+        return ctx;
+    }
+    function pixelCollision(sprite_a, sprite_b) {
+        var bound_a = sprite_a.getBounds();
+        var bound_b = sprite_b.getBounds();
+        var w1 = bound_a.width;
+        var h1 = bound_a.height;
+        var x1 = bound_a.x;
+        var y1 = bound_a.y;
+        var w2 = bound_b.width;
+        var h2 = bound_b.height;
+        var x2 = bound_b.x;
+        var y2 = bound_b.y;
+        if (isCollisionWithRect(x1, y1, w1, h1, x2, y2, w2, h2)) {
+            var img_a = sprite_a.texture.source || sprite_a.texture.baseTexture.source;
+            var img_b = sprite_b.texture.source || sprite_b.texture.baseTexture.source;
+            // 重叠的矩形区域
+            var x, y, w, h;
+            x = Math.max(x1, x2);
+            y = Math.max(y1, y2);
+            // w = Math.min(x1 + w1, w2 + h2) - x;
+            w = Math.min(x1 + w1, x2 + w2) - x;
+            h = Math.min(y1 + h1, y2 + h2) - y;
+            var scale_a = sprite_a.scale;
+            var scale_b = sprite_b.scale;
+            var ctx_a = drawImageTo(img_a, w1, h1, scale_a.x < 0, scale_a.y < 0);
+            var ctx_b = drawImageTo(img_b, w2, h2, scale_b.x < 0, scale_b.y < 0, canvas2);
+            var rgba_a = ctx_a.getImageData(x - x1, y - y1, w, h).data;
+            var rgba_b = ctx_b.getImageData(x - x2, y - y2, w, h).data;
+            var total = w * h * 4;
+            for (var p = 0; p < total; p += 4) {
+                if (rgba_a[p + 3] != 0 && rgba_b[p + 3] != 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = pixelCollision;
+    function isCollisionWithRect(x1, y1, w1, h1, x2, y2, w2, h2) {
+        if (x1 >= x2 && x1 >= x2 + w2) {
+            return false;
+        }
+        else if (x1 <= x2 && x1 + w1 <= x2) {
+            return false;
+        }
+        else if (y1 >= y2 && y1 >= y2 + h2) {
+            return false;
+        }
+        else if (y1 <= y2 && y1 + h1 <= y2) {
+            return false;
+        }
+        return true;
+    }
+    exports.isCollisionWithRect = isCollisionWithRect;
+});
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_2, MouseWheel_1, Tween_7) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -7481,7 +7008,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_9.default();
+            this.ANI = new Tween_7.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -7515,7 +7042,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_9.default.Easing.Quartic.Out)
+                .easing(Tween_7.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -7556,7 +7083,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             this.wrap.addChild(this);
             if (config.is_debug) {
                 /**滚动速度显示 */
-                this.wrap.addChild(SVGGraphics_3.default.importFromSVG("<rect x=0 y=0 width=\"" + config.width + "\" height=20 stroke-width=\"0\" fill=\"rgba(0,0,0,0.8)\"/>")._graphics, this.speedText);
+                this.wrap.addChild(SVGGraphics_2.default.importFromSVG("<rect x=0 y=0 width=\"" + config.width + "\" height=20 stroke-width=\"0\" fill=\"rgba(0,0,0,0.8)\"/>")._graphics, this.speedText);
             }
             if (config.show_scroll_bar) {
                 this.showScrollBar();
@@ -7599,7 +7126,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             }
             if (!scroll_bar) {
                 var _mid_bar_height = scorll_bar_height - scorll_bar_width;
-                scroll_bar = this.scroll_bar = SVGGraphics_3.default.importFromSVG("<path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/><rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" width=" + scorll_bar_width + " height=" + _mid_bar_height + " /><path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_bar_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_bar_height) + "\"/>")._graphics;
+                scroll_bar = this.scroll_bar = SVGGraphics_2.default.importFromSVG("<path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/><rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" width=" + scorll_bar_width + " height=" + _mid_bar_height + " /><path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_bar_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_bar_height) + "\"/>")._graphics;
                 scroll_bar.alpha = 0;
                 scroll_bar.x = this.scroll_config.width - scorll_bar_width;
                 var mask = scroll_bar.clone();
@@ -7608,9 +7135,9 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                 var scorll_handle_color = SCROLL_BAR_COLOR;
                 var _mid_handle_height = _mid_bar_height / content_height * _mid_bar_height;
                 var scroll_handle = this.scroll_handle = new PIXI.Container();
-                var scroll_handle_top = SVGGraphics_3.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/>")._graphics;
-                var scroll_handle_mid = SVGGraphics_3.default.importFromSVG("<rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" stroke-width=\"0\" width=" + scorll_bar_width + " height=" + _mid_handle_height + " fill=" + scorll_handle_color + " />")._graphics;
-                var scroll_handle_btm = SVGGraphics_3.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_handle_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_handle_height) + "\"/>")._graphics;
+                var scroll_handle_top = SVGGraphics_2.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/>")._graphics;
+                var scroll_handle_mid = SVGGraphics_2.default.importFromSVG("<rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" stroke-width=\"0\" width=" + scorll_bar_width + " height=" + _mid_handle_height + " fill=" + scorll_handle_color + " />")._graphics;
+                var scroll_handle_btm = SVGGraphics_2.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_handle_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_handle_height) + "\"/>")._graphics;
                 scroll_handle.addChild(scroll_handle_top, scroll_handle_mid, scroll_handle_btm);
                 // SVGGraphics.importFromSVG(`<path fill="${scorll_handle_color}" stroke-width="0" d="M0 ${scorll_bar_width / 2} C 0 ${(scorll_bar_width - scorll_bar_width_SQRT2) / 2}, ${scorll_bar_width} ${(scorll_bar_width - scorll_bar_width_SQRT2) / 2}, ${scorll_bar_width} ${scorll_bar_width / 2}"/><rect x="0" y="${scorll_bar_width / 2}" width=${scorll_bar_width} height=${_mid_handle_height} /><path fill="${scorll_handle_color}" stroke-width="0"  d="M0 ${scorll_bar_width / 2 + _mid_handle_height} C 0 ${(scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height}, ${scorll_bar_width} ${(scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height}, ${scorll_bar_width} ${scorll_bar_width / 2 + _mid_handle_height}"/>`)._graphics;
                 this.update_scroll_handle = function () {
@@ -7626,7 +7153,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_9.default.Easing.Quartic.Out)
+                        .easing(Tween_7.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

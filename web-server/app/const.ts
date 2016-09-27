@@ -1,3 +1,6 @@
+declare const process;
+export const _isNode = typeof process === "object"
+export const _isBorwser = !_isNode;
 // const devicePixelRatio = window["_isMobile"] ? 2 : 1;
 export const pt2px = (pt) => pt * 2;//((window.devicePixelRatio) || 1);//px 转 pt
 

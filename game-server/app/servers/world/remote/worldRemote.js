@@ -12,9 +12,12 @@ var WorldRemote = function(app) {
 		world.listener = events;
 	}
 	const channelService = this.channelService = app.get('channelService');
-	// 监听子弹爆炸
-	// 监听血量减少
-	["explode", "change-hp", "die"].forEach(eventName => {
+	[
+		"explode" //子弹爆炸
+		, "change-hp" //飞船、物体血量减少
+		, "die" //飞船死亡
+		, "ember" //物体销毁
+	].forEach(eventName => {
 		events.on(eventName, function(data) {
 			for (var channel_name in channelService.channels) {
 				var channel = channelService.channels[channel_name];

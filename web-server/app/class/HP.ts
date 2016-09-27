@@ -1,4 +1,6 @@
 import Ship from "./Ship";
+import Flyer from "./Flyer";
+import TWEEN from "../../class/Tween";
 import {
 	L_ANI_TIME,
 	B_ANI_TIME,
@@ -9,19 +11,25 @@ import {
 } from "../const";
 
 export default class HP extends PIXI.Graphics {
-	ship: Ship;
-	constructor(ship) {
+	owner: Ship|Flyer;
+	ani: TWEEN;
+	source_width:number
+	constructor(owner,ani:TWEEN) {
 		super();
-		this.ship = ship;
-		this.setHP(1);
+		this.owner = owner;
+		this.ani = ani;
+		this.source_width = owner.width||pt2px(40);
+		const owner_config = owner.config;
+
+		this.setHP(owner_config.cur_hp/owner_config.max_hp);
 	}
+	show_ani = null
 	setHP(percentage) {
 		this.clear();
-
 		percentage = Math.min(Math.max(parseFloat(percentage), 0), 1);
-		const width = pt2px(40);
-		const height = pt2px(5);
-		const borderWidth = pt2px(1);
+		const width = this.source_width;
+		const height = Math.min(width/8, pt2px(4));
+		const borderWidth = height/5;
 
 		this.lineStyle(borderWidth, 0x000000, 1);
 		this.beginFill(0xEEEEEE);
@@ -33,10 +41,29 @@ export default class HP extends PIXI.Graphics {
 		this.drawRoundedRect(borderWidth / 2, borderWidth / 2, width * percentage, height, height / 4);
 		this.endFill();
 
+		if(this.alpha !==1) {
+			this.ani.Tween(this)
+				.to({
+					alpha:1
+				},B_ANI_TIME)
+				.easing(TWEEN.Easing.Quartic.Out)
+				.start();
+		}
+
+		clearTimeout(this.show_ani);
+		this.show_ani = setTimeout(() => {
+			this.ani.Tween(this)
+				.to({
+					alpha:0
+				},L_ANI_TIME)
+				.easing(TWEEN.Easing.Quartic.In)
+				.start();
+		}, 5000);
+
 	}
 	update(delay: number) {
-		const ship_config = this.ship.config;
-		this.x = ship_config.x - ship_config.size;
-		this.y = ship_config.y + ship_config.size + this.height / 2;
+		const owner_config = this.owner.config;
+		this.x = owner_config.x - owner_config.size;
+		this.y = owner_config.y + owner_config.size + this.height / 2;
 	}
 }

@@ -1,5 +1,8 @@
 var uuid = 0;
 
+// import TWEEN from "../../class/Tween";
+// const Easing = TWEEN.Easing;
+
 export class P2I extends PIXI.Container {
     _id = "ID_" + ((uuid++) / 1000000).toFixed(6).substr(2)
     conName: string
@@ -7,10 +10,13 @@ export class P2I extends PIXI.Container {
     world: p2.World = null
     config: any = {
         x: 0,
-        y: 0
+        y: 0,
+        density:1,
     }
+    static material = new p2.Material();
     constructor(world?: p2.World) {
         super();
+        var self = this;
         this.conName = this.constructor["name"];
         this.world = world;
         world && world.addBody(this.p2_body);
@@ -26,12 +32,40 @@ export class P2I extends PIXI.Container {
             this.destroy();
         });
 
+        // 闪动动画
+        this.once("flash",function _flash(){
+            var acc_delay = 0;
+            var dif_alpha = 0.5;
+            var flash_ani = 250;
+            var flash_time = 3;
+            var total_ani = flash_ani * flash_time;
+            function _update(delay) {
+                acc_delay += delay;
+                var progress = (acc_delay%flash_ani) / flash_ani ;
+                if(progress>0.5) {
+                    progress = 1 - progress;
+                }
+                progress *= 2;
+                // /\/\/\
+                self.alpha = 1 - progress * dif_alpha;
+                if(acc_delay>=total_ani) {
+                    self.emit("stop-flash");
+                }
+            }
+            self.on("update",_update);
+            self.once("stop-flash",function () {
+                self.off("update", _update);
+                self.once("flash", _flash);
+            });
+        });
     }
     update(delay: number) {
         var p2_body = this.p2_body;
         var config = this.config;
         this.x = config.x = p2_body.position[0]
         this.y = config.y = p2_body.position[1]
+
+        this.emit("update",delay);
     }
     changeMass(mass:number){
         this.p2_body.mass = mass;

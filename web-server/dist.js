@@ -6,6 +6,8 @@ var __extends = (this && this.__extends) || function (d, b) {
 define("app/engine/Collision", ["require", "exports"], function (require, exports) {
     "use strict";
     var uuid = 0;
+    // import TWEEN from "../../class/Tween";
+    // const Easing = TWEEN.Easing;
     var P2I = (function (_super) {
         __extends(P2I, _super);
         function P2I(world) {
@@ -16,8 +18,10 @@ define("app/engine/Collision", ["require", "exports"], function (require, export
             this.world = null;
             this.config = {
                 x: 0,
-                y: 0
+                y: 0,
+                density: 1,
             };
+            var self = this;
             this.conName = this.constructor["name"];
             this.world = world;
             world && world.addBody(this.p2_body);
@@ -30,12 +34,39 @@ define("app/engine/Collision", ["require", "exports"], function (require, export
                 _this.parent && _this.parent.removeChild(_this);
                 _this.destroy();
             });
+            // 闪动动画
+            this.once("flash", function _flash() {
+                var acc_delay = 0;
+                var dif_alpha = 0.5;
+                var flash_ani = 250;
+                var flash_time = 3;
+                var total_ani = flash_ani * flash_time;
+                function _update(delay) {
+                    acc_delay += delay;
+                    var progress = (acc_delay % flash_ani) / flash_ani;
+                    if (progress > 0.5) {
+                        progress = 1 - progress;
+                    }
+                    progress *= 2;
+                    // /\/\/\
+                    self.alpha = 1 - progress * dif_alpha;
+                    if (acc_delay >= total_ani) {
+                        self.emit("stop-flash");
+                    }
+                }
+                self.on("update", _update);
+                self.once("stop-flash", function () {
+                    self.off("update", _update);
+                    self.once("flash", _flash);
+                });
+            });
         }
         P2I.prototype.update = function (delay) {
             var p2_body = this.p2_body;
             var config = this.config;
             this.x = config.x = p2_body.position[0];
             this.y = config.y = p2_body.position[1];
+            this.emit("update", delay);
         };
         P2I.prototype.changeMass = function (mass) {
             this.p2_body.mass = mass;
@@ -51,6 +82,7 @@ define("app/engine/Collision", ["require", "exports"], function (require, export
                 config: this.config
             };
         };
+        P2I.material = new p2.Material();
         return P2I;
     }(PIXI.Container));
     exports.P2I = P2I;
@@ -1397,6 +1429,8 @@ define("app/engine/Victor", ["require", "exports"], function (require, exports) 
 });
 define("app/const", ["require", "exports"], function (require, exports) {
     "use strict";
+    exports._isNode = typeof process === "object";
+    exports._isBorwser = !exports._isNode;
     // const devicePixelRatio = window["_isMobile"] ? 2 : 1;
     exports.pt2px = function (pt) { return pt * 2; }; //((window.devicePixelRatio) || 1);//px 转 pt
     exports.L_ANI_TIME = 1225;
@@ -1416,117 +1450,6 @@ define("app/const", ["require", "exports"], function (require, exports) {
         }
     }
     exports.mix_options = mix_options;
-});
-define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_1, const_1) {
-    "use strict";
-    var Flyer = (function (_super) {
-        __extends(Flyer, _super);
-        function Flyer(new_config) {
-            if (new_config === void 0) { new_config = {}; }
-            _super.call(this);
-            // static clooisionGroup = 1<<1;
-            this.body = new PIXI.Graphics();
-            this.config = {
-                x: 0,
-                y: 0,
-                y_speed: 5,
-                x_speed: 0,
-                size: const_1.pt2px(10),
-                body_color: 0x2255ff,
-            };
-            var self = this;
-            var config = self.config;
-            const_1.mix_options(config, new_config);
-            var body = self.body;
-            body.lineStyle(0, 0x000000, 1);
-            body.beginFill(config.body_color);
-            body.drawCircle(config.size / 2, config.size / 2, config.size);
-            body.endFill();
-            self.addChild(body);
-            self.pivot.set(config.size / 2, config.size / 2);
-            self.body_shape = new p2.Circle({
-                radius: config.size,
-            });
-            // self.body_shape.collisionGroup = Flyer.clooisionGroup;
-            // // 与任何物体都可以发生碰撞
-            // self.body_shape.collisionMask = -1;
-            self.p2_body.addShape(self.body_shape);
-            self.p2_body.force = [config.x_speed, config.y_speed];
-            self.p2_body.position = [config.x, config.y];
-        }
-        Flyer.prototype.update = function (delay) {
-            _super.prototype.update.call(this, delay);
-            this.p2_body.force = [this.config.x_speed, this.config.y_speed];
-        };
-        Flyer.prototype.setConfig = function (new_config) {
-            var config = this.config;
-            const_1.mix_options(config, new_config);
-            this.p2_body.position = [config.x, config.y];
-            this.x = config.x;
-            this.y = config.y;
-        };
-        return Flyer;
-    }(Collision_1.P2I));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Flyer;
-});
-define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_2, const_2) {
-    "use strict";
-    var Wall = (function (_super) {
-        __extends(Wall, _super);
-        function Wall(new_config) {
-            _super.call(this);
-            // static clooisionGroup = 1<<1;
-            this.config = {
-                x: 0,
-                y: 0,
-                width: 100,
-                height: 100,
-                rotation: 0,
-                color: 0x0ff0f0
-            };
-            this.p2_body = new p2.Body({
-                mass: 0,
-                fixedRotation: true,
-                fixedX: true,
-                fixedY: true,
-            });
-            this.body = new PIXI.Graphics();
-            var self = this;
-            var config = self.config;
-            const_2.mix_options(config, new_config);
-            var body = self.body;
-            body.beginFill(config.color);
-            body.drawRect(0, 0, config.width, config.height);
-            body.endFill();
-            self.addChild(body);
-            self.pivot.set(config.width / 2, config.height / 2);
-            self.body_shape = new p2.Box({
-                width: config.width,
-                height: config.height,
-            });
-            // self.body_shape.collisionGroup = Wall.clooisionGroup;
-            // // 与任何物体都可以发生碰撞
-            // self.body_shape.collisionMask = -1;
-            self.p2_body.addShape(self.body_shape);
-            self.p2_body.position = [config.x, config.y];
-            self.rotation = config.rotation;
-        }
-        Wall.prototype.setConfig = function (new_config) {
-            var config = this.config;
-            const_2.mix_options(config, new_config);
-            this.p2_body.position = [config.x, config.y];
-            this.x = config.x;
-            this.y = config.y;
-        };
-        Wall.prototype.update = function (delay) {
-            _super.prototype.update.call(this, delay);
-            this.rotation = this.config.rotation = this.p2_body.angle;
-        };
-        return Wall;
-    }(Collision_2.P2I));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Wall;
 });
 /**
  * Tween.js - Licensed under the MIT license
@@ -2217,30 +2140,31 @@ define("class/Tween", ["require", "exports"], function (require, exports) {
     exports.default = TWEEN;
     ;
 });
-define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class/Tween", "app/const"], function (require, exports, Collision_3, Tween_1, const_3) {
+define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/const", "class/Tween"], function (require, exports, Collision_1, const_1, Tween_1) {
     "use strict";
     var Easing = Tween_1.default.Easing;
-    var Bullet = (function (_super) {
-        __extends(Bullet, _super);
-        function Bullet(new_config) {
+    var Flyer = (function (_super) {
+        __extends(Flyer, _super);
+        function Flyer(new_config) {
             if (new_config === void 0) { new_config = {}; }
             _super.call(this);
-            // static collisionMask  = 1<<1;
+            // static clooisionGroup = 1<<1;
             this.body = new PIXI.Graphics();
             this.config = {
                 x: 0,
                 y: 0,
-                start_y_speed: 10,
-                start_x_speed: 0,
-                size: const_3.pt2px(5),
+                y_speed: 5,
+                x_speed: 0,
+                size: const_1.pt2px(10),
                 body_color: 0x2255ff,
-                lift_time: 2000,
-                team_tag: NaN,
-                damage: 0
+                density: 1,
+                rotation: 0,
+                max_hp: 50,
+                cur_hp: 50,
             };
             var self = this;
             var config = self.config;
-            const_3.mix_options(config, new_config);
+            const_1.mix_options(config, new_config);
             var body = self.body;
             body.lineStyle(0, 0x000000, 1);
             body.beginFill(config.body_color);
@@ -2248,25 +2172,41 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             body.endFill();
             self.addChild(body);
             self.pivot.set(config.size / 2, config.size / 2);
+            if (const_1._isBorwser) {
+                self.cacheAsBitmap = true;
+            }
             self.body_shape = new p2.Circle({
                 radius: config.size,
             });
-            self.body_shape["bullet_team_tag"] = config.team_tag;
-            // self.body_shape.collisionGroup = 1<<(config.team_tag+1);
-            // self.body_shape.collisionMask = ~(self.body_shape.collisionGroup|1<<config.team_tag);
-            self.p2_body.damping = self.p2_body.angularDamping = 0;
+            self.body_shape.material = Flyer.material;
             self.p2_body.addShape(self.body_shape);
-            self.p2_body.force = [config.start_x_speed, config.start_y_speed];
+            self.p2_body.setDensity(config.density);
+            self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
-            if (typeof process === "object") {
-                self.on("explode", function () {
-                    console.log("explode", self._id);
+            self.on("change-hp", function (dif_hp) {
+                // console.log("change-hp-value:",dif_hp)
+                if (isFinite(dif_hp)) {
+                    var config_1 = self.config;
+                    config_1.cur_hp += dif_hp;
+                    if (dif_hp < 0 && const_1._isBorwser) {
+                        self.emit("flash");
+                    }
+                    if (config_1.cur_hp > config_1.max_hp) {
+                        config_1.cur_hp = config_1.max_hp;
+                    }
+                    if (config_1.cur_hp <= 0) {
+                        self.emit("ember");
+                    }
+                }
+            });
+            if (const_1._isNode) {
+                self.once("ember", function () {
                     self.emit("destroy");
                 });
             }
             else {
-                self.on("explode", function () {
-                    var ani_time = const_3.B_ANI_TIME;
+                self.once("ember", function () {
+                    var ani_time = const_1.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
                     var _to = {
@@ -2277,6 +2217,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                         self.world.removeBody(self.p2_body);
                         self.world = null;
                     }
+                    self.emit("stop-flash");
                     self.update = function (delay) {
                         ani_progress += delay;
                         var progress = Math.min(ani_progress / ani_time, 1);
@@ -2291,22 +2232,236 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 });
             }
         }
-        Bullet.prototype.setConfig = function (new_config) {
-            _super.prototype.setConfig.call(this, new_config);
+        Flyer.prototype.update = function (delay) {
+            _super.prototype.update.call(this, delay);
+            this.rotation = this.config.rotation = this.p2_body.angle;
+            this.p2_body.force = [this.config.x_speed, this.config.y_speed];
+        };
+        Flyer.prototype.setConfig = function (new_config) {
             var config = this.config;
-            const_3.mix_options(config, new_config);
+            const_1.mix_options(config, new_config);
+            this.rotation = this.p2_body.angle = config.rotation;
             this.p2_body.position = [config.x, config.y];
             this.x = config.x;
             this.y = config.y;
         };
+        return Flyer;
+    }(Collision_1.P2I));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Flyer;
+});
+define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_2, const_2) {
+    "use strict";
+    var Wall = (function (_super) {
+        __extends(Wall, _super);
+        function Wall(new_config) {
+            _super.call(this);
+            // static clooisionGroup = 1<<1;
+            this.config = {
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+                rotation: 0,
+                color: 0x0ff0f0,
+                density: 10,
+                bulletproof: 0.9
+            };
+            this.p2_body = new p2.Body({
+                mass: 0,
+                fixedRotation: true,
+                fixedX: true,
+                fixedY: true,
+            });
+            this.body = new PIXI.Graphics();
+            var self = this;
+            var config = self.config;
+            const_2.mix_options(config, new_config);
+            var body = self.body;
+            body.beginFill(config.color);
+            body.drawRect(0, 0, config.width, config.height);
+            body.endFill();
+            self.addChild(body);
+            self.pivot.set(config.width / 2, config.height / 2);
+            if (const_2._isBorwser) {
+                self.cacheAsBitmap = true;
+            }
+            self.body_shape = new p2.Box({
+                width: config.width,
+                height: config.height,
+            });
+            self.body_shape.material = Wall.material;
+            self.p2_body.addShape(self.body_shape);
+            self.p2_body.setDensity(config.density);
+            self.p2_body.position = [config.x, config.y];
+            self.rotation = config.rotation;
+        }
+        Wall.prototype.setConfig = function (new_config) {
+            var config = this.config;
+            const_2.mix_options(config, new_config);
+            this.p2_body.position = [config.x, config.y];
+            this.x = config.x;
+            this.y = config.y;
+        };
+        Wall.prototype.update = function (delay) {
+            _super.prototype.update.call(this, delay);
+            this.rotation = this.config.rotation = this.p2_body.angle;
+        };
+        Wall.material = new p2.Material();
+        return Wall;
+    }(Collision_2.P2I));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Wall;
+});
+define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class/Tween", "app/const"], function (require, exports, Collision_3, Tween_2, const_3) {
+    "use strict";
+    var Easing = Tween_2.default.Easing;
+    var Bullet = (function (_super) {
+        __extends(Bullet, _super);
+        function Bullet(new_config) {
+            if (new_config === void 0) { new_config = {}; }
+            _super.call(this);
+            // static collisionMask  = 1<<1;
+            this.body = new PIXI.Graphics();
+            this.config = {
+                x: 0,
+                y: 0,
+                start_y_speed: 10,
+                start_x_speed: 0,
+                size: const_3.pt2px(5),
+                body_color: 0x2255ff,
+                lift_time: 3500,
+                density: 1.5,
+                penetrate: 0,
+                team_tag: NaN,
+                damage: 0,
+                scale: 1
+            };
+            this.lift_time_ti = null;
+            var self = this;
+            var config = self.config;
+            const_3.mix_options(config, new_config);
+            var body = self.body;
+            body.lineStyle(0, 0x000000, 1);
+            body.beginFill(config.body_color);
+            body.drawCircle(config.size / 2, config.size / 2, config.size);
+            body.endFill();
+            self.addChild(body);
+            self.pivot.set(config.size / 2, config.size / 2);
+            if (const_3._isBorwser) {
+                self.cacheAsBitmap = true;
+            }
+            self.body_shape = new p2.Circle({
+                radius: config.size,
+            });
+            self.body_shape.material = Bullet.material;
+            // self.body_shape.sensor = true;
+            self.body_shape["bullet_team_tag"] = config.team_tag;
+            self.p2_body.damping = self.p2_body.angularDamping = 0; // 1/config.penetrate;
+            self.p2_body.addShape(self.body_shape);
+            self.p2_body.setDensity(config.density);
+            self.p2_body.force = [config.start_x_speed, config.start_y_speed];
+            self.p2_body.position = [config.x, config.y];
+            self.once("add-to-world", function () {
+                self.lift_time_ti = setTimeout(function () {
+                    self.lift_time_ti = null;
+                    self.emit("explode");
+                }, config.lift_time);
+            });
+            var source_damage = config.damage;
+            self.on("penetrate", function (obj, change_damage) {
+                config.penetrate -= obj.config.density / config.density;
+                if (isFinite(change_damage)) {
+                    var damage_rate = config.scale = change_damage / source_damage;
+                    self.scale.set(damage_rate, damage_rate);
+                    config.damage = change_damage;
+                }
+                if (config.penetrate <= 0) {
+                    self.emit("explode");
+                }
+            });
+            var in_wall_updater = [];
+            self.on("in-wall", function (wall) {
+                var acc_ms = 0;
+                var penetrate_time = 200;
+                var _update = function (delay) {
+                    // 每200ms进行一次穿透性削弱
+                    acc_ms += delay;
+                    if (acc_ms > penetrate_time) {
+                        acc_ms = acc_ms % penetrate_time;
+                        var penetrate_num = ~~(acc_ms / 200);
+                        do {
+                            self.emit("penetrate", wall, config.damage * wall.config.bulletproof);
+                            penetrate_num -= 1;
+                        } while (penetrate_num > 0);
+                    }
+                };
+                in_wall_updater.push(_update);
+                self.on("update", _update);
+            });
+            self.on("out-wall", function (wall) {
+                var _update = in_wall_updater.pop();
+                if (_update) {
+                    self.off("update", _update);
+                }
+            });
+            if (const_3._isNode) {
+                self.once("explode", function () {
+                    self.lift_time_ti && clearTimeout(self.lift_time_ti);
+                    console.log("explode", self._id);
+                    // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
+                    self.update = function (delay) {
+                        self.emit("destroy");
+                    };
+                });
+            }
+            else {
+                self.once("explode", function () {
+                    self.lift_time_ti && clearTimeout(self.lift_time_ti);
+                    var ani_time = const_3.B_ANI_TIME;
+                    var ani_progress = 0;
+                    var _to = {
+                        scaleXY: 2,
+                        alpha: 1
+                    };
+                    self.on("update", function (delay) {
+                        ani_progress += delay;
+                        var progress = Math.min(ani_progress / ani_time, 1);
+                        var easing_progress = Easing.Quartic.Out(progress);
+                        self.scale.x = self.scale.y = _to.scaleXY * easing_progress;
+                        self.alpha = 1 - _to.alpha * easing_progress;
+                        if (progress === 1) {
+                            self.emit("destroy");
+                        }
+                    });
+                });
+            }
+        }
+        Bullet.prototype.setConfig = function (new_config) {
+            _super.prototype.setConfig.call(this, new_config);
+            var config = this.config;
+            const_3.mix_options(config, new_config);
+            this.scale.set(config.scale, config.scale);
+            var old_radius = this.body_shape.radius;
+            var new_radius = config.scale * config.size;
+            if (new_radius !== old_radius) {
+                this.body_shape.radius = new_radius;
+                this.body_shape.updateArea();
+                this.p2_body.setDensity(config.density);
+            }
+            this.p2_body.position = [config.x, config.y];
+            this.x = config.x;
+            this.y = config.y;
+        };
+        Bullet.material = new p2.Material();
         return Bullet;
     }(Collision_3.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Bullet;
 });
-define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const"], function (require, exports, Collision_4, Victor_1, Bullet_1, Tween_2, const_4) {
+define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const"], function (require, exports, Collision_4, Victor_1, Bullet_1, Tween_3, const_4) {
     "use strict";
-    var Easing = Tween_2.default.Easing;
+    var Easing = Tween_3.default.Easing;
     var Ship = (function (_super) {
         __extends(Ship, _super);
         function Ship(new_config) {
@@ -2319,20 +2474,24 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 y: 0,
                 y_speed: 0,
                 x_speed: 0,
-                force: 10000,
-                size: const_4.pt2px(20),
+                force: 100000,
+                size: const_4.pt2px(15),
                 body_color: 0x2255ff,
                 is_firing: false,
                 rotation: 0,
                 max_hp: 100,
                 cur_hp: 100,
                 restore_hp: 1,
+                density: 1,
                 // 战斗相关的属性
-                bullet_speed: 4000,
+                bullet_speed: 800000,
                 bullet_damage: 5,
+                bullet_penetrate: 15,
+                overload_speed: 0.625,
                 // 标志
                 team_tag: 10,
             };
+            this.restore_hp_ti = null;
             var self = this;
             var config = self.config;
             const_4.mix_options(config, new_config);
@@ -2353,34 +2512,51 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             self.addChild(gun);
             self.addChild(body);
             self.pivot.set(body_size / 2, body_size / 2);
+            if (const_4._isBorwser) {
+                self.cacheAsBitmap = true;
+            }
             self.body_shape = new p2.Circle({
                 radius: config.size,
             });
+            self.body_shape.material = Ship.material;
+            // self.body_shape.sensor = true;
             self.body_shape["ship_team_tag"] = config.team_tag;
-            // self.body_shape.collisionGroup = 1<<config.team_tag;
-            // // 与任何物体都可以发生碰撞
-            // self.body_shape.collisionMask = -1;
             self.p2_body.addShape(self.body_shape);
-            self.changeMass(Math.PI * 2 * body_size);
+            self.p2_body.setDensity(config.density);
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
             self.on("change-hp", function (dif_hp) {
-                console.log("change-hp-value:", dif_hp);
+                // console.log("change-hp-value:",dif_hp)
                 if (isFinite(dif_hp)) {
-                    var config_1 = self.config;
-                    config_1.cur_hp -= dif_hp;
-                    if (config_1.cur_hp <= 0) {
+                    var config_2 = self.config;
+                    config_2.cur_hp += dif_hp;
+                    if (dif_hp < 0 && const_4._isBorwser) {
+                        self.emit("flash");
+                    }
+                    if (config_2.cur_hp > config_2.max_hp) {
+                        config_2.cur_hp = config_2.max_hp;
+                    }
+                    if (config_2.cur_hp <= 0) {
                         self.emit("die");
                     }
                 }
             });
-            if (typeof process == "object") {
-                self.on("die", function () {
+            self.once("add-to-world", function () {
+                self.restore_hp_ti = setInterval(function () {
+                    if (config.max_hp !== config.cur_hp) {
+                        self.emit("change-hp", config.restore_hp);
+                    }
+                }, 2000);
+            });
+            if (const_4._isNode) {
+                self.once("die", function () {
+                    self.restore_hp_ti && clearInterval(self.restore_hp_ti);
                     self.emit("destroy");
                 });
             }
             else {
-                self.on("die", function () {
+                self.once("die", function () {
+                    self.restore_hp_ti && clearInterval(self.restore_hp_ti);
                     var ani_time = const_4.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
@@ -2392,6 +2568,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                         self.world.removeBody(self.p2_body);
                         self.world = null;
                     }
+                    self.emit("stop-flash");
                     self.update = function (delay) {
                         ani_progress += delay;
                         var progress = Math.min(ani_progress / ani_time, 1);
@@ -2434,17 +2611,19 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             bullet_start.rotate(config.rotation);
             var bullet = new Bullet_1.default({
                 team_tag: config.team_tag,
-                x: config.x + bullet_start.x,
-                y: config.y + bullet_start.y,
+                x: config.x,
+                y: config.y,
                 start_x_speed: bullet_speed.x,
                 start_y_speed: bullet_speed.y,
                 size: bullet_size,
-                damage: config.bullet_damage
+                damage: config.bullet_damage,
+                penetrate: config.bullet_penetrate,
             });
             // 一旦发射，飞船受到后座力
             bullet.once("add-to-world", function () {
-                _this.p2_body.force[0] -= bullet_speed.x;
-                _this.p2_body.force[1] -= bullet_speed.y;
+                var mass_rate = bullet.p2_body.mass / _this.p2_body.mass;
+                _this.p2_body.force[0] -= bullet_speed.x * mass_rate;
+                _this.p2_body.force[1] -= bullet_speed.y * mass_rate;
             });
             return bullet;
             // config.firing
@@ -2454,21 +2633,26 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Ship;
 });
-define("app/class/HP", ["require", "exports", "app/const"], function (require, exports, const_5) {
+define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], function (require, exports, Tween_4, const_5) {
     "use strict";
     var HP = (function (_super) {
         __extends(HP, _super);
-        function HP(ship) {
+        function HP(owner, ani) {
             _super.call(this);
-            this.ship = ship;
-            this.setHP(1);
+            this.show_ani = null;
+            this.owner = owner;
+            this.ani = ani;
+            this.source_width = owner.width || const_5.pt2px(40);
+            var owner_config = owner.config;
+            this.setHP(owner_config.cur_hp / owner_config.max_hp);
         }
         HP.prototype.setHP = function (percentage) {
+            var _this = this;
             this.clear();
             percentage = Math.min(Math.max(parseFloat(percentage), 0), 1);
-            var width = const_5.pt2px(40);
-            var height = const_5.pt2px(5);
-            var borderWidth = const_5.pt2px(1);
+            var width = this.source_width;
+            var height = Math.min(width / 8, const_5.pt2px(4));
+            var borderWidth = height / 5;
             this.lineStyle(borderWidth, 0x000000, 1);
             this.beginFill(0xEEEEEE);
             this.drawRoundedRect(0, 0, width + borderWidth, height + borderWidth, height / 4);
@@ -2477,11 +2661,28 @@ define("app/class/HP", ["require", "exports", "app/const"], function (require, e
             this.beginFill(0x33EE33);
             this.drawRoundedRect(borderWidth / 2, borderWidth / 2, width * percentage, height, height / 4);
             this.endFill();
+            if (this.alpha !== 1) {
+                this.ani.Tween(this)
+                    .to({
+                    alpha: 1
+                }, const_5.B_ANI_TIME)
+                    .easing(Tween_4.default.Easing.Quartic.Out)
+                    .start();
+            }
+            clearTimeout(this.show_ani);
+            this.show_ani = setTimeout(function () {
+                _this.ani.Tween(_this)
+                    .to({
+                    alpha: 0
+                }, const_5.L_ANI_TIME)
+                    .easing(Tween_4.default.Easing.Quartic.In)
+                    .start();
+            }, 5000);
         };
         HP.prototype.update = function (delay) {
-            var ship_config = this.ship.config;
-            this.x = ship_config.x - ship_config.size;
-            this.y = ship_config.y + ship_config.size + this.height / 2;
+            var owner_config = this.owner.config;
+            this.x = owner_config.x - owner_config.size;
+            this.y = owner_config.y + owner_config.size + this.height / 2;
         };
         return HP;
     }(PIXI.Graphics));
@@ -5254,18 +5455,12 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
         },
     };
 });
-define("app/engine/world", ["require", "exports", "app/class/Bullet", "app/class/Ship"], function (require, exports, Bullet_2, Ship_1) {
+define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/class/Wall", "app/class/Bullet", "app/class/Flyer", "app/class/Ship", "app/common"], function (require, exports, Collision_5, Wall_1, Bullet_2, Flyer_1, Ship_1, common_1) {
     "use strict";
     var world = new p2.World({
         gravity: [0, 0]
     });
     var worldStep = 1 / 60;
-    var planeShape = new p2.Plane();
-    var planeBody = new p2.Body({
-        position: [0, 0]
-    });
-    planeBody.addShape(planeShape);
-    world.addBody(planeBody);
     var _runNarrowphase = world.runNarrowphase;
     world.runNarrowphase = function (np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen) {
         // 如果si是飞船，无视同组的 普通子弹
@@ -5278,44 +5473,194 @@ define("app/engine/world", ["require", "exports", "app/class/Bullet", "app/class
             sj["ship_team_tag"] === si["bullet_team_tag"]) {
             return;
         }
-        // 如果si、sj都是子弹，无视同组的 普通子弹
-        if (si["bullet_team_tag"] &&
-            si["bullet_team_tag"] === sj["bullet_team_tag"]) {
-            return;
-        }
+        // // 如果si、sj有其中一个是子弹，无视碰撞，使用穿透算法
+        // if (si["bullet_team_tag"] && sj["bullet_team_tag"]) {
+        //     return;
+        // }
         return _runNarrowphase.call(this, np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen);
     };
-    var All_bullets = new WeakMap();
-    world.on("impact", function (evt) {
-        if (All_bullets.has(evt.bodyA)) {
-            var bullet = All_bullets.get(evt.bodyA);
-            var maybeship = All_bullets.get(evt.bodyB);
+    // 计算穿透
+    function emit_penetrate(bullet, obj) {
+        if (obj.config.team_tag === bullet.config.team_tag) {
         }
-        else if (All_bullets.has(evt.bodyB)) {
-            bullet = All_bullets.get(evt.bodyB);
-            var maybeship = All_bullets.get(evt.bodyA);
-        }
-        if (bullet) {
-            bullet.emit("explode");
-            if (maybeship instanceof Ship_1.default) {
+        else {
+            if (obj instanceof Wall_1.default) {
+                bullet.emit("penetrate", obj, bullet.config.damage * obj.config.bulletproof);
+                bullet.emit("in-wall", obj);
+            }
+            else {
+                bullet.emit("penetrate", obj);
             }
         }
+    }
+    ;
+    // world.on("impact", function(evt) {
+    // });
+    world.on("beginContact", function (evt) {
+        var p2i_A = All_body_weakmap.get(evt.bodyA);
+        var p2i_B = All_body_weakmap.get(evt.bodyB);
+        if (!(p2i_A && p2i_B)) {
+            return;
+        }
+        // console.log("beginContact",p2i_A,p2i_B);
+        if (p2i_A instanceof Bullet_2.default) {
+            var impact_bullet = p2i_A;
+            emit_penetrate(p2i_A, p2i_B);
+            var impact_obj = p2i_B;
+        }
+        if (p2i_B instanceof Bullet_2.default) {
+            var impact_bullet = p2i_B;
+            emit_penetrate(p2i_B, p2i_A);
+            var impact_obj = p2i_A;
+        }
+        if (impact_obj) {
+            impact_obj.emit("change-hp", -impact_bullet.config.damage);
+        }
     });
+    world.on("endContact", function (evt) {
+        var p2i_A = All_body_weakmap.get(evt.bodyA);
+        var p2i_B = All_body_weakmap.get(evt.bodyB);
+        if (!(p2i_A && p2i_B)) {
+            return;
+        }
+        if (p2i_A instanceof Bullet_2.default && p2i_B instanceof Wall_1.default) {
+            p2i_A.emit("out-wall");
+        }
+        if (p2i_B instanceof Bullet_2.default && p2i_A instanceof Wall_1.default) {
+            p2i_B.emit("out-wall");
+        }
+    });
+    var All_body_weakmap = new WeakMap();
+    var All_id_map = new Map();
+    // TODO 使用数据库？
+    var ship_md5_id_map = new Map();
+    var ship_id_md5_map = new Map();
     var p2is = [];
     exports.engine = {
         world: world,
+        listener: null,
+        emit: function (eventName) {
+            var args = [];
+            for (var _i = 1; _i < arguments.length; _i++) {
+                args[_i - 1] = arguments[_i];
+            }
+            exports.engine.listener && (_a = exports.engine.listener).emit.apply(_a, [eventName].concat(args));
+            var _a;
+        },
         add: function (item) {
             if (item instanceof Bullet_2.default) {
-                All_bullets.set(item.p2_body, item);
+                ["explode"].forEach(function (eventName) {
+                    item.on(eventName, function () {
+                        exports.engine.emit(eventName, this);
+                    });
+                });
+            }
+            else if (item instanceof Ship_1.default) {
+                ["die", "change-hp"].forEach(function (eventName) {
+                    item.on(eventName, function () {
+                        exports.engine.emit(eventName, this);
+                    });
+                });
+                item.on("destroy", function () {
+                    var ship_id = this._id;
+                    var ship_md5_id = ship_id_md5_map.get(ship_id);
+                    ship_md5_id_map.delete(ship_md5_id);
+                    ship_id_md5_map.delete(ship_id);
+                });
+            }
+            else if (item instanceof Flyer_1.default) {
+                ["boom", "change-hp"].forEach(function (eventName) {
+                    item.on(eventName, function () {
+                        exports.engine.emit(eventName, this);
+                    });
+                });
             }
             p2is.push(item);
+            All_body_weakmap.set(item.p2_body, item);
+            All_id_map.set(item._id, item);
             item.emit("add-to-world", world);
+            item.on("destroy", function () {
+                console.log("destroy!!and remove!!", p2is.indexOf(this));
+                p2is.splice(p2is.indexOf(this), 1);
+                All_body_weakmap.delete(this.p2_body);
+                All_id_map.delete(this._id);
+            });
+        },
+        getGameBaseInfo: function () {
+            return {
+                rank: [],
+            };
+        },
+        getRectangleObjects: function (x, y, width, height) {
+            return p2is;
         },
         update: function (delay) {
             world.step(worldStep, delay / 100);
             p2is.forEach(function (p2i) { return p2i.update(delay); });
+        },
+        newShip: function (ship_config) {
+            var default_ship_config = {
+                x: common_1.VIEW.WIDTH * Math.random(),
+                y: common_1.VIEW.HEIGHT * Math.random(),
+                body_color: 0x777777 * Math.random(),
+                team_tag: Math.random()
+            };
+            ship_config = ship_config ? Object.assign(ship_config, default_ship_config) : default_ship_config;
+            var new_ship = new Ship_1.default(ship_config);
+            exports.engine.add(new_ship);
+            if (ship_config["ship_md5_id"]) {
+                ship_md5_id_map.set(ship_config["ship_md5_id"], new_ship._id);
+                ship_id_md5_map.set(new_ship._id, ship_config["ship_md5_id"]);
+            }
+            return new_ship;
+        },
+        getShip: function (ship_md5_id) {
+            var ship_id = ship_md5_id_map.get(ship_md5_id);
+            return ship_id && All_id_map.get(ship_id);
+        },
+        setConfig: function (ship_id, new_ship_config) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!current_ship) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            current_ship.setConfig(new_ship_config);
+            return current_ship;
+        },
+        fire: function (ship_id) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!current_ship && !(current_ship instanceof Ship_1.default)) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            var bullet = current_ship.fire();
+            exports.engine.add(bullet);
+            return bullet;
         }
     };
+    // 材质信息
+    // 通用物体与通用物体
+    world.addContactMaterial(new p2.ContactMaterial(Collision_5.P2I.material, Collision_5.P2I.material, {
+        restitution: 0.0,
+        stiffness: 500,
+        relaxation: 0.1
+    }));
+    // 子弹与子弹、墙、通用物体，体现穿透性
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Bullet_2.default.material, {
+        restitution: 0.0,
+        stiffness: 200,
+        relaxation: 0.2
+    }));
+    // 子弹与子弹、墙、通用物体，体现穿透性
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Wall_1.default.material, {
+        restitution: 0.0,
+        stiffness: 10,
+        relaxation: 0.5
+    }));
+    // 子弹与子弹、墙、通用物体，体现穿透性
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Collision_5.P2I.material, {
+        restitution: 0.0,
+        stiffness: 200,
+        relaxation: 0.2
+    }));
 });
 define("class/When", ["require", "exports"], function (require, exports) {
     "use strict";
@@ -5478,7 +5823,7 @@ define("class/BackgroundGaussianBlur", ["require", "exports"], function (require
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = BackgroundGaussianBlur;
 });
-define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_1, Tween_3, SVGGraphics_1, BackgroundGaussianBlur_1) {
+define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_2, Tween_5, SVGGraphics_1, BackgroundGaussianBlur_1) {
     "use strict";
     var Dialog = (function (_super) {
         __extends(Dialog, _super);
@@ -5494,19 +5839,19 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 bg: {
                     color: 0xeedddd,
                     alpha: 0.4,
-                    paddingLR: common_1.pt2px(40),
-                    paddingTB: common_1.pt2px(76),
-                    radius: common_1.pt2px(10)
+                    paddingLR: common_2.pt2px(40),
+                    paddingTB: common_2.pt2px(76),
+                    radius: common_2.pt2px(10)
                 },
                 closeButton: {
                     show: true,
-                    size: common_1.pt2px(18),
-                    bold: common_1.pt2px(1),
+                    size: common_2.pt2px(18),
+                    bold: common_2.pt2px(1),
                     top: 0,
                     left: 0
                 },
                 title: {
-                    padding: common_1.pt2px(20)
+                    padding: common_2.pt2px(20)
                 }
             };
             this._is_anining = false;
@@ -5514,7 +5859,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
             this.ani = ani_control;
             options || (options = {});
             var style = this.style;
-            common_1.mix_options(style, options);
+            common_2.mix_options(style, options);
             // 焦点层: 0
             // 背景层:1
             var bg = this.bg = new PIXI.Graphics();
@@ -5563,8 +5908,8 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
             var bg = this.bg;
             var bg_width = Math.max(this.content.width, this.title.width + style.title.padding) + style.bg.paddingLR; //14.10 / 16.94 * VIEW.WIDTH;
             var bg_height = this.content.height + style.bg.paddingTB;
-            var bg_x = (common_1.VIEW.WIDTH - bg_width) / 2;
-            var bg_y = (common_1.VIEW.HEIGHT - bg_height) / 2;
+            var bg_x = (common_2.VIEW.WIDTH - bg_width) / 2;
+            var bg_y = (common_2.VIEW.HEIGHT - bg_height) / 2;
             bg.clear();
             bg.lineStyle(0);
             bg.beginFill(0, 0);
@@ -5607,12 +5952,12 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 .to({
                 x: this.x,
                 y: this.y
-            }, common_1.B_ANI_TIME)
+            }, common_2.B_ANI_TIME)
                 .set({
-                x: this.x + common_1.VIEW.CENTER.x,
-                y: this.y + common_1.VIEW.CENTER.y
+                x: this.x + common_2.VIEW.CENTER.x,
+                y: this.y + common_2.VIEW.CENTER.y
             })
-                .easing(Tween_3.default.Easing.Quintic.Out)
+                .easing(Tween_5.default.Easing.Quintic.Out)
                 .start();
             this.ani.Tween(this.scale)
                 .set({
@@ -5622,8 +5967,8 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 .to({
                 x: 1,
                 y: 1
-            }, common_1.B_ANI_TIME)
-                .easing(Tween_3.default.Easing.Quintic.Out)
+            }, common_2.B_ANI_TIME)
+                .easing(Tween_5.default.Easing.Quintic.Out)
                 .start()
                 .onComplete(function () {
                 _this._is_anining = false;
@@ -5642,7 +5987,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                     _this.ani.Tween(_this._bg_bulr_filter)
                         .to({
                         blur: _this.style.blur.blur
-                    }, common_1.B_ANI_TIME)
+                    }, common_2.B_ANI_TIME)
                         .start();
                 }
             });
@@ -5663,17 +6008,17 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 .to({
                 x: 0,
                 y: 0
-            }, common_1.B_ANI_TIME)
-                .easing(Tween_3.default.Easing.Quintic.In)
+            }, common_2.B_ANI_TIME)
+                .easing(Tween_5.default.Easing.Quintic.In)
                 .start();
             var cur_x = this.x;
             var cur_y = this.y;
             this.ani.Tween(this)
                 .to({
-                x: this.x + common_1.VIEW.CENTER.x,
-                y: this.y + common_1.VIEW.CENTER.y
-            }, common_1.B_ANI_TIME)
-                .easing(Tween_3.default.Easing.Quintic.In)
+                x: this.x + common_2.VIEW.CENTER.x,
+                y: this.y + common_2.VIEW.CENTER.y
+            }, common_2.B_ANI_TIME)
+                .easing(Tween_5.default.Easing.Quintic.In)
                 .start()
                 .onComplete(function () {
                 _this.position.set(cur_x, cur_y);
@@ -5694,7 +6039,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Dialog;
 });
-define("app/ui/Button", ["require", "exports", "app/common"], function (require, exports, common_2) {
+define("app/ui/Button", ["require", "exports", "app/common"], function (require, exports, common_3) {
     "use strict";
     var Button = (function (_super) {
         __extends(Button, _super);
@@ -5716,9 +6061,9 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
                     borderColor: 0x333333,
                     borderAlpha: 1,
                     borderWidth: 0,
-                    fontSize: common_2.pt2px(10),
+                    fontSize: common_3.pt2px(10),
                     fontFamily: "微软雅黑",
-                    radius: common_2.pt2px(2)
+                    radius: common_3.pt2px(2)
                 };
                 return baseStyle;
             })();
@@ -5728,29 +6073,29 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
                 style.value = text_or_proto;
             }
             else if (typeof text_or_proto === "object") {
-                common_2.mix_options(style, text_or_proto);
+                common_3.mix_options(style, text_or_proto);
             }
             this.addChild(this.text);
             this.redraw();
             this.interactive = true;
-            common_2.on(this, "mouseover", function () {
+            common_3.on(this, "mouseover", function () {
                 var baseStyle = _this.style;
-                var hoverStyle = common_2.copy(baseStyle);
+                var hoverStyle = common_3.copy(baseStyle);
                 baseStyle.hoverStyle = hoverStyle;
                 hoverStyle.backgrounColor = (hoverStyle.backgrounColor * 0.8) | 0;
                 hoverStyle && _this.redraw(hoverStyle);
             });
-            common_2.on(this, "mouseout", function () {
+            common_3.on(this, "mouseout", function () {
                 _this.redraw(_this.style);
             });
-            common_2.on(this, "touchstart|mousedown", function () {
+            common_3.on(this, "touchstart|mousedown", function () {
                 var baseStyle = _this.style;
-                var activeStyle = common_2.copy(baseStyle);
+                var activeStyle = common_3.copy(baseStyle);
                 baseStyle.activeStyle = activeStyle;
                 activeStyle.backgrounColor = Math.min((activeStyle.backgrounColor * 1.1) | 0, 0xffffff);
                 _this.redraw(activeStyle);
             });
-            common_2.on(this, "touchend|mouseup", function () {
+            common_3.on(this, "touchend|mouseup", function () {
                 _this.redraw(_this.style);
             });
         }
@@ -5966,11 +6311,11 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = FlowLayout;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_4, When_1, Flyer_1, Wall_1, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_2, Pomelo_1, common_3) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_6, When_1, Flyer_2, Wall_2, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_2, Pomelo_1, common_4) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_4.default();
-    var jump_tween = new Tween_4.default();
+    var ani_tween = new Tween_6.default();
+    var jump_tween = new Tween_6.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -5981,7 +6326,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: common_3.pt2px(25) + "px 微软雅黑",
+        font: common_4.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
@@ -5996,13 +6341,13 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         function drawPlan() {
             exports.current_stage_wrap.clear();
             exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
-            exports.current_stage_wrap.drawRect(0, 0, common_3.VIEW.WIDTH, common_3.VIEW.HEIGHT);
+            exports.current_stage_wrap.drawRect(0, 0, common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT);
             exports.current_stage_wrap.endFill();
         }
         exports.current_stage_wrap.on("resize", drawPlan);
         var ObjectMap = {
-            "Flyer": Flyer_1.default,
-            "Wall": Wall_1.default,
+            "Flyer": Flyer_2.default,
+            "Wall": Wall_2.default,
             "Ship": Ship_2.default,
             "Bullet": Bullet_3.default,
         };
@@ -6032,11 +6377,12 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             });
         };
         exports.current_stage.addChild(hp_stage);
-        var HP_SHIP_WEAKMAP = {};
+        var HP_WEAKMAP = {};
         function showViewData(objects) {
             objects.map(function (obj_info) {
                 if (instanceMap.hasOwnProperty(obj_info.id)) {
-                    instanceMap[obj_info.id].setConfig(obj_info.config);
+                    var _ins = instanceMap[obj_info.id];
+                    _ins && _ins.setConfig(obj_info.config);
                 }
                 else {
                     var Con = ObjectMap[obj_info.type];
@@ -6053,8 +6399,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     }
                     else {
                         object_stage.addChild(ins);
-                        if (obj_info.type === "Ship") {
-                            var hp = HP_SHIP_WEAKMAP[obj_info.id] = new HP_1.default(ins);
+                        if (obj_info.type === "Ship" || obj_info.type === "Flyer") {
+                            var hp = HP_WEAKMAP[obj_info.id] = new HP_1.default(ins, ani_tween);
                             hp_stage.addChild(hp);
                         }
                     }
@@ -6089,8 +6435,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
                     x: 0,
                     y: 0,
-                    width: common_3.VIEW.WIDTH,
-                    height: common_3.VIEW.HEIGHT
+                    width: common_4.VIEW.WIDTH,
+                    height: common_4.VIEW.HEIGHT
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;
@@ -6133,7 +6479,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             83: "+y",
         };
         var effect_speed = {};
-        common_3.on(exports.current_stage_wrap, "keydown", function (e) {
+        common_4.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -6153,7 +6499,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             }
             var _a;
         });
-        common_3.on(exports.current_stage_wrap, "keyup", function (e) {
+        common_4.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -6173,11 +6519,11 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var _a;
         });
         // 转向
-        common_3.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
+        common_4.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
             // if(can_next) {
             if (view_ship) {
-                var to_point = common_3.VIEW.rotateXY(e.data.global);
-                var direction = new Victor_2.default(to_point.x - common_3.VIEW.CENTER.x, to_point.y - common_3.VIEW.CENTER.y);
+                var to_point = common_4.VIEW.rotateXY(e.data.global);
+                var direction = new Victor_2.default(to_point.x - common_4.VIEW.CENTER.x, to_point.y - common_4.VIEW.CENTER.y);
                 var angle_value = direction.angle();
                 if (angle_value < 0) {
                     angle_value += PIXI.PI_2;
@@ -6193,7 +6539,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             }
         });
         // 发射
-        common_3.on(exports.current_stage_wrap, "click|tap", function () {
+        common_4.on(exports.current_stage_wrap, "click|tap", function () {
             if (view_ship) {
                 Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
                     // console.log("setConfig:fire", data);
@@ -6218,12 +6564,28 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             console.log("change-hp:", ship_info);
             var ship = instanceMap[ship_info.id];
             if (ship) {
+                if (ship_info.config.cur_hp < ship.config.cur_hp) {
+                    ship.emit("flash");
+                }
                 var ship_config = ship_info.config;
                 ship.setConfig(ship_config);
-                var hp = HP_SHIP_WEAKMAP[ship_info.id];
+                var hp = HP_WEAKMAP[ship_info.id];
                 if (hp) {
                     hp.setHP(ship_config.cur_hp / ship_config.max_hp);
                 }
+            }
+        });
+        Pomelo_1.pomelo.on("ember", function (arg) {
+            var flyer_info = arg.data;
+            console.log("ember:", flyer_info);
+            var flyer = instanceMap[flyer_info.id];
+            if (flyer) {
+                var hp = HP_WEAKMAP[flyer_info.id];
+                hp.parent.removeChild(hp);
+                hp.destroy();
+                flyer.setConfig(flyer_info.config);
+                flyer.emit("ember");
+                instanceMap[flyer_info.id] = null;
             }
         });
         var is_my_ship_live = false;
@@ -6232,26 +6594,26 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var title = new PIXI.Container();
             var restart_button = new Button_1.default({
                 value: "重新开始",
-                fontSize: common_3.pt2px(14),
-                paddingTop: common_3.pt2px(4),
-                paddingBottom: common_3.pt2px(4),
-                paddingLeft: common_3.pt2px(4),
-                paddingRight: common_3.pt2px(4),
+                fontSize: common_4.pt2px(14),
+                paddingTop: common_4.pt2px(4),
+                paddingBottom: common_4.pt2px(4),
+                paddingLeft: common_4.pt2px(4),
+                paddingRight: common_4.pt2px(4),
                 color: 0xffffff,
                 fontFamily: "微软雅黑"
             });
             var content = new FlowLayout_1.default([
                 new TextBuilder_1.default("被击杀！", {
-                    fontSize: common_3.pt2px(16),
+                    fontSize: common_4.pt2px(16),
                     fontFamily: "微软雅黑"
                 }),
                 restart_button
             ], {
                 float: "center"
             });
-            content.max_width = common_3.pt2px(60);
+            content.max_width = common_4.pt2px(60);
             content.reDrawFlow();
-            common_3.on(restart_button, "click|tap", function (e) {
+            common_4.on(restart_button, "click|tap", function (e) {
                 exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
                     if (err) {
                         alert(err);
@@ -6283,7 +6645,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             console.log("die:", ship_info);
             var ship = instanceMap[ship_info.id];
             if (ship) {
-                var hp = HP_SHIP_WEAKMAP[ship_info.id];
+                var hp = HP_WEAKMAP[ship_info.id];
                 hp.parent.removeChild(hp);
                 hp.destroy();
                 ship.emit("die");
@@ -6293,7 +6655,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     view_ship = null; //TODO，镜头使用击杀者
                     is_my_ship_live = false;
                     // 打开对话框
-                    die_dialog.open(exports.current_stage_wrap, exports.current_stage, common_3.renderer);
+                    die_dialog.open(exports.current_stage_wrap, exports.current_stage, common_4.renderer);
                 }
             }
         });
@@ -6315,8 +6677,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             isNewDataFrame = false;
             // 跟随主角移动
             if (view_ship) {
-                exports.current_stage.x = common_3.VIEW.WIDTH / 2 - view_ship.x;
-                exports.current_stage.y = common_3.VIEW.HEIGHT / 2 - view_ship.y;
+                exports.current_stage.x = common_4.VIEW.WIDTH / 2 - view_ship.x;
+                exports.current_stage.y = common_4.VIEW.HEIGHT / 2 - view_ship.y;
             }
             // 更新血量显示
             hp_stage["update"](dif_time);
@@ -6328,7 +6690,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         });
         exports.current_stage_wrap.addChild(FPS_Text);
         FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_3.VIEW.WIDTH + " H:" + common_3.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_4.VIEW.WIDTH + " H:" + common_4.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
             if (view_ship) {
                 var info = "\n";
                 for (var k in view_ship.config) {
@@ -6342,19 +6704,19 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             }
         });
         // 触发布局计算
-        common_3.emitReisze(exports.current_stage_wrap);
+        common_4.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
     exports.current_stage_wrap.on("reinit", function () {
         renderInit(exports.loader, exports.loader.resources);
-        common_3.emitReisze(exports.current_stage);
+        common_4.emitReisze(exports.current_stage);
     });
     exports.current_stage_wrap["_has_custom_resize"] = true;
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_3.emitReisze(this);
+        common_4.emitReisze(this);
     });
     // 初始化本机ID
     var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
@@ -6368,8 +6730,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         Pomelo_1.pomelo.request("connector.entryHandler.enter", {
             username: username || old_username,
             mac_ship_id: mac_ship_id,
-            width: common_3.VIEW.WIDTH,
-            height: common_3.VIEW.HEIGHT,
+            width: common_4.VIEW.WIDTH,
+            height: common_4.VIEW.HEIGHT,
         }, function (game_info) {
             if (game_info.code === 500) {
                 console.log(game_info);
@@ -6384,7 +6746,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         });
     });
     var init_w = new When_1.default(2, function () {
-        common_3.emitReisze(exports.current_stage);
+        common_4.emitReisze(exports.current_stage);
         ani_tween.start();
         jump_tween.start();
         ani_ticker.start();
@@ -6395,21 +6757,21 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_5, When_2, Flyer_2, Ship_3, Wall_2, Victor_3, world_1, common_4) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_7, When_2, Flyer_3, Ship_3, Wall_3, Victor_3, world_1, common_5) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_5.default();
-    var jump_tween = new Tween_5.default();
+    var ani_tween = new Tween_7.default();
+    var jump_tween = new Tween_7.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
-    exports.current_stage_wrap = new PIXI.Container();
-    exports.current_stage = new PIXI.Graphics();
+    exports.current_stage_wrap = new PIXI.Graphics();
+    exports.current_stage = new PIXI.Container();
     exports.current_stage_wrap.addChild(exports.current_stage);
-    exports.current_stage_wrap["keep_direction"] = "horizontal";
+    // current_stage_wrap["keep_direction"] = "horizontal";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: common_4.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: common_5.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     function renderInit(loader, resource) {
@@ -6419,105 +6781,118 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         /**素材加载
          * 初始化场景
          */
-        exports.current_stage.on("resize", function () {
-            exports.current_stage.clear();
-            exports.current_stage.beginFill(0x333ddd, 0.5);
-            exports.current_stage.drawRect(0, 0, common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT);
-            exports.current_stage.endFill();
-            // current_stage.scale.y = -1;
-            // current_stage.position.y = VIEW.HEIGHT;
-        });
-        // 子弹层
-        var bullets = new PIXI.Container();
-        exports.current_stage.addChild(bullets);
-        var flyer = new Flyer_2.default({
+        function drawPlan() {
+            exports.current_stage_wrap.clear();
+            exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
+            exports.current_stage_wrap.drawRect(0, 0, common_5.VIEW.WIDTH, common_5.VIEW.HEIGHT);
+            exports.current_stage_wrap.endFill();
+        }
+        exports.current_stage_wrap.on("resize", drawPlan);
+        drawPlan();
+        // 子弹绘图层
+        var bullet_stage = new PIXI.Container();
+        bullet_stage["update"] = function (delay) {
+            this.children.forEach(function (bullet) {
+                bullet.update(delay);
+            });
+        };
+        exports.current_stage.addChild(bullet_stage);
+        // 物体绘图层：墙、飞船等等
+        var object_stage = new PIXI.Container();
+        object_stage["update"] = function (delay) {
+            this.children.forEach(function (obj) {
+                obj.update(delay);
+            });
+        };
+        exports.current_stage.addChild(object_stage);
+        var flyer = new Flyer_3.default({
             x: 260,
             y: 250,
             x_speed: 10 * 2 * (Math.random() - 0.5),
             y_speed: 10 * 2 * (Math.random() - 0.5),
             body_color: 0x0f00dd
         });
-        exports.current_stage.addChild(flyer);
+        object_stage.addChild(flyer);
         world_1.engine.add(flyer);
-        var flyer = new Flyer_2.default({
+        var flyer = new Flyer_3.default({
             x: 480,
             y: 250,
             x_speed: 10 * 2 * (Math.random() - 0.5),
             y_speed: 10 * 2 * (Math.random() - 0.5),
             body_color: 0x0fdd00
         });
-        exports.current_stage.addChild(flyer);
+        object_stage.addChild(flyer);
         world_1.engine.add(flyer);
-        var flyer = new Flyer_2.default({
+        var flyer = new Flyer_3.default({
             x: 600,
             y: 250,
             x_speed: 10 * 2 * (Math.random() - 0.5),
             y_speed: 10 * 2 * (Math.random() - 0.5),
             body_color: 0xdd000f
         });
-        exports.current_stage.addChild(flyer);
+        object_stage.addChild(flyer);
         world_1.engine.add(flyer);
         // 四边限制
-        var top_edge = new Wall_2.default({
-            x: common_4.VIEW.CENTER.x, y: 5,
-            width: common_4.VIEW.WIDTH,
+        var top_edge = new Wall_3.default({
+            x: common_5.VIEW.CENTER.x, y: 0,
+            width: common_5.VIEW.WIDTH,
             height: 10
         });
-        exports.current_stage.addChild(top_edge);
+        object_stage.addChild(top_edge);
         world_1.engine.add(top_edge);
-        var bottom_edge = new Wall_2.default({
-            x: common_4.VIEW.CENTER.x, y: common_4.VIEW.HEIGHT - 5,
-            width: common_4.VIEW.WIDTH,
+        var bottom_edge = new Wall_3.default({
+            x: common_5.VIEW.CENTER.x, y: common_5.VIEW.HEIGHT - 5,
+            width: common_5.VIEW.WIDTH,
             height: 10
         });
-        exports.current_stage.addChild(bottom_edge);
+        object_stage.addChild(bottom_edge);
         world_1.engine.add(bottom_edge);
-        var left_edge = new Wall_2.default({
-            x: 5, y: common_4.VIEW.CENTER.y,
+        var left_edge = new Wall_3.default({
+            x: 5, y: common_5.VIEW.CENTER.y,
             width: 10,
-            height: common_4.VIEW.HEIGHT
+            height: common_5.VIEW.HEIGHT
         });
-        exports.current_stage.addChild(left_edge);
+        object_stage.addChild(left_edge);
         world_1.engine.add(left_edge);
-        var right_edge = new Wall_2.default({
-            x: common_4.VIEW.WIDTH - 5, y: common_4.VIEW.CENTER.y,
+        var right_edge = new Wall_3.default({
+            x: common_5.VIEW.WIDTH - 5, y: common_5.VIEW.CENTER.y,
             width: 10,
-            height: common_4.VIEW.HEIGHT
+            height: common_5.VIEW.HEIGHT
         });
-        exports.current_stage.addChild(right_edge);
+        object_stage.addChild(right_edge);
         world_1.engine.add(right_edge);
         (function () {
             var x_len = 2;
             var y_len = 2;
-            var x_unit = common_4.VIEW.WIDTH / (x_len + 1);
-            var y_unit = common_4.VIEW.HEIGHT / (y_len + 1);
+            var x_unit = common_5.VIEW.WIDTH / (x_len + 1);
+            var y_unit = common_5.VIEW.HEIGHT / (y_len + 1);
             var width = 40;
             for (var _x = 1; _x <= x_len; _x += 1) {
                 for (var _y = 1; _y <= y_len; _y += 1) {
-                    var mid_edge = new Wall_2.default({
+                    var mid_edge = new Wall_3.default({
                         x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
                         width: width,
                         height: width
                     });
-                    exports.current_stage.addChild(mid_edge);
+                    object_stage.addChild(mid_edge);
                     world_1.engine.add(mid_edge);
                 }
             }
         })();
         var my_ship = new Ship_3.default({
-            x: common_4.VIEW.CENTER.x,
-            y: common_4.VIEW.CENTER.y,
+            x: common_5.VIEW.CENTER.x,
+            y: common_5.VIEW.CENTER.y,
             body_color: 0x366345
         });
-        exports.current_stage.addChild(my_ship);
+        object_stage.addChild(my_ship);
         world_1.engine.add(my_ship);
         var other_ship = new Ship_3.default({
-            x: common_4.VIEW.CENTER.x - 100,
-            y: common_4.VIEW.CENTER.y - 100,
+            x: common_5.VIEW.CENTER.x - 100,
+            y: common_5.VIEW.CENTER.y - 100,
             body_color: 0x633645,
             team_tag: 12
         });
-        exports.current_stage.addChild(other_ship);
+        object_stage.addChild(other_ship);
         world_1.engine.add(other_ship);
         /**初始化动画
          *
@@ -6548,7 +6923,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             83: "+y",
         };
         var effect_speed = {};
-        common_4.on(exports.current_stage, "keydown", function (e) {
+        common_5.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode)) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -6558,7 +6933,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             }
             var _a;
         });
-        common_4.on(exports.current_stage, "keyup", function (e) {
+        common_5.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode)) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
@@ -6569,17 +6944,17 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             }
             var _a;
         });
-        common_4.on(exports.current_stage, "rightclick", function (e) {
-            var to_point = common_4.VIEW.rotateXY(e.data.global);
+        common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
+            var to_point = common_5.VIEW.rotateXY(e.data.global);
         });
-        common_4.on(exports.current_stage, "click|tap", function () {
+        common_5.on(exports.current_stage_wrap, "click|tap", function () {
             var bullet = my_ship.fire();
-            bullets.addChild(bullet);
+            bullet_stage.addChild(bullet);
             world_1.engine.add(bullet);
         });
-        common_4.on(exports.current_stage, "mousemove|click|tap", function (e) {
-            var to_point = common_4.VIEW.rotateXY(e.data.global);
-            var direction = new Victor_3.default(to_point.x - common_4.VIEW.CENTER.x, to_point.y - common_4.VIEW.CENTER.y);
+        common_5.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
+            var to_point = common_5.VIEW.rotateXY(e.data.global);
+            var direction = new Victor_3.default(to_point.x - common_5.VIEW.CENTER.x, to_point.y - common_5.VIEW.CENTER.y);
             my_ship.setConfig({ rotation: direction.angle() });
         });
         // setTimeout(function () {
@@ -6589,9 +6964,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         ani_ticker.add(function () {
             ani_tween.update();
             jump_tween.update();
-            exports.current_stage_wrap.x = common_4.VIEW.WIDTH / 2 - my_ship.x;
-            // current_stage_wrap.y = my_ship.y - VIEW.HEIGHT / 2
-            exports.current_stage_wrap.y = common_4.VIEW.HEIGHT / 2 - my_ship.y;
+            exports.current_stage.x = common_5.VIEW.WIDTH / 2 - my_ship.x;
+            exports.current_stage.y = common_5.VIEW.HEIGHT / 2 - my_ship.y;
         });
         /**帧率
          *
@@ -6599,25 +6973,25 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
         exports.current_stage_wrap.addChild(FPS_Text);
         FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_4.VIEW.WIDTH + " H:" + common_4.VIEW.HEIGHT;
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_5.VIEW.WIDTH + " H:" + common_5.VIEW.HEIGHT;
         });
         // 触发布局计算
-        common_4.emitReisze(exports.current_stage_wrap);
+        common_5.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
     exports.current_stage_wrap.on("reinit", function () {
         renderInit(exports.loader, exports.loader.resources);
-        common_4.emitReisze(exports.current_stage);
+        common_5.emitReisze(exports.current_stage);
     });
     exports.current_stage_wrap["_has_custom_resize"] = true;
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_4.emitReisze(this);
+        common_5.emitReisze(this);
     });
     var init_w = new When_2.default(2, function () {
-        common_4.emitReisze(exports.current_stage);
+        common_5.emitReisze(exports.current_stage);
         ani_tween.start();
         jump_tween.start();
         ani_ticker.start();
@@ -6628,11 +7002,11 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     }
     exports.initStage = initStage;
 });
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_6, When_3, Dialog_2, common_5) {
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_8, When_3, Dialog_2, common_6) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_6.default();
-    var jump_tween = new Tween_6.default();
+    var ani_tween = new Tween_8.default();
+    var jump_tween = new Tween_8.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Container();
@@ -6640,16 +7014,16 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     // current_stage_wrap["keep_direction"] = "vertical";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("bg", "http://cdn2.youdob.com/4.jpg?imageView2/1/w/" + common_5.VIEW.WIDTH + "/h/" + common_5.VIEW.HEIGHT);
+    exports.loader.add("bg", "http://cdn2.youdob.com/4.jpg?imageView2/1/w/" + common_6.VIEW.WIDTH + "/h/" + common_6.VIEW.HEIGHT);
     exports.loader.load();
     var loading_text = new PIXI.Text("加载中……", {
-        font: common_5.pt2px(25) + "px 微软雅黑",
+        font: common_6.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     var waitting_text = new PIXI.Text("连接服务器中……", {
-        font: common_5.pt2px(25) + "px 微软雅黑",
+        font: common_6.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     function renderInit(loader, resource) {
@@ -6659,17 +7033,17 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
         var bg_tex = resource["bg"].texture;
         var bg = new PIXI.Sprite(bg_tex);
         exports.current_stage.addChild(bg);
-        if (bg_tex.width / bg_tex.height > common_5.VIEW.WIDTH / common_5.VIEW.HEIGHT) {
-            var bg_rate = common_5.VIEW.HEIGHT / bg_tex.height;
+        if (bg_tex.width / bg_tex.height > common_6.VIEW.WIDTH / common_6.VIEW.HEIGHT) {
+            var bg_rate = common_6.VIEW.HEIGHT / bg_tex.height;
         }
         else {
-            var bg_rate = common_5.VIEW.WIDTH / bg_tex.width;
+            var bg_rate = common_6.VIEW.WIDTH / bg_tex.width;
         }
         bg.scale.set(bg_rate, bg_rate);
         exports.current_stage.addChild(waitting_text);
-        common_5.stageManager.backgroundColor = "#333";
-        waitting_text.x = common_5.VIEW.CENTER.x - waitting_text.width / 2;
-        waitting_text.y = common_5.VIEW.CENTER.y - waitting_text.height / 2;
+        common_6.stageManager.backgroundColor = "#333";
+        waitting_text.x = common_6.VIEW.CENTER.x - waitting_text.width / 2;
+        waitting_text.y = common_6.VIEW.CENTER.y - waitting_text.height / 2;
         /**初始化动画
          *
          */
@@ -6682,7 +7056,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
             var title = new PIXI.Container();
             var content = new PIXI.Graphics();
             content.beginFill(0xffffff, 0.5);
-            var _r = Math.min(common_5.VIEW.WIDTH, common_5.VIEW.HEIGHT) / 2 * 0.9;
+            var _r = Math.min(common_6.VIEW.WIDTH, common_6.VIEW.HEIGHT) / 2 * 0.9;
             content.drawCircle(_r, _r, _r);
             content.endFill();
             var dialog = new Dialog_2.default(title, content, ani_tween, {
@@ -6709,7 +7083,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 })
                     .to({
                     opacity: 1
-                }, common_5.B_ANI_TIME)
+                }, common_6.B_ANI_TIME)
                     .onUpdate(function (p) {
                     ui_wrap.style.transform = "scale(" + p + ")";
                 })
@@ -6722,7 +7096,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 })
                     .to({
                     opacity: 0
-                }, common_5.B_ANI_TIME)
+                }, common_6.B_ANI_TIME)
                     .start()
                     .onUpdate(function (p) {
                     ui_wrap.style.transform = "scale(" + (1 - p) + ")";
@@ -6736,15 +7110,15 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 ui_wrap = document.createElement("div");
                 ui_wrap.style.cssText = "\n                display: -webkit-flex;\n                display: flex;\n                position: absolute;\n                left:0;\n                top:0;\n                width:100%;\n                height:100%;\n                -webkit-align-items: center;\n                      align-items: center;\n                -webkit-justify-content: center;\n                      justify-content: center;\n            ";
                 exports.current_stage_wrap["ui_wrap"] = ui_wrap;
-                var input_width = common_5.pt2px(200);
-                var input_height = common_5.pt2px(20);
+                var input_width = common_6.pt2px(200);
+                var input_height = common_6.pt2px(20);
                 var input_placeholder = "请输入用户名";
                 ui_wrap.innerHTML = "\n            <div style=\"\n                width: " + input_width + "px;\n                height: " + input_height * 3 + "px;\n                text-align:center;\n                \">\n                <input placeholder=\"" + input_placeholder + "\" style=\"display:block;\n                    width:" + input_width + "px;\n                    border-radius:" + input_height * 0.3 + "px;\n                    padding:" + input_height * 0.3 + "px;\n                    margin:0;\n                    border:0;\n                    background-color:rgba(221,221,221,0.9);\n                    outline:none;\n                    color:#333;\n                    font-size:" + input_height * 0.8 + "px;\"/>\n                <button style=\"\n                    cursor:point;\n                    border-radius:" + input_height * 0.1 + "px;\n                    min-width:" + input_width * 0.6 + "px;\n                    margin:" + input_height * 0.4 + "px 0 0 0;\n                    border:0;\n                    color:#ddd;\n                    background-color:rgba(33,33,221,0.8);\n                    outline:none;\n                    padding:" + input_height * 0.1 + "px;\n                    font-size:" + input_height * 0.8 + "px;\">\u63D0\u4EA4</button>\n            </div>\n            ";
                 var ui_input = ui_wrap.firstElementChild.firstElementChild;
                 ui_input["showError"] = function (errorText) {
                     ui_input.value = "";
                     ui_input.placeholder = errorText;
-                    ui_input.style.boxShadow = "0 0 " + common_5.pt2px(10) + "px rgba(221,33,33,1)";
+                    ui_input.style.boxShadow = "0 0 " + common_6.pt2px(10) + "px rgba(221,33,33,1)";
                     setTimeout(function () {
                         ui_input.placeholder = input_placeholder;
                         ui_input.style.boxShadow = "none";
@@ -6767,7 +7141,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 var ui_input = ui_wrap.firstElementChild.firstElementChild;
                 ui_input["showError"](errorText);
             }
-            inputName_dialog.open(exports.current_stage_wrap, exports.current_stage, common_5.renderer);
+            inputName_dialog.open(exports.current_stage_wrap, exports.current_stage, common_6.renderer);
         });
         /**按钮事件
          *
@@ -6784,7 +7158,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
          *
          */
         // 触发布局计算
-        common_5.emitReisze(exports.current_stage_wrap);
+        common_6.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
@@ -6795,7 +7169,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_5.emitReisze(this);
+        common_6.emitReisze(this);
     });
     var init_w = new When_3.default(2, function () {
         ani_tween.start();
@@ -6808,46 +7182,50 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     }
     exports.initStage = initStage;
 });
-define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_6, game2_1, game_oline_1, loader_1, Pomelo_2) {
+define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_7, game2_1, game_oline_1, loader_1, Pomelo_2) {
     "use strict";
-    common_6.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
-    common_6.stageManager.set(loader_1.current_stage_wrap);
-    var host = location.hostname;
-    var port = "3051";
-    Pomelo_2.pomelo.init({
-        host: host,
-        port: port,
-        log: true
-    }, function () {
-        // 随机选择服务器
-        Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
-            if (data.code === 200) {
-                Pomelo_2.pomelo.init({
-                    host: data.host,
-                    port: data.port,
-                    log: true
-                }, function () {
-                    loader_1.current_stage_wrap.emit("connected", function _(username) {
-                        game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
-                            if (err) {
-                                loader_1.current_stage_wrap.emit("connected", _, err);
-                            }
-                            else {
-                                game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                                common_6.stageManager.set(game_oline_1.current_stage_wrap);
-                            }
+    common_7.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
+    common_7.stageManager.set(loader_1.current_stage_wrap);
+    if (location.hash === "#game") {
+        common_7.stageManager.set(game2_1.current_stage_wrap);
+    }
+    else {
+        var host = location.hostname;
+        var port = "3051";
+        Pomelo_2.pomelo.init({
+            host: host,
+            port: port,
+            log: true
+        }, function () {
+            // 随机选择服务器
+            Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
+                if (data.code === 200) {
+                    Pomelo_2.pomelo.init({
+                        host: data.host,
+                        port: data.port,
+                        log: true
+                    }, function () {
+                        loader_1.current_stage_wrap.emit("connected", function _(username) {
+                            game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
+                                if (err) {
+                                    loader_1.current_stage_wrap.emit("connected", _, err);
+                                }
+                                else {
+                                    game_oline_1.current_stage_wrap.emit("before-active", game_info);
+                                    common_7.stageManager.set(game_oline_1.current_stage_wrap);
+                                }
+                            });
                         });
                     });
-                });
-            }
-            else {
-                console.error(data);
-            }
+                }
+                else {
+                    console.error(data);
+                }
+            });
         });
-    });
-    // stageManager.set(g_stage);
+    }
     function animate() {
-        common_6.renderer.render(common_6.stageManager.get());
+        common_7.renderer.render(common_7.stageManager.get());
         requestAnimationFrame(animate);
     }
     animate();
@@ -6993,7 +7371,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_7, SVGGraphics_2, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_9, SVGGraphics_2, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -7018,7 +7396,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_7.default();
+            this._tween = new Tween_9.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -7294,7 +7672,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_7.default.Easing.Quartic.Out)
+                        .easing(Tween_9.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -7305,7 +7683,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_7.default.Easing.Quartic.Out)
+                    .easing(Tween_9.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -7320,7 +7698,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_7.default.Easing.Quartic.Out)
+                        .easing(Tween_9.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -7330,7 +7708,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_7.default.Easing.Quartic.Out)
+                        .easing(Tween_9.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -7356,7 +7734,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_7.default.Easing.Quartic.Out)
+                .easing(Tween_9.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -7532,7 +7910,7 @@ define("class/pixelCollision", ["require", "exports"], function (require, export
     }
     exports.isCollisionWithRect = isCollisionWithRect;
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_8) {
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_10) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -7547,7 +7925,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_8.default();
+            this.ANI = new Tween_10.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -7581,7 +7959,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_8.default.Easing.Quartic.Out)
+                .easing(Tween_10.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -7692,7 +8070,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_8.default.Easing.Quartic.Out)
+                        .easing(Tween_10.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

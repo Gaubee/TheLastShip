@@ -3,6 +3,8 @@ import {
     P2I
 } from "../../../web-server/app/engine/Collision";
 // import Bullet from "./class/Bullet";
+import Wall from "../../../web-server/app/class/Wall";
+import Flyer from "../../../web-server/app/class/Flyer";
 import Bullet from "../../../web-server/app/class/Bullet";
 
 import Ship, {
@@ -17,12 +19,6 @@ const world: p2.World = new p2.World({
 });
 const worldStep = 1 / 60;
 
-var planeShape = new p2.Plane();
-var planeBody = new p2.Body({
-    position: [0, 0]
-});
-planeBody.addShape(planeShape);
-world.addBody(planeBody);
 const _runNarrowphase = world.runNarrowphase;
 world.runNarrowphase = function(np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen) {
     // 如果si是飞船，无视同组的 普通子弹
@@ -35,36 +31,67 @@ world.runNarrowphase = function(np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen) {
         sj["ship_team_tag"] === si["bullet_team_tag"]) {
         return;
     }
-    // 如果si、sj都是子弹，无视同组的 普通子弹
-    if (si["bullet_team_tag"] &&
-        si["bullet_team_tag"] === sj["bullet_team_tag"]) {
-        return;
-    }
+    // // 如果si、sj有其中一个是子弹，无视碰撞，使用穿透算法
+    // if (si["bullet_team_tag"] && sj["bullet_team_tag"]) {
+    //     return;
+    // }
     return _runNarrowphase.call(this, np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen);
 };
+// 计算穿透
+function emit_penetrate(bullet:Bullet,obj:P2I) {
+    if(obj.config.team_tag === bullet.config.team_tag) {
+        // 同组暂时不检查，获取可以有合击技能
+    }else{
+        if(obj instanceof Wall) {// 遇到墙，削弱20%的伤害
+            bullet.emit("penetrate", obj, bullet.config.damage * obj.config.bulletproof);
+            bullet.emit("in-wall", obj);
+        }else{
+            bullet.emit("penetrate", obj)
+        }
+    }
+};
+// world.on("impact", function(evt) {
 
-var All_bullets_weakmap = new WeakMap<p2.Body,Bullet>();
-world.on("impact", function(evt) {
-    if (All_bullets_weakmap.has(evt.bodyA)) {
-        var bullet_body = evt.bodyA;
-        var maybe_ship_body = evt.bodyB;
-    } else if (All_bullets_weakmap.has(evt.bodyB)) {
-        var bullet_body = evt.bodyB;
-        var maybe_ship_body = evt.bodyA;
-    } else {
+// });
+world.on("beginContact",function(evt){
+    var p2i_A = All_body_weakmap.get(evt.bodyA);
+    var p2i_B = All_body_weakmap.get(evt.bodyB);
+    if(!(p2i_A&&p2i_B)) {
         return
     }
-    var bullet = All_bullets_weakmap.get(bullet_body);
-    bullet.emit("explode");// 執行爆炸動畫、散發爆炸通知、移除内存對象；
-
-    var maybe_ship = All_ships_weakmap.get(maybe_ship_body);
-    console.log("maybe_ship",JSON.stringify(maybe_ship));
-    if(maybe_ship){
-        maybe_ship.emit("change-hp", bullet.config.damage);
+    // console.log("beginContact",p2i_A,p2i_B);
+    if(p2i_A instanceof Bullet) {
+        var impact_bullet = p2i_A;
+        emit_penetrate(p2i_A, p2i_B);
+        var impact_obj = p2i_B;
+    }
+    if(p2i_B instanceof Bullet){
+        var impact_bullet = p2i_B;
+        emit_penetrate(p2i_B, p2i_A);
+        var impact_obj = p2i_A;
+    }
+    if(impact_obj) {
+        impact_obj.emit("change-hp", -impact_bullet.config.damage);
     }
 });
-const All_ships_map = new Map<string,Ship>();
-const All_ships_weakmap = new WeakMap<p2.Body,Ship>();
+world.on("endContact",function (evt) {
+    var p2i_A = All_body_weakmap.get(evt.bodyA);
+    var p2i_B = All_body_weakmap.get(evt.bodyB);
+    if(!(p2i_A&&p2i_B)) {
+        return
+    }
+    if(p2i_A instanceof Bullet&&p2i_B instanceof Wall) {
+        p2i_A.emit("out-wall");
+    }
+    if(p2i_B instanceof Bullet&&p2i_A instanceof Wall) {
+        p2i_B.emit("out-wall");
+    }
+});
+
+
+const All_body_weakmap = new WeakMap<p2.Body,P2I>();
+const All_id_map = new Map<string,P2I>();
+
 // TODO 使用数据库？
 const ship_md5_id_map = new Map<string,string>();
 const ship_id_md5_map = new Map<string,string>();
@@ -78,18 +105,12 @@ export const engine = {
     },
     add(item: P2I) {
         if (item instanceof Bullet) {
-            All_bullets_weakmap.set(item.p2_body, item);
             ["explode"].forEach(eventName=>{
                 item.on(eventName,function () {
                     engine.emit(eventName, this);
                 });
             })
-            item.on("destroy",function () {
-                All_bullets_weakmap.delete(this.p2_body);
-            });
         }else if(item instanceof Ship){
-            All_ships_map.set(item._id, item);
-            All_ships_weakmap.set(item.p2_body, item);
             ["die", "change-hp"].forEach(eventName=>{
                 item.on(eventName,function () {
                     engine.emit(eventName, this);
@@ -100,21 +121,29 @@ export const engine = {
                 var ship_md5_id = ship_id_md5_map.get(ship_id);
                 ship_md5_id_map.delete(ship_md5_id);
                 ship_id_md5_map.delete(ship_id)
-                All_ships_map.delete(ship_id);
-                All_ships_weakmap.delete(this.p2_body);
+            });
+        }else if(item instanceof Flyer){
+            ["ember", "change-hp"].forEach(eventName=>{
+                item.on(eventName,function () {
+                    engine.emit(eventName, this);
+                });
             });
         }
+
         p2is.push(item);
+        All_body_weakmap.set(item.p2_body, item);
+        All_id_map.set(item._id, item);
         item.emit("add-to-world", world);
         item.on("destroy", function() {
             console.log("destroy!!and remove!!",p2is.indexOf(this))
             p2is.splice(p2is.indexOf(this), 1);
+            All_body_weakmap.delete(this.p2_body);
+            All_id_map.delete(this._id);
         });
     },
     getGameBaseInfo(){
         return {
             rank: [],
-            total: All_ships_map.size
         }
     },
     getRectangleObjects(x: number, y: number, width: number, height: number) {
@@ -142,10 +171,10 @@ export const engine = {
     },
     getShip(ship_md5_id){
         var ship_id = ship_md5_id_map.get(ship_md5_id);
-        return ship_id && All_ships_map.get(ship_id);
+        return ship_id && All_id_map.get(ship_id);
     },
     setConfig(ship_id, new_ship_config:ShipConfig){
-        var current_ship = All_ships_map.get(ship_id);
+        var current_ship = All_id_map.get(ship_id);
         if(!current_ship) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
@@ -153,12 +182,37 @@ export const engine = {
         return current_ship;
     },
     fire(ship_id){
-        var current_ship = All_ships_map.get(ship_id);
-         if(!current_ship) {
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!current_ship&&!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
         var bullet = current_ship.fire();
         engine.add(bullet)
         return bullet;
     }
-}
+};
+// 材质信息
+// 通用物体与通用物体
+world.addContactMaterial(new p2.ContactMaterial(P2I.material, P2I.material,{
+    restitution : 0.0,
+    stiffness : 500,    // This makes the contact soft!
+    relaxation : 0.1
+}));
+// 子弹与子弹、墙、通用物体，体现穿透性
+world.addContactMaterial(new p2.ContactMaterial(Bullet.material, Bullet.material,{
+    restitution : 0.0,
+    stiffness : 200,    // This makes the contact soft!
+    relaxation : 0.2
+}));
+// 子弹与子弹、墙、通用物体，体现穿透性
+world.addContactMaterial(new p2.ContactMaterial(Bullet.material, Wall.material,{
+    restitution : 0.0,
+    stiffness : 10,    // 对于子弹穿透，墙体现低折射率，但会削弱子弹上海
+    relaxation : 0.5
+}));
+// 子弹与子弹、墙、通用物体，体现穿透性
+world.addContactMaterial(new p2.ContactMaterial(Bullet.material, P2I.material,{
+    restitution : 0.0,
+    stiffness : 200,    // This makes the contact soft!
+    relaxation : 0.2
+}));

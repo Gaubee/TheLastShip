@@ -112,12 +112,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         });
     }
     current_stage.addChild(hp_stage);
-    const HP_SHIP_WEAKMAP:{[key:string]:HP} = {};
+    const HP_WEAKMAP:{[key:string]:HP} = {};
 
     function showViewData(objects) {
         objects.map(obj_info => {
             if (instanceMap.hasOwnProperty(obj_info.id)) {
-                instanceMap[obj_info.id].setConfig(obj_info.config)
+                var _ins = instanceMap[obj_info.id];
+                _ins&&_ins.setConfig(obj_info.config);
             } else {
                 const Con = ObjectMap[obj_info.type];
                 if (!Con) {
@@ -132,8 +133,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                     bullet_stage.addChild(ins);
                 }else{
                     object_stage.addChild(ins);
-                    if (obj_info.type === "Ship") {
-                        var hp = HP_SHIP_WEAKMAP[obj_info.id] = new HP(ins);
+                    if (obj_info.type === "Ship"||obj_info.type === "Flyer") {
+                        var hp = HP_WEAKMAP[obj_info.id] = new HP(ins, ani_tween);
                         hp_stage.addChild(hp);
                     }
                 }
@@ -304,14 +305,30 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     pomelo.on("change-hp",function (arg) {
         const ship_info = arg.data;
         console.log("change-hp:", ship_info);
-        const ship = instanceMap[ship_info.id];
+        const ship = <Ship|Flyer>instanceMap[ship_info.id];
         if (ship) {
+            if(ship_info.config.cur_hp < ship.config.cur_hp) {
+                ship.emit("flash");
+            }
             const ship_config = ship_info.config
             ship.setConfig(ship_config);
-            var hp = HP_SHIP_WEAKMAP[ship_info.id];
+            var hp = HP_WEAKMAP[ship_info.id];
             if(hp) {
                 hp.setHP(ship_config.cur_hp/ship_config.max_hp);
             }
+        }
+    });
+    pomelo.on("ember",function (arg) {
+        const flyer_info = arg.data;
+        console.log("ember:", flyer_info);
+        const flyer = instanceMap[flyer_info.id];
+        if (flyer) {
+            var hp = HP_WEAKMAP[flyer_info.id];
+            hp.parent.removeChild(hp);
+            hp.destroy();
+            flyer.setConfig(flyer_info.config)
+            flyer.emit("ember");
+            instanceMap[flyer_info.id] = null;
         }
     });
 
@@ -323,9 +340,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         var restart_button = new Button({
                 value: "重新开始",
                 fontSize: pt2px(14),
-                paddingTop:pt2px(4)
-                paddingBottom:pt2px(4)
-                paddingLeft:pt2px(4)
+                paddingTop:pt2px(4),
+                paddingBottom:pt2px(4),
+                paddingLeft:pt2px(4),
                 paddingRight:pt2px(4),
                 color:0xffffff,
                 fontFamily: "微软雅黑"
@@ -363,7 +380,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 show:false
             },
             bg:{
-                alpha:0.4;
+                alpha:0.4
             }
         });
         return dialog;
@@ -373,7 +390,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         console.log("die:", ship_info);
         var ship = instanceMap[ship_info.id];
         if (ship) {
-            var hp = HP_SHIP_WEAKMAP[ship_info.id];
+            var hp = HP_WEAKMAP[ship_info.id];
             hp.parent.removeChild(hp);
             hp.destroy();
             ship.emit("die");

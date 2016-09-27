@@ -36,7 +36,7 @@ current_stage_wrap.addChild(current_stage);
 // current_stage_wrap["keep_direction"] = "vertical";
 //加载图片资源
 export const loader = new PIXI.loaders.Loader();
-loader.add("logo", "res/game_res.png");
+loader.add("bg", `http://cdn2.youdob.com/4.jpg?imageView2/1/w/${VIEW.WIDTH}/h/${VIEW.HEIGHT}`);
 loader.load();
 
 const loading_text = new PIXI.Text("加载中……", {
@@ -56,6 +56,15 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     for (var i = 0, len = current_stage.children.length; i < len; i += 1) {
         current_stage.removeChildAt(0)
     }
+    const bg_tex = resource["bg"].texture;
+    const bg = new PIXI.Sprite(bg_tex);
+    current_stage.addChild(bg);
+    if(bg_tex.width/bg_tex.height>VIEW.WIDTH/VIEW.HEIGHT) {
+        var bg_rate = VIEW.HEIGHT/bg_tex.height 
+    }else{
+        var bg_rate = VIEW.WIDTH/bg_tex.width 
+    }
+    bg.scale.set(bg_rate,bg_rate);
 
     current_stage.addChild(waitting_text);
     stageManager.backgroundColor = "#333";
@@ -73,8 +82,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         // });
         var title = new PIXI.Container();
         var content = new PIXI.Graphics();
-        content.beginFill(0x3333ff, 0.5);
-        var _r = Math.min(VIEW.WIDTH, VIEW.HEIGHT)/2*0.8;
+        content.beginFill(0xffffff, 0.5);
+        var _r = Math.min(VIEW.WIDTH, VIEW.HEIGHT)/2*0.9;
         content.drawCircle(_r, _r, _r);
         content.endFill();
 
@@ -158,11 +167,12 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                     padding:${input_height*0.3}px;
                     margin:0;
                     border:0;
-                    background-color:rgba(221,221,221,0.8);
+                    background-color:rgba(221,221,221,0.9);
                     outline:none;
                     color:#333;
                     font-size:${input_height*0.8}px;"/>
                 <button style="
+                    cursor:point;
                     border-radius:${input_height*0.1}px;
                     min-width:${input_width*0.6}px;
                     margin:${input_height*0.4}px 0 0 0;
@@ -203,7 +213,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             ui_input["showError"](errorText)
         }
 
-        inputName_dialog.open(current_stage_wrap);
+        inputName_dialog.open(current_stage_wrap, current_stage, renderer);
     });
 
 

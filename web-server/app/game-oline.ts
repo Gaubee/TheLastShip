@@ -9,6 +9,13 @@ import Ship from "./class/Ship";
 import Bullet from "./class/Bullet";
 import HP from "./class/HP";
 
+// UI 
+import Dialog from "./ui/Dialog";
+import Button from "./ui/Button";
+// UI-HELPER
+import TextBuilder from "../class/TextBuilder";
+import FlowLayout from "../class/FlowLayout";
+
 import {
     engine
 } from "./engine/shadowWorld";
@@ -181,6 +188,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var view_ship_info;
     current_stage_wrap.on("before-active", (game_init_info) => {
         view_ship_info = game_init_info.ship;
+        is_my_ship_live = true;
     });
 
     /**初始化动画
@@ -209,7 +217,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     };
     const effect_speed = {};
     on(current_stage_wrap, "keydown", function(e) {
-        if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent) {
+        if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent&&view_ship) {
             var speed_info = speed_ux[e.keyCode];
             var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
             var _dir = speed_info.charAt(1) + "_speed";
@@ -229,7 +237,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
 
     on(current_stage_wrap, "keyup", function(e) {
-        if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent) {
+        if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent&&view_ship) {
             var speed_info = speed_ux[e.keyCode];
             var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
             var _dir = speed_info.charAt(1) + "_speed";
@@ -248,7 +256,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     // 转向
     on(current_stage_wrap, "mousemove|click|tap", function(e) {
         // if(can_next) {
-        if(true) {
+        if(view_ship) {
             var to_point = VIEW.rotateXY(e.data.global);
             var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
 
@@ -270,9 +278,11 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
     // 发射
     on(current_stage_wrap, "click|tap", function() {
-        pomelo.request("connector.worldHandler.fire", {}, function(data) {
-            // console.log("setConfig:fire", data);
-        });
+        if(view_ship) {
+            pomelo.request("connector.worldHandler.fire", {}, function(data) {
+                // console.log("setConfig:fire", data);
+            });
+        }
     });
 
 
@@ -305,6 +315,59 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         }
     });
 
+    var is_my_ship_live = false;
+
+    // 死亡对话框
+    var die_dialog = (()=>{
+        var title = new PIXI.Container();
+        var restart_button = new Button({
+                value: "重新开始",
+                fontSize: pt2px(14),
+                paddingTop:pt2px(4)
+                paddingBottom:pt2px(4)
+                paddingLeft:pt2px(4)
+                paddingRight:pt2px(4),
+                color:0xffffff,
+                fontFamily: "微软雅黑"
+            })
+        var content = new FlowLayout([
+            new TextBuilder("被击杀！", {
+                fontSize: pt2px(16),
+                fontFamily: "微软雅黑"
+            }),
+            restart_button
+        ],{
+            float:"center"
+        });
+        content.max_width = pt2px(60);
+        content.reDrawFlow();
+
+        on(restart_button,"click|tap",function (e) {
+            current_stage_wrap.emit("enter",null,function (err,game_info) {
+                if(err) {
+                    alert(err)
+                }else{
+                    current_stage_wrap.emit("before-active", game_info);
+                    die_dialog.close();
+                    die_dialog.once("removed",function () {
+                        current_stage_wrap.emit("active");
+                    });
+                }
+            });
+        });
+        var dialog = new Dialog(title,content,ani_tween,{
+            title:{
+                show:false
+            },
+            closeButton:{
+                show:false
+            },
+            bg:{
+                alpha:0.4;
+            }
+        });
+        return dialog;
+    })();
     pomelo.on("die",function (arg) {
         var ship_info = arg.data;
         console.log("die:", ship_info);
@@ -315,6 +378,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             hp.destroy();
             ship.emit("die");
             instanceMap[ship_info.id] = null;
+            if(ship._id === view_ship._id) {
+                // 玩家死亡
+                view_ship = null;//TODO，镜头使用击杀者
+                is_my_ship_live = false;
+                // 打开对话框
+                die_dialog.open(current_stage_wrap,current_stage,renderer);
+            }
         }
     })
 
@@ -381,6 +451,33 @@ current_stage_wrap.on("resize", function() {
     ani_tween.clear();
     emitReisze(this);
 });
+
+// 初始化本机ID
+var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
+if(!mac_ship_id){
+    mac_ship_id = (Math.random()*Date.now()).toString().replace(".","");
+    localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
+}
+var old_username;
+current_stage_wrap.on("enter",function (username,cb) {
+    // 发送名字，初始化角色
+    pomelo.request("connector.entryHandler.enter", {
+        username: username||old_username,
+        mac_ship_id: mac_ship_id,
+        width: VIEW.WIDTH,
+        height: VIEW.HEIGHT,
+    }, function (game_info) {
+        if(game_info.code===500) {
+            console.log(game_info);
+            if(game_info.error == "重复登录") {
+                cb("名字已被使用，请重新输入")
+            }
+        }else{
+            old_username = username;
+            cb(null,game_info)
+        }
+    });
+})
 
 const init_w = new When(2, () => {
     emitReisze(current_stage);

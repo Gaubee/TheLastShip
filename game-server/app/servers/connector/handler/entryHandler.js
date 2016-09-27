@@ -24,7 +24,9 @@ Handler.prototype = {
 
 		const sessionService = this.app.get("sessionService");
 		//重复登录
-		if (sessionService.getByUid(uid)) {
+		var session_get_by_uid = sessionService.getByUid(uid);
+		// console.log("sessionService.getByUid(uid):",session_get_by_uid,session_get_by_uid==session,session.uid);
+		if (session_get_by_uid&&uid!==session.uid) {
 			next(null, {
 				code: 500,
 				error: "重复登录"

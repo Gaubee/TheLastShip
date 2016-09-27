@@ -15,12 +15,6 @@ pomelo.init({
     port: port,
     log: true
 }, function () {
-// 初始化本机ID
-    var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
-    if(!mac_ship_id){
-        mac_ship_id = (Math.random()*Date.now()).toString().replace(".","");
-        localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
-    }
 
     // 随机选择服务器
     pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
@@ -31,23 +25,14 @@ pomelo.init({
                 log: true
             }, function () {
                 l_stage.emit("connected",function _(username) {
-                    // 发送名字，初始化角色
-                    pomelo.request("connector.entryHandler.enter", {
-                        username: username,
-                        mac_ship_id: mac_ship_id,
-                        width: document.body.clientWidth,
-                        height: document.body.clientHeight,
-                    }, function (game_info) {
-                        if(game_info.code===500) {
-                            console.log(game_info);
-                            if( game_info.error == "重复登录") {
-                                l_stage.emit("connected",_,"名字已被使用，请重新输入");
-                            }
+                    ol_stage.emit("enter",username,function (err,game_info) {
+                        if(err) {
+                            l_stage.emit("connected",_,err);
                         }else{
                             ol_stage.emit("before-active", game_info);
                             stageManager.set(ol_stage);
                         }
-                    });
+                    })
                 });
             });
         } else {

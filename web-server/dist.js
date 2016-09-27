@@ -3465,7 +3465,12 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
         for (var key in new_options) {
             if (tmp_options.hasOwnProperty(key)) {
                 if (tmp_options[key] instanceof Object) {
-                    mix_options(tmp_options[key], new_options[key]);
+                    if (new_options[key]) {
+                        mix_options(tmp_options[key], new_options[key]);
+                    }
+                    else {
+                        tmp_options[key] = new_options[key];
+                    }
                 }
                 else {
                     tmp_options[key] = new_options[key];
@@ -3474,6 +3479,21 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
         }
     }
     exports.mix_options = mix_options;
+    function copy(source) {
+        var res = new source.constructor();
+        for (var key in source) {
+            if (source.hasOwnProperty(key)) {
+                if (source[key] instanceof Object) {
+                    res[key] = copy(source[key]);
+                }
+                else {
+                    res[key] = source[key];
+                }
+            }
+        }
+        return res;
+    }
+    exports.copy = copy;
 });
 /**
  * Initialize a new `Emitter`.
@@ -5353,346 +5373,6 @@ define("class/When", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = When;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_3, When_1, Flyer_1, Wall_1, Ship_2, Bullet_3, HP_1, shadowWorld_1, Victor_2, Pomelo_1, common_1) {
-    "use strict";
-    var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_3.default();
-    var jump_tween = new Tween_3.default();
-    var FPS_ticker = new PIXI.ticker.Ticker();
-    exports.current_stage_wrap = new PIXI.Graphics();
-    exports.current_stage = new PIXI.Container();
-    exports.current_stage_wrap.addChild(exports.current_stage);
-    // current_stage_wrap["keep_direction"] = "horizontal";
-    //加载图片资源
-    exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("button", "./res/game_res.png");
-    exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", {
-        font: common_1.pt2px(25) + "px 微软雅黑",
-        fill: "#FFF"
-    });
-    exports.current_stage.addChild(loading_text);
-    exports.loader.once("complete", renderInit);
-    function renderInit(loader, resource) {
-        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
-            exports.current_stage.removeChildAt(0);
-        }
-        /**素材加载
-         * 初始化场景
-         */
-        function drawPlan() {
-            exports.current_stage_wrap.clear();
-            exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
-            exports.current_stage_wrap.drawRect(0, 0, common_1.VIEW.WIDTH, common_1.VIEW.HEIGHT);
-            exports.current_stage_wrap.endFill();
-        }
-        exports.current_stage_wrap.on("resize", drawPlan);
-        var ObjectMap = {
-            "Flyer": Flyer_1.default,
-            "Wall": Wall_1.default,
-            "Ship": Ship_2.default,
-            "Bullet": Bullet_3.default,
-        };
-        var instanceMap = {};
-        var view_ship;
-        // 子弹绘图层
-        var bullet_stage = new PIXI.Container();
-        bullet_stage["update"] = function (delay) {
-            this.children.forEach(function (bullet) {
-                bullet.update(delay);
-            });
-        };
-        exports.current_stage.addChild(bullet_stage);
-        // 物体绘图层：墙、飞船等等
-        var object_stage = new PIXI.Container();
-        object_stage["update"] = function (delay) {
-            this.children.forEach(function (obj) {
-                obj.update(delay);
-            });
-        };
-        exports.current_stage.addChild(object_stage);
-        // 血量绘图层;
-        var hp_stage = new PIXI.Container();
-        hp_stage["update"] = function (delay) {
-            this.children.forEach(function (hp) {
-                hp.update(delay);
-            });
-        };
-        exports.current_stage.addChild(hp_stage);
-        var HP_SHIP_WEAKMAP = {};
-        function showViewData(objects) {
-            objects.map(function (obj_info) {
-                if (instanceMap.hasOwnProperty(obj_info.id)) {
-                    instanceMap[obj_info.id].setConfig(obj_info.config);
-                }
-                else {
-                    var Con = ObjectMap[obj_info.type];
-                    if (!Con) {
-                        console.error("UNKONW TYPE:", obj_info);
-                        return;
-                    }
-                    var ins = instanceMap[obj_info.id] = new Con(obj_info.config);
-                    if (view_ship_info.id === obj_info.id) {
-                        view_ship = ins;
-                    }
-                    if (obj_info.type === "Bullet") {
-                        bullet_stage.addChild(ins);
-                    }
-                    else {
-                        object_stage.addChild(ins);
-                        if (obj_info.type === "Ship") {
-                            var hp = HP_SHIP_WEAKMAP[obj_info.id] = new HP_1.default(ins);
-                            hp_stage.addChild(hp);
-                        }
-                    }
-                    shadowWorld_1.engine.add(ins);
-                }
-            });
-        }
-        ;
-        var ping = 0;
-        var timeSinceLastCalled = 0;
-        var timeSinceLastCalledMS = 0;
-        var isNewDataFrame = false;
-        var can_next = true;
-        ;
-        function getViewData() {
-            var pre_time = performance.now();
-            ani_ticker.add(function () {
-                var p_now = performance.now();
-                // 上一次请求到现在的时间
-                var pre_req_delay = p_now - timeSinceLastCalledMS;
-                if (pre_req_delay >= 100) {
-                    can_next = true;
-                }
-                else if (pre_req_delay < 25) {
-                    return;
-                }
-                if (can_next === false) {
-                    return;
-                }
-                can_next = false;
-                var start_ping = performance.now();
-                Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
-                    x: 0,
-                    y: 0,
-                    width: common_1.VIEW.WIDTH,
-                    height: common_1.VIEW.HEIGHT
-                }, function (data) {
-                    var cur_time = performance.now();
-                    var dif_time = cur_time - pre_time;
-                    pre_time = cur_time;
-                    timeSinceLastCalledMS = cur_time;
-                    timeSinceLastCalled = dif_time / 1000;
-                    isNewDataFrame = true;
-                    ping = cur_time - start_ping;
-                    showViewData(data.objects);
-                    can_next = true;
-                });
-            });
-        }
-        ;
-        exports.current_stage_wrap.on("active", getViewData);
-        // 当前视角飞车，不一定是自己的飞船，在死亡后视角会进行切换
-        var view_ship_info;
-        exports.current_stage_wrap.on("before-active", function (game_init_info) {
-            view_ship_info = game_init_info.ship;
-        });
-        /**初始化动画
-         *
-         */
-        /**按钮事件
-         *
-         */
-        /**交互动画
-         *
-         */
-        // 移动
-        var speed_ux = {
-            37: "-x",
-            65: "-x",
-            38: "-y",
-            87: "-y",
-            39: "+x",
-            68: "+x",
-            40: "+y",
-            83: "+y",
-        };
-        var effect_speed = {};
-        common_1.on(exports.current_stage_wrap, "keydown", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent) {
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                effect_speed[_dir] = _symbol;
-                var new_config = (_a = {},
-                    _a[_dir] = _symbol * view_ship.config.force,
-                    _a
-                );
-                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                    config: new_config
-                }, function (data) {
-                    // console.log("setConfig:to-move", data);
-                    // 触发发射动画
-                    view_ship.emit("fire-ani");
-                });
-            }
-            var _a;
-        });
-        common_1.on(exports.current_stage_wrap, "keyup", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent) {
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                if (effect_speed[_dir] === _symbol) {
-                    var new_config = (_a = {},
-                        _a[_dir] = 0,
-                        _a
-                    );
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: new_config
-                    }, function (data) {
-                        // console.log("setConfig:stop-move", data);
-                    });
-                }
-            }
-            var _a;
-        });
-        // 转向
-        common_1.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
-            // if(can_next) {
-            if (true) {
-                var to_point = common_1.VIEW.rotateXY(e.data.global);
-                var direction = new Victor_2.default(to_point.x - common_1.VIEW.CENTER.x, to_point.y - common_1.VIEW.CENTER.y);
-                var angle_value = direction.angle();
-                if (angle_value < 0) {
-                    angle_value += PIXI.PI_2;
-                }
-                var new_config = {
-                    rotation: angle_value
-                };
-                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                    config: new_config
-                }, function (data) {
-                    // console.log("setConfig:turn-head", data);
-                });
-            }
-        });
-        // 发射
-        common_1.on(exports.current_stage_wrap, "click|tap", function () {
-            Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
-                // console.log("setConfig:fire", data);
-            });
-        });
-        /**响应服务端事件
-         *
-         */
-        Pomelo_1.pomelo.on("explode", function (arg) {
-            var bullet_info = arg.data;
-            console.log("explode:", bullet_info);
-            var bullet = instanceMap[bullet_info.id];
-            if (bullet) {
-                bullet.setConfig(bullet_info.config);
-                bullet.emit("explode");
-                instanceMap[bullet_info.id] = null;
-            }
-        });
-        Pomelo_1.pomelo.on("change-hp", function (arg) {
-            var ship_info = arg.data;
-            console.log("change-hp:", ship_info);
-            var ship = instanceMap[ship_info.id];
-            if (ship) {
-                var ship_config = ship_info.config;
-                ship.setConfig(ship_config);
-                var hp = HP_SHIP_WEAKMAP[ship_info.id];
-                if (hp) {
-                    hp.setHP(ship_config.cur_hp / ship_config.max_hp);
-                }
-            }
-        });
-        Pomelo_1.pomelo.on("die", function (arg) {
-            var ship_info = arg.data;
-            console.log("die:", ship_info);
-            var ship = instanceMap[ship_info.id];
-            if (ship) {
-                var hp = HP_SHIP_WEAKMAP[ship_info.id];
-                hp.parent.removeChild(hp);
-                hp.destroy();
-                ship.emit("die");
-                instanceMap[ship_info.id] = null;
-            }
-        });
-        /**帧率
-         *
-         */
-        var pre_time;
-        ani_ticker.add(function () {
-            // 动画控制器
-            ani_tween.update();
-            jump_tween.update();
-            // 客户端对场景的优化渲染
-            pre_time || (pre_time = performance.now());
-            var cur_time = performance.now();
-            var dif_time = cur_time - pre_time;
-            pre_time = cur_time;
-            // 更新影子世界
-            shadowWorld_1.engine.update(dif_time, timeSinceLastCalled, isNewDataFrame);
-            isNewDataFrame = false;
-            // 跟随主角移动
-            if (view_ship) {
-                exports.current_stage.x = common_1.VIEW.WIDTH / 2 - view_ship.x;
-                exports.current_stage.y = common_1.VIEW.HEIGHT / 2 - view_ship.y;
-            }
-            // 更新血量显示
-            hp_stage["update"](dif_time);
-        });
-        var FPS_Text = new PIXI.Text("FPS:0", {
-            font: '24px Arial',
-            fill: 0x00ffff33,
-            align: "left"
-        });
-        exports.current_stage_wrap.addChild(FPS_Text);
-        FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_1.VIEW.WIDTH + " H:" + common_1.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
-            if (view_ship) {
-                var info = "\n";
-                for (var k in view_ship.config) {
-                    var val = view_ship.config[k];
-                    if (typeof val === "number") {
-                        val = val.toFixed(2);
-                    }
-                    info += k + ": " + val + "\n";
-                }
-                FPS_Text.text += info;
-            }
-        });
-        // 触发布局计算
-        common_1.emitReisze(exports.current_stage_wrap);
-        init_w.ok(0, []);
-    }
-    exports.current_stage_wrap.on("init", initStage);
-    exports.current_stage_wrap.on("reinit", function () {
-        renderInit(exports.loader, exports.loader.resources);
-        common_1.emitReisze(exports.current_stage);
-    });
-    exports.current_stage_wrap["_has_custom_resize"] = true;
-    exports.current_stage_wrap.on("resize", function () {
-        jump_tween.clear();
-        ani_tween.clear();
-        common_1.emitReisze(this);
-    });
-    var init_w = new When_1.default(2, function () {
-        common_1.emitReisze(exports.current_stage);
-        ani_tween.start();
-        jump_tween.start();
-        ani_ticker.start();
-        FPS_ticker.start();
-    });
-    function initStage() {
-        init_w.ok(1, []);
-    }
-    exports.initStage = initStage;
-});
 define("class/BackgroundGaussianBlur", ["require", "exports"], function (require, exports) {
     "use strict";
     var BackgroundGaussianBlur = (function (_super) {
@@ -5798,238 +5478,348 @@ define("class/BackgroundGaussianBlur", ["require", "exports"], function (require
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = BackgroundGaussianBlur;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_4, When_2, Flyer_2, Ship_3, Wall_2, Victor_3, world_1, common_2) {
+define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_1, Tween_3, SVGGraphics_1, BackgroundGaussianBlur_1) {
     "use strict";
-    var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_4.default();
-    var jump_tween = new Tween_4.default();
-    var FPS_ticker = new PIXI.ticker.Ticker();
-    exports.current_stage_wrap = new PIXI.Container();
-    exports.current_stage = new PIXI.Graphics();
-    exports.current_stage_wrap.addChild(exports.current_stage);
-    exports.current_stage_wrap["keep_direction"] = "horizontal";
-    //加载图片资源
-    exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("button", "./res/game_res.png");
-    exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: common_2.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
-    exports.current_stage.addChild(loading_text);
-    exports.loader.once("complete", renderInit);
-    function renderInit(loader, resource) {
-        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
-            exports.current_stage.removeChildAt(0);
+    var Dialog = (function (_super) {
+        __extends(Dialog, _super);
+        function Dialog(title, content, ani_control, options) {
+            var _this = this;
+            _super.call(this);
+            this.style = {
+                blur: {
+                    init_blur: 0,
+                    blur: 16,
+                    quality: _isMobile ? 5 : 15
+                },
+                bg: {
+                    color: 0xeedddd,
+                    alpha: 0.4,
+                    paddingLR: common_1.pt2px(40),
+                    paddingTB: common_1.pt2px(76),
+                    radius: common_1.pt2px(10)
+                },
+                closeButton: {
+                    show: true,
+                    size: common_1.pt2px(18),
+                    bold: common_1.pt2px(1),
+                    top: 0,
+                    left: 0
+                },
+                title: {
+                    padding: common_1.pt2px(20)
+                }
+            };
+            this._is_anining = false;
+            this._is_open = false;
+            this.ani = ani_control;
+            options || (options = {});
+            var style = this.style;
+            common_1.mix_options(style, options);
+            // 焦点层: 0
+            // 背景层:1
+            var bg = this.bg = new PIXI.Graphics();
+            this.addChild(bg);
+            this._on_content_update = function () {
+                this.resize();
+            }.bind(this);
+            // 内容层:2
+            this.setContent(content);
+            // 标题层:3
+            if (title instanceof PIXI.Sprite) {
+                this.title = title;
+                title.texture.on("update", function () {
+                    console.log("Dialog resize..");
+                    _this.resize();
+                });
+            }
+            else if (title instanceof PIXI.Texture) {
+                var title_spr = this.title = new PIXI.Sprite(title);
+                title_spr.texture.on("update", function () {
+                    console.log("Dialog resize..");
+                    _this.resize();
+                });
+            }
+            else if (title instanceof PIXI.Container) {
+                this.title = title;
+            }
+            else {
+                this.title = PIXI.Sprite.fromImage(title);
+            }
+            this.addChild(this.title);
+            // 关闭按钮:4
+            var _closeButton_font_size = style.closeButton.size / 3 * 2;
+            var _closeButton_font_bold = style.closeButton.bold;
+            this.closeButton = SVGGraphics_1.default.importFromSVG("<svg version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n            <circle cy=\"0\" cx=\"0\" r=\"" + style.closeButton.size + "\" fill=\"#ffc03a\" stroke-width=\"0\"/>\n            <path d=\"M " + _closeButton_font_size + " 0 L -" + _closeButton_font_size + " 0 \" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n            <path d=\"M 0 " + _closeButton_font_size + " L 0 -" + _closeButton_font_size + "\" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n        </svg>")._graphics;
+            this.closeButton.rotation = Math.PI / 4;
+            this.closeButton.interactive = true;
+            ["tap", "click"].forEach(function (eventName) { return _this.closeButton.on(eventName, _this.close.bind(_this)); });
+            if (style.closeButton.show) {
+                this.addChild(this.closeButton);
+            }
+            this.resize();
         }
-        /**素材加载
-         * 初始化场景
-         */
-        exports.current_stage.on("resize", function () {
-            exports.current_stage.clear();
-            exports.current_stage.beginFill(0x333ddd, 0.5);
-            exports.current_stage.drawRect(0, 0, common_2.VIEW.WIDTH, common_2.VIEW.HEIGHT);
-            exports.current_stage.endFill();
-            // current_stage.scale.y = -1;
-            // current_stage.position.y = VIEW.HEIGHT;
-        });
-        // 子弹层
-        var bullets = new PIXI.Container();
-        exports.current_stage.addChild(bullets);
-        var flyer = new Flyer_2.default({
-            x: 260,
-            y: 250,
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0x0f00dd
-        });
-        exports.current_stage.addChild(flyer);
-        world_1.engine.add(flyer);
-        var flyer = new Flyer_2.default({
-            x: 480,
-            y: 250,
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0x0fdd00
-        });
-        exports.current_stage.addChild(flyer);
-        world_1.engine.add(flyer);
-        var flyer = new Flyer_2.default({
-            x: 600,
-            y: 250,
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0xdd000f
-        });
-        exports.current_stage.addChild(flyer);
-        world_1.engine.add(flyer);
-        // 四边限制
-        var top_edge = new Wall_2.default({
-            x: common_2.VIEW.CENTER.x, y: 5,
-            width: common_2.VIEW.WIDTH,
-            height: 10
-        });
-        exports.current_stage.addChild(top_edge);
-        world_1.engine.add(top_edge);
-        var bottom_edge = new Wall_2.default({
-            x: common_2.VIEW.CENTER.x, y: common_2.VIEW.HEIGHT - 5,
-            width: common_2.VIEW.WIDTH,
-            height: 10
-        });
-        exports.current_stage.addChild(bottom_edge);
-        world_1.engine.add(bottom_edge);
-        var left_edge = new Wall_2.default({
-            x: 5, y: common_2.VIEW.CENTER.y,
-            width: 10,
-            height: common_2.VIEW.HEIGHT
-        });
-        exports.current_stage.addChild(left_edge);
-        world_1.engine.add(left_edge);
-        var right_edge = new Wall_2.default({
-            x: common_2.VIEW.WIDTH - 5, y: common_2.VIEW.CENTER.y,
-            width: 10,
-            height: common_2.VIEW.HEIGHT
-        });
-        exports.current_stage.addChild(right_edge);
-        world_1.engine.add(right_edge);
-        (function () {
-            var x_len = 2;
-            var y_len = 2;
-            var x_unit = common_2.VIEW.WIDTH / (x_len + 1);
-            var y_unit = common_2.VIEW.HEIGHT / (y_len + 1);
-            var width = 40;
-            for (var _x = 1; _x <= x_len; _x += 1) {
-                for (var _y = 1; _y <= y_len; _y += 1) {
-                    var mid_edge = new Wall_2.default({
-                        x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
-                        width: width,
-                        height: width
-                    });
-                    exports.current_stage.addChild(mid_edge);
-                    world_1.engine.add(mid_edge);
-                }
-            }
-        })();
-        var my_ship = new Ship_3.default({
-            x: common_2.VIEW.CENTER.x,
-            y: common_2.VIEW.CENTER.y,
-            body_color: 0x366345
-        });
-        exports.current_stage.addChild(my_ship);
-        world_1.engine.add(my_ship);
-        var other_ship = new Ship_3.default({
-            x: common_2.VIEW.CENTER.x - 100,
-            y: common_2.VIEW.CENTER.y - 100,
-            body_color: 0x633645,
-            team_tag: 12
-        });
-        exports.current_stage.addChild(other_ship);
-        world_1.engine.add(other_ship);
-        /**初始化动画
-         *
-         */
-        var pre_time;
-        ani_ticker.add(function () {
-            pre_time || (pre_time = performance.now());
-            var cur_time = performance.now();
-            var dif_time = cur_time - pre_time;
-            pre_time = cur_time;
-            // 物理引擎运作
-            world_1.engine.update(dif_time);
-        });
-        /**按钮事件
-         *
-         */
-        /**交互动画
-         *
-         */
-        var speed_ux = {
-            37: "-x",
-            65: "-x",
-            38: "-y",
-            87: "-y",
-            39: "+x",
-            68: "+x",
-            40: "+y",
-            83: "+y",
+        Dialog.prototype.resize = function () {
+            var style = this.style;
+            var bg = this.bg;
+            var bg_width = Math.max(this.content.width, this.title.width + style.title.padding) + style.bg.paddingLR; //14.10 / 16.94 * VIEW.WIDTH;
+            var bg_height = this.content.height + style.bg.paddingTB;
+            var bg_x = (common_1.VIEW.WIDTH - bg_width) / 2;
+            var bg_y = (common_1.VIEW.HEIGHT - bg_height) / 2;
+            bg.clear();
+            bg.lineStyle(0);
+            bg.beginFill(0, 0);
+            bg.drawRect(bg_x - 10, bg_y - 10, bg_width + 20, bg_height + 20);
+            bg.endFill();
+            bg.beginFill(style.bg.color, style.bg.alpha);
+            bg.drawRoundedRect(bg_x, bg_y, bg_width, bg_height, style.bg.radius);
+            bg.endFill();
+            this.closeButton.x = bg_x + bg_width - this.closeButton.width / 4 + style.closeButton.left;
+            this.closeButton.y = bg_y + this.closeButton.height / 4 + style.closeButton.top;
+            this.content.x = bg_x + style.bg.paddingLR / 2;
+            this.content.y = bg_y + style.bg.paddingTB / 2;
+            this.title.x = bg_width / 2 + bg_x - this.title.width / 2;
+            this.title.y = bg_y - this.title.height + style.bg.paddingLR / 2;
         };
-        var effect_speed = {};
-        common_2.on(exports.current_stage, "keydown", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode)) {
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                effect_speed[_dir] = _symbol;
-                my_ship.setConfig((_a = {}, _a[_dir] = _symbol * my_ship.config.force, _a));
+        Dialog.prototype._on_content_update = function () { };
+        Dialog.prototype.setContent = function (content) {
+            if (this.content) {
+                this.content.off("update", this._on_content_update);
+                this.removeChild(this.content);
             }
-            var _a;
-        });
-        common_2.on(exports.current_stage, "keyup", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode)) {
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                if (effect_speed[_dir] === _symbol) {
-                    my_ship.setConfig((_a = {}, _a[_dir] = 0, _a));
+            else {
+                this.content = content;
+                content.on("update", this._on_content_update);
+                this.addChild(content);
+            }
+        };
+        Dialog.prototype.open = function (parent, blur_stage, renderer) {
+            var _this = this;
+            if (this._is_anining) {
+                return;
+            }
+            this.emit("open");
+            parent.addChild(this);
+            this._is_anining = true;
+            this._is_open = true;
+            // 还原来计算出正确的宽高
+            this.scale.set(1, 1);
+            this.ani.Tween(this)
+                .to({
+                x: this.x,
+                y: this.y
+            }, common_1.B_ANI_TIME)
+                .set({
+                x: this.x + common_1.VIEW.CENTER.x,
+                y: this.y + common_1.VIEW.CENTER.y
+            })
+                .easing(Tween_3.default.Easing.Quintic.Out)
+                .start();
+            this.ani.Tween(this.scale)
+                .set({
+                x: 0,
+                y: 0
+            })
+                .to({
+                x: 1,
+                y: 1
+            }, common_1.B_ANI_TIME)
+                .easing(Tween_3.default.Easing.Quintic.Out)
+                .start()
+                .onComplete(function () {
+                _this._is_anining = false;
+                // 设定背景模糊
+                if (blur_stage) {
+                    // this.cacheAsBitmap = true;
+                    var bg_sprite = BackgroundGaussianBlur_1.default.ContainerToSprite(_this, renderer);
+                    _this._bg_bulr_filter || (_this._bg_bulr_filter = new BackgroundGaussianBlur_1.default(bg_sprite, _this.style.blur.init_blur, _this.style.blur.quality));
+                    if (blur_stage.filters) {
+                        blur_stage.filters.push(_this._bg_bulr_filter);
+                    }
+                    else {
+                        blur_stage.filters = [_this._bg_bulr_filter];
+                    }
+                    _this._blur_target = blur_stage;
+                    _this.ani.Tween(_this._bg_bulr_filter)
+                        .to({
+                        blur: _this.style.blur.blur
+                    }, common_1.B_ANI_TIME)
+                        .start();
                 }
+            });
+        };
+        Dialog.prototype.close = function () {
+            var _this = this;
+            if (this._is_anining || !this._is_open) {
+                return;
             }
-            var _a;
+            this.emit("close");
+            this._is_open = false;
+            this._is_anining = true;
+            this.ani.Tween(this.scale)
+                .set({
+                x: 1,
+                y: 1
+            })
+                .to({
+                x: 0,
+                y: 0
+            }, common_1.B_ANI_TIME)
+                .easing(Tween_3.default.Easing.Quintic.In)
+                .start();
+            var cur_x = this.x;
+            var cur_y = this.y;
+            this.ani.Tween(this)
+                .to({
+                x: this.x + common_1.VIEW.CENTER.x,
+                y: this.y + common_1.VIEW.CENTER.y
+            }, common_1.B_ANI_TIME)
+                .easing(Tween_3.default.Easing.Quintic.In)
+                .start()
+                .onComplete(function () {
+                _this.position.set(cur_x, cur_y);
+                _this._is_anining = false;
+                // 关闭背景模糊滤镜
+                if (_this._blur_target) {
+                    _this._blur_target.filters = _this._blur_target.filters.filter(function (f) { return f !== _this._bg_bulr_filter; });
+                    if (_this._blur_target.filters.length == 0) {
+                        _this._blur_target.filters = null;
+                    }
+                    _this._blur_target = null;
+                }
+                _this.parent && _this.parent.removeChild(_this);
+            });
+        };
+        return Dialog;
+    }(PIXI.Container));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Dialog;
+});
+define("app/ui/Button", ["require", "exports", "app/common"], function (require, exports, common_2) {
+    "use strict";
+    var Button = (function (_super) {
+        __extends(Button, _super);
+        function Button(text_or_proto) {
+            var _this = this;
+            _super.call(this);
+            this.style = (function () {
+                var baseStyle = {
+                    width: 0,
+                    height: 0,
+                    backgrounColor: 0x4444ff,
+                    backgrounAlpha: 1,
+                    color: 0,
+                    value: "",
+                    paddingTop: 0,
+                    paddingLeft: 0,
+                    paddingBottom: 0,
+                    paddingRight: 0,
+                    borderColor: 0x333333,
+                    borderAlpha: 1,
+                    borderWidth: 0,
+                    fontSize: common_2.pt2px(10),
+                    fontFamily: "微软雅黑",
+                    radius: common_2.pt2px(2)
+                };
+                return baseStyle;
+            })();
+            this.text = new PIXI.Text("");
+            var style = this.style;
+            if (typeof text_or_proto === "string") {
+                style.value = text_or_proto;
+            }
+            else if (typeof text_or_proto === "object") {
+                common_2.mix_options(style, text_or_proto);
+            }
+            this.addChild(this.text);
+            this.redraw();
+            this.interactive = true;
+            common_2.on(this, "mouseover", function () {
+                var baseStyle = _this.style;
+                var hoverStyle = common_2.copy(baseStyle);
+                baseStyle.hoverStyle = hoverStyle;
+                hoverStyle.backgrounColor = (hoverStyle.backgrounColor * 0.8) | 0;
+                hoverStyle && _this.redraw(hoverStyle);
+            });
+            common_2.on(this, "mouseout", function () {
+                _this.redraw(_this.style);
+            });
+            common_2.on(this, "touchstart|mousedown", function () {
+                var baseStyle = _this.style;
+                var activeStyle = common_2.copy(baseStyle);
+                baseStyle.activeStyle = activeStyle;
+                activeStyle.backgrounColor = Math.min((activeStyle.backgrounColor * 1.1) | 0, 0xffffff);
+                _this.redraw(activeStyle);
+            });
+            common_2.on(this, "touchend|mouseup", function () {
+                _this.redraw(_this.style);
+            });
+        }
+        Button.prototype.redraw = function (style) {
+            style || (style = this.style);
+            var text = this.text;
+            text.text = style.value || this.style.value;
+            // if(style.width&&style.height) {// 使用宽高等算出字体大小
+            // }else{//使用字体大小算出宽高
+            // }
+            text.style = {
+                fill: style.color,
+                font: style.fontSize + " " + style.fontFamily
+            };
+            text.x = style.paddingLeft;
+            text.y = style.paddingTop;
+            var text_width = text.width;
+            var text_height = text.height;
+            this.clear();
+            this.beginFill(style.backgrounColor, style.backgrounAlpha);
+            this.lineStyle(style.borderWidth, style.borderColor, style.borderAlpha);
+            var button_width = text_width + style.paddingLeft + style.paddingRight;
+            var button_height = text_height + style.paddingTop + style.paddingBottom;
+            this.drawRoundedRect(0, 0, button_width, button_height, style.radius);
+        };
+        return Button;
+    }(PIXI.Graphics));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Button;
+});
+define("class/TextBuilder", ["require", "exports"], function (require, exports) {
+    "use strict";
+    var TextBuilder = (function (_super) {
+        __extends(TextBuilder, _super);
+        function TextBuilder(text, style) {
+            _super.call(this);
+            var paddingTop = parseFloat(style.paddingTop) || 0;
+            var paddingBottom = parseFloat(style.paddingBottom) || 0;
+            var paddingLeft = parseFloat(style.paddingLeft) || 0;
+            var paddingRight = parseFloat(style.paddingRight) || 0;
+            var left = parseFloat(style.left) || 0;
+            var top = parseFloat(style.top) || 0;
+            if (!style.font) {
+                style.font = style.fontSize + "px " + style.fontFamily;
+            }
+            var textNode = this._textNode = new PIXI.Text(text, style);
+            var wrapNode = new PIXI.Graphics();
+            wrapNode.lineStyle(0);
+            wrapNode.drawRect(0, 0, textNode.width + paddingLeft + paddingRight + left, textNode.height + paddingTop + paddingBottom + top);
+            wrapNode.alpha = 0;
+            this.addChild(wrapNode);
+            textNode.x = paddingLeft + left;
+            textNode.y = paddingTop + top;
+            this.addChild(textNode);
+        }
+        Object.defineProperty(TextBuilder.prototype, "text", {
+            get: function () {
+                return this._textNode.text;
+            },
+            set: function (text) {
+                this._textNode.text = text;
+            },
+            enumerable: true,
+            configurable: true
         });
-        common_2.on(exports.current_stage, "rightclick", function (e) {
-            var to_point = common_2.VIEW.rotateXY(e.data.global);
-        });
-        common_2.on(exports.current_stage, "click|tap", function () {
-            var bullet = my_ship.fire();
-            bullets.addChild(bullet);
-            world_1.engine.add(bullet);
-        });
-        common_2.on(exports.current_stage, "mousemove|click|tap", function (e) {
-            var to_point = common_2.VIEW.rotateXY(e.data.global);
-            var direction = new Victor_3.default(to_point.x - common_2.VIEW.CENTER.x, to_point.y - common_2.VIEW.CENTER.y);
-            my_ship.setConfig({ rotation: direction.angle() });
-        });
-        // setTimeout(function () {
-        //     rule.close();
-        // }, 3000)
-        // 动画控制器
-        ani_ticker.add(function () {
-            ani_tween.update();
-            jump_tween.update();
-            exports.current_stage_wrap.x = common_2.VIEW.WIDTH / 2 - my_ship.x;
-            // current_stage_wrap.y = my_ship.y - VIEW.HEIGHT / 2
-            exports.current_stage_wrap.y = common_2.VIEW.HEIGHT / 2 - my_ship.y;
-        });
-        /**帧率
-         *
-         */
-        var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
-        exports.current_stage_wrap.addChild(FPS_Text);
-        FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_2.VIEW.WIDTH + " H:" + common_2.VIEW.HEIGHT;
-        });
-        // 触发布局计算
-        common_2.emitReisze(exports.current_stage_wrap);
-        init_w.ok(0, []);
-    }
-    exports.current_stage_wrap.on("init", initStage);
-    exports.current_stage_wrap.on("reinit", function () {
-        renderInit(exports.loader, exports.loader.resources);
-        common_2.emitReisze(exports.current_stage);
-    });
-    exports.current_stage_wrap["_has_custom_resize"] = true;
-    exports.current_stage_wrap.on("resize", function () {
-        jump_tween.clear();
-        ani_tween.clear();
-        common_2.emitReisze(this);
-    });
-    var init_w = new When_2.default(2, function () {
-        common_2.emitReisze(exports.current_stage);
-        ani_tween.start();
-        jump_tween.start();
-        ani_ticker.start();
-        FPS_ticker.start();
-    });
-    function initStage() {
-        init_w.ok(1, []);
-    }
-    exports.initStage = initStage;
+        return TextBuilder;
+    }(PIXI.Container));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = TextBuilder;
 });
 define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     "use strict";
@@ -6176,203 +5966,669 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = FlowLayout;
 });
-define("class/TextBuilder", ["require", "exports"], function (require, exports) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_4, When_1, Flyer_1, Wall_1, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_2, Pomelo_1, common_3) {
     "use strict";
-    var TextBuilder = (function (_super) {
-        __extends(TextBuilder, _super);
-        function TextBuilder(text, style) {
-            _super.call(this);
-            var paddingTop = parseFloat(style.paddingTop) || 0;
-            var paddingBottom = parseFloat(style.paddingBottom) || 0;
-            var paddingLeft = parseFloat(style.paddingLeft) || 0;
-            var paddingRight = parseFloat(style.paddingRight) || 0;
-            var left = parseFloat(style.left) || 0;
-            var top = parseFloat(style.top) || 0;
-            if (!style.font) {
-                style.font = style.fontSize + "px " + style.fontFamily;
-            }
-            var textNode = this._textNode = new PIXI.Text(text, style);
-            var wrapNode = new PIXI.Graphics();
-            wrapNode.lineStyle(0);
-            wrapNode.drawRect(0, 0, textNode.width + paddingLeft + paddingRight + left, textNode.height + paddingTop + paddingBottom + top);
-            wrapNode.alpha = 0;
-            this.addChild(wrapNode);
-            textNode.x = paddingLeft + left;
-            textNode.y = paddingTop + top;
-            this.addChild(textNode);
+    var ani_ticker = new PIXI.ticker.Ticker();
+    var ani_tween = new Tween_4.default();
+    var jump_tween = new Tween_4.default();
+    var FPS_ticker = new PIXI.ticker.Ticker();
+    exports.current_stage_wrap = new PIXI.Graphics();
+    exports.current_stage = new PIXI.Container();
+    exports.current_stage_wrap.addChild(exports.current_stage);
+    // current_stage_wrap["keep_direction"] = "horizontal";
+    //加载图片资源
+    exports.loader = new PIXI.loaders.Loader();
+    exports.loader.add("button", "./res/game_res.png");
+    exports.loader.load();
+    var loading_text = new PIXI.Text("游戏加载中……", {
+        font: common_3.pt2px(25) + "px 微软雅黑",
+        fill: "#FFF"
+    });
+    exports.current_stage.addChild(loading_text);
+    exports.loader.once("complete", renderInit);
+    function renderInit(loader, resource) {
+        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
+            exports.current_stage.removeChildAt(0);
         }
-        Object.defineProperty(TextBuilder.prototype, "text", {
-            get: function () {
-                return this._textNode.text;
-            },
-            set: function (text) {
-                this._textNode.text = text;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        return TextBuilder;
-    }(PIXI.Container));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = TextBuilder;
-});
-define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics"], function (require, exports, common_3, Tween_5, SVGGraphics_1) {
-    "use strict";
-    var Dialog = (function (_super) {
-        __extends(Dialog, _super);
-        function Dialog(title, content, ani_control, options) {
-            var _this = this;
-            _super.call(this);
-            this.style = {
-                bg: {
-                    color: 0xe51928,
-                    alpha: 1,
-                    paddingLR: common_3.pt2px(40),
-                    paddingTB: common_3.pt2px(76),
-                    radius: common_3.pt2px(10)
-                },
-                closeButton: {
-                    show: true,
-                    size: common_3.pt2px(18),
-                    bold: common_3.pt2px(1),
-                    top: 0,
-                    left: 0
-                },
-                title: {
-                    padding: common_3.pt2px(20)
-                }
-            };
-            this._is_anining = false;
-            this.ani = ani_control;
-            options || (options = {});
-            var style = this.style;
-            common_3.mix_options(style, options);
-            // 焦点层: 0
-            // 背景层:1
-            var bg = this.bg = new PIXI.Graphics();
-            this.addChild(bg);
-            this._on_content_update = function () {
-                this.resize();
-            }.bind(this);
-            // 内容层:2
-            this.setContent(content);
-            // 标题层:3
-            if (title instanceof PIXI.Sprite) {
-                this.title = title;
-                title.texture.on("update", function () {
-                    console.log("Dialog resize..");
-                    _this.resize();
-                });
-            }
-            else if (title instanceof PIXI.Texture) {
-                var title_spr = this.title = new PIXI.Sprite(title);
-                title_spr.texture.on("update", function () {
-                    console.log("Dialog resize..");
-                    _this.resize();
-                });
-            }
-            else if (title instanceof PIXI.Container) {
-                this.title = title;
-            }
-            else {
-                this.title = PIXI.Sprite.fromImage(title);
-            }
-            this.addChild(this.title);
-            // 关闭按钮:4
-            var _closeButton_font_size = style.closeButton.size / 3 * 2;
-            var _closeButton_font_bold = style.closeButton.bold;
-            this.closeButton = SVGGraphics_1.default.importFromSVG("<svg version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n            <circle cy=\"0\" cx=\"0\" r=\"" + style.closeButton.size + "\" fill=\"#ffc03a\" stroke-width=\"0\"/>\n            <path d=\"M " + _closeButton_font_size + " 0 L -" + _closeButton_font_size + " 0 \" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n            <path d=\"M 0 " + _closeButton_font_size + " L 0 -" + _closeButton_font_size + "\" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n        </svg>")._graphics;
-            this.closeButton.rotation = Math.PI / 4;
-            this.closeButton.interactive = true;
-            ["tap", "click"].forEach(function (eventName) { return _this.closeButton.on(eventName, _this.close.bind(_this)); });
-            if (style.closeButton.show) {
-                this.addChild(this.closeButton);
-            }
-            this.resize();
+        /**素材加载
+         * 初始化场景
+         */
+        function drawPlan() {
+            exports.current_stage_wrap.clear();
+            exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
+            exports.current_stage_wrap.drawRect(0, 0, common_3.VIEW.WIDTH, common_3.VIEW.HEIGHT);
+            exports.current_stage_wrap.endFill();
         }
-        Dialog.prototype.resize = function () {
-            var style = this.style;
-            var bg = this.bg;
-            bg.clear();
-            bg.lineStyle(0);
-            bg.beginFill(style.bg.color, style.bg.alpha);
-            var bg_width = Math.max(this.content.width, this.title.width + style.title.padding) + style.bg.paddingLR; //14.10 / 16.94 * VIEW.WIDTH;
-            var bg_height = this.content.height + style.bg.paddingTB;
-            var bg_x = (common_3.VIEW.WIDTH - bg_width) / 2;
-            var bg_y = (common_3.VIEW.HEIGHT - bg_height) / 2;
-            bg.drawRoundedRect(bg_x, bg_y, bg_width, bg_height, style.bg.radius);
-            bg.endFill();
-            this.closeButton.x = bg_x + bg_width - this.closeButton.width / 4 + style.closeButton.left;
-            this.closeButton.y = bg_y + this.closeButton.height / 4 + style.closeButton.top;
-            this.content.x = bg_x + style.bg.paddingLR / 2;
-            this.content.y = bg_y + style.bg.paddingTB / 2;
-            this.title.x = bg_width / 2 + bg_x - this.title.width / 2;
-            this.title.y = bg_y - this.title.height + style.bg.paddingLR / 2;
+        exports.current_stage_wrap.on("resize", drawPlan);
+        var ObjectMap = {
+            "Flyer": Flyer_1.default,
+            "Wall": Wall_1.default,
+            "Ship": Ship_2.default,
+            "Bullet": Bullet_3.default,
         };
-        Dialog.prototype._on_content_update = function () { };
-        Dialog.prototype.setContent = function (content) {
-            if (this.content) {
-                this.content.off("update", this._on_content_update);
-                this.removeChild(this.content);
-            }
-            else {
-                this.content = content;
-                content.on("update", this._on_content_update);
-                this.addChild(content);
-            }
-        };
-        Dialog.prototype.open = function (parent) {
-            var _this = this;
-            if (this._is_anining) {
-                return;
-            }
-            this.emit("open");
-            parent.addChild(this);
-            this._is_anining = true;
-            // 还原来计算出正确的宽高
-            this.scale.set(1, 1);
-            this.ani.Tween(this)
-                .to({ x: this.x, y: this.y }, common_3.B_ANI_TIME)
-                .set({ x: this.x + common_3.VIEW.CENTER.x, y: this.y + common_3.VIEW.CENTER.y })
-                .easing(Tween_5.default.Easing.Quintic.Out)
-                .start();
-            this.ani.Tween(this.scale)
-                .set({ x: 0, y: 0 })
-                .to({ x: 1, y: 1 }, common_3.B_ANI_TIME)
-                .easing(Tween_5.default.Easing.Quintic.Out)
-                .start()
-                .onComplete(function () { _this._is_anining = false; });
-        };
-        Dialog.prototype.close = function () {
-            var _this = this;
-            if (this._is_anining) {
-                return;
-            }
-            this.emit("close");
-            this._is_anining = true;
-            this.ani.Tween(this.scale)
-                .set({ x: 1, y: 1 })
-                .to({ x: 0, y: 0 }, common_3.B_ANI_TIME)
-                .easing(Tween_5.default.Easing.Quintic.In)
-                .start();
-            var cur_x = this.x;
-            var cur_y = this.y;
-            this.ani.Tween(this)
-                .to({ x: this.x + common_3.VIEW.CENTER.x, y: this.y + common_3.VIEW.CENTER.y }, common_3.B_ANI_TIME)
-                .easing(Tween_5.default.Easing.Quintic.In)
-                .start()
-                .onComplete(function () {
-                _this.position.set(cur_x, cur_y);
-                _this._is_anining = false;
-                _this.parent && _this.parent.removeChild(_this);
+        var instanceMap = {};
+        var view_ship;
+        // 子弹绘图层
+        var bullet_stage = new PIXI.Container();
+        bullet_stage["update"] = function (delay) {
+            this.children.forEach(function (bullet) {
+                bullet.update(delay);
             });
         };
-        return Dialog;
-    }(PIXI.Container));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Dialog;
+        exports.current_stage.addChild(bullet_stage);
+        // 物体绘图层：墙、飞船等等
+        var object_stage = new PIXI.Container();
+        object_stage["update"] = function (delay) {
+            this.children.forEach(function (obj) {
+                obj.update(delay);
+            });
+        };
+        exports.current_stage.addChild(object_stage);
+        // 血量绘图层;
+        var hp_stage = new PIXI.Container();
+        hp_stage["update"] = function (delay) {
+            this.children.forEach(function (hp) {
+                hp.update(delay);
+            });
+        };
+        exports.current_stage.addChild(hp_stage);
+        var HP_SHIP_WEAKMAP = {};
+        function showViewData(objects) {
+            objects.map(function (obj_info) {
+                if (instanceMap.hasOwnProperty(obj_info.id)) {
+                    instanceMap[obj_info.id].setConfig(obj_info.config);
+                }
+                else {
+                    var Con = ObjectMap[obj_info.type];
+                    if (!Con) {
+                        console.error("UNKONW TYPE:", obj_info);
+                        return;
+                    }
+                    var ins = instanceMap[obj_info.id] = new Con(obj_info.config);
+                    if (view_ship_info.id === obj_info.id) {
+                        view_ship = ins;
+                    }
+                    if (obj_info.type === "Bullet") {
+                        bullet_stage.addChild(ins);
+                    }
+                    else {
+                        object_stage.addChild(ins);
+                        if (obj_info.type === "Ship") {
+                            var hp = HP_SHIP_WEAKMAP[obj_info.id] = new HP_1.default(ins);
+                            hp_stage.addChild(hp);
+                        }
+                    }
+                    shadowWorld_1.engine.add(ins);
+                }
+            });
+        }
+        ;
+        var ping = 0;
+        var timeSinceLastCalled = 0;
+        var timeSinceLastCalledMS = 0;
+        var isNewDataFrame = false;
+        var can_next = true;
+        ;
+        function getViewData() {
+            var pre_time = performance.now();
+            ani_ticker.add(function () {
+                var p_now = performance.now();
+                // 上一次请求到现在的时间
+                var pre_req_delay = p_now - timeSinceLastCalledMS;
+                if (pre_req_delay >= 100) {
+                    can_next = true;
+                }
+                else if (pre_req_delay < 25) {
+                    return;
+                }
+                if (can_next === false) {
+                    return;
+                }
+                can_next = false;
+                var start_ping = performance.now();
+                Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
+                    x: 0,
+                    y: 0,
+                    width: common_3.VIEW.WIDTH,
+                    height: common_3.VIEW.HEIGHT
+                }, function (data) {
+                    var cur_time = performance.now();
+                    var dif_time = cur_time - pre_time;
+                    pre_time = cur_time;
+                    timeSinceLastCalledMS = cur_time;
+                    timeSinceLastCalled = dif_time / 1000;
+                    isNewDataFrame = true;
+                    ping = cur_time - start_ping;
+                    showViewData(data.objects);
+                    can_next = true;
+                });
+            });
+        }
+        ;
+        exports.current_stage_wrap.on("active", getViewData);
+        // 当前视角飞车，不一定是自己的飞船，在死亡后视角会进行切换
+        var view_ship_info;
+        exports.current_stage_wrap.on("before-active", function (game_init_info) {
+            view_ship_info = game_init_info.ship;
+            is_my_ship_live = true;
+        });
+        /**初始化动画
+         *
+         */
+        /**按钮事件
+         *
+         */
+        /**交互动画
+         *
+         */
+        // 移动
+        var speed_ux = {
+            37: "-x",
+            65: "-x",
+            38: "-y",
+            87: "-y",
+            39: "+x",
+            68: "+x",
+            40: "+y",
+            83: "+y",
+        };
+        var effect_speed = {};
+        common_3.on(exports.current_stage_wrap, "keydown", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
+                var speed_info = speed_ux[e.keyCode];
+                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
+                var _dir = speed_info.charAt(1) + "_speed";
+                effect_speed[_dir] = _symbol;
+                var new_config = (_a = {},
+                    _a[_dir] = _symbol * view_ship.config.force,
+                    _a
+                );
+                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                    config: new_config
+                }, function (data) {
+                    // console.log("setConfig:to-move", data);
+                    // 触发发射动画
+                    view_ship.emit("fire-ani");
+                });
+            }
+            var _a;
+        });
+        common_3.on(exports.current_stage_wrap, "keyup", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
+                var speed_info = speed_ux[e.keyCode];
+                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
+                var _dir = speed_info.charAt(1) + "_speed";
+                if (effect_speed[_dir] === _symbol) {
+                    var new_config = (_a = {},
+                        _a[_dir] = 0,
+                        _a
+                    );
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) {
+                        // console.log("setConfig:stop-move", data);
+                    });
+                }
+            }
+            var _a;
+        });
+        // 转向
+        common_3.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
+            // if(can_next) {
+            if (view_ship) {
+                var to_point = common_3.VIEW.rotateXY(e.data.global);
+                var direction = new Victor_2.default(to_point.x - common_3.VIEW.CENTER.x, to_point.y - common_3.VIEW.CENTER.y);
+                var angle_value = direction.angle();
+                if (angle_value < 0) {
+                    angle_value += PIXI.PI_2;
+                }
+                var new_config = {
+                    rotation: angle_value
+                };
+                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                    config: new_config
+                }, function (data) {
+                    // console.log("setConfig:turn-head", data);
+                });
+            }
+        });
+        // 发射
+        common_3.on(exports.current_stage_wrap, "click|tap", function () {
+            if (view_ship) {
+                Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
+                    // console.log("setConfig:fire", data);
+                });
+            }
+        });
+        /**响应服务端事件
+         *
+         */
+        Pomelo_1.pomelo.on("explode", function (arg) {
+            var bullet_info = arg.data;
+            console.log("explode:", bullet_info);
+            var bullet = instanceMap[bullet_info.id];
+            if (bullet) {
+                bullet.setConfig(bullet_info.config);
+                bullet.emit("explode");
+                instanceMap[bullet_info.id] = null;
+            }
+        });
+        Pomelo_1.pomelo.on("change-hp", function (arg) {
+            var ship_info = arg.data;
+            console.log("change-hp:", ship_info);
+            var ship = instanceMap[ship_info.id];
+            if (ship) {
+                var ship_config = ship_info.config;
+                ship.setConfig(ship_config);
+                var hp = HP_SHIP_WEAKMAP[ship_info.id];
+                if (hp) {
+                    hp.setHP(ship_config.cur_hp / ship_config.max_hp);
+                }
+            }
+        });
+        var is_my_ship_live = false;
+        // 死亡对话框
+        var die_dialog = (function () {
+            var title = new PIXI.Container();
+            var restart_button = new Button_1.default({
+                value: "重新开始",
+                fontSize: common_3.pt2px(14),
+                paddingTop: common_3.pt2px(4),
+                paddingBottom: common_3.pt2px(4),
+                paddingLeft: common_3.pt2px(4),
+                paddingRight: common_3.pt2px(4),
+                color: 0xffffff,
+                fontFamily: "微软雅黑"
+            });
+            var content = new FlowLayout_1.default([
+                new TextBuilder_1.default("被击杀！", {
+                    fontSize: common_3.pt2px(16),
+                    fontFamily: "微软雅黑"
+                }),
+                restart_button
+            ], {
+                float: "center"
+            });
+            content.max_width = common_3.pt2px(60);
+            content.reDrawFlow();
+            common_3.on(restart_button, "click|tap", function (e) {
+                exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
+                    if (err) {
+                        alert(err);
+                    }
+                    else {
+                        exports.current_stage_wrap.emit("before-active", game_info);
+                        die_dialog.close();
+                        die_dialog.once("removed", function () {
+                            exports.current_stage_wrap.emit("active");
+                        });
+                    }
+                });
+            });
+            var dialog = new Dialog_1.default(title, content, ani_tween, {
+                title: {
+                    show: false
+                },
+                closeButton: {
+                    show: false
+                },
+                bg: {
+                    alpha: 0.4
+                }
+            });
+            return dialog;
+        })();
+        Pomelo_1.pomelo.on("die", function (arg) {
+            var ship_info = arg.data;
+            console.log("die:", ship_info);
+            var ship = instanceMap[ship_info.id];
+            if (ship) {
+                var hp = HP_SHIP_WEAKMAP[ship_info.id];
+                hp.parent.removeChild(hp);
+                hp.destroy();
+                ship.emit("die");
+                instanceMap[ship_info.id] = null;
+                if (ship._id === view_ship._id) {
+                    // 玩家死亡
+                    view_ship = null; //TODO，镜头使用击杀者
+                    is_my_ship_live = false;
+                    // 打开对话框
+                    die_dialog.open(exports.current_stage_wrap, exports.current_stage, common_3.renderer);
+                }
+            }
+        });
+        /**帧率
+         *
+         */
+        var pre_time;
+        ani_ticker.add(function () {
+            // 动画控制器
+            ani_tween.update();
+            jump_tween.update();
+            // 客户端对场景的优化渲染
+            pre_time || (pre_time = performance.now());
+            var cur_time = performance.now();
+            var dif_time = cur_time - pre_time;
+            pre_time = cur_time;
+            // 更新影子世界
+            shadowWorld_1.engine.update(dif_time, timeSinceLastCalled, isNewDataFrame);
+            isNewDataFrame = false;
+            // 跟随主角移动
+            if (view_ship) {
+                exports.current_stage.x = common_3.VIEW.WIDTH / 2 - view_ship.x;
+                exports.current_stage.y = common_3.VIEW.HEIGHT / 2 - view_ship.y;
+            }
+            // 更新血量显示
+            hp_stage["update"](dif_time);
+        });
+        var FPS_Text = new PIXI.Text("FPS:0", {
+            font: '24px Arial',
+            fill: 0x00ffff33,
+            align: "left"
+        });
+        exports.current_stage_wrap.addChild(FPS_Text);
+        FPS_ticker.add(function () {
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_3.VIEW.WIDTH + " H:" + common_3.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
+            if (view_ship) {
+                var info = "\n";
+                for (var k in view_ship.config) {
+                    var val = view_ship.config[k];
+                    if (typeof val === "number") {
+                        val = val.toFixed(2);
+                    }
+                    info += k + ": " + val + "\n";
+                }
+                FPS_Text.text += info;
+            }
+        });
+        // 触发布局计算
+        common_3.emitReisze(exports.current_stage_wrap);
+        init_w.ok(0, []);
+    }
+    exports.current_stage_wrap.on("init", initStage);
+    exports.current_stage_wrap.on("reinit", function () {
+        renderInit(exports.loader, exports.loader.resources);
+        common_3.emitReisze(exports.current_stage);
+    });
+    exports.current_stage_wrap["_has_custom_resize"] = true;
+    exports.current_stage_wrap.on("resize", function () {
+        jump_tween.clear();
+        ani_tween.clear();
+        common_3.emitReisze(this);
+    });
+    // 初始化本机ID
+    var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
+    if (!mac_ship_id) {
+        mac_ship_id = (Math.random() * Date.now()).toString().replace(".", "");
+        localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
+    }
+    var old_username;
+    exports.current_stage_wrap.on("enter", function (username, cb) {
+        // 发送名字，初始化角色
+        Pomelo_1.pomelo.request("connector.entryHandler.enter", {
+            username: username || old_username,
+            mac_ship_id: mac_ship_id,
+            width: common_3.VIEW.WIDTH,
+            height: common_3.VIEW.HEIGHT,
+        }, function (game_info) {
+            if (game_info.code === 500) {
+                console.log(game_info);
+                if (game_info.error == "重复登录") {
+                    cb("名字已被使用，请重新输入");
+                }
+            }
+            else {
+                old_username = username;
+                cb(null, game_info);
+            }
+        });
+    });
+    var init_w = new When_1.default(2, function () {
+        common_3.emitReisze(exports.current_stage);
+        ani_tween.start();
+        jump_tween.start();
+        ani_ticker.start();
+        FPS_ticker.start();
+    });
+    function initStage() {
+        init_w.ok(1, []);
+    }
+    exports.initStage = initStage;
 });
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_6, When_3, Dialog_1, common_4) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_5, When_2, Flyer_2, Ship_3, Wall_2, Victor_3, world_1, common_4) {
+    "use strict";
+    var ani_ticker = new PIXI.ticker.Ticker();
+    var ani_tween = new Tween_5.default();
+    var jump_tween = new Tween_5.default();
+    var FPS_ticker = new PIXI.ticker.Ticker();
+    exports.current_stage_wrap = new PIXI.Container();
+    exports.current_stage = new PIXI.Graphics();
+    exports.current_stage_wrap.addChild(exports.current_stage);
+    exports.current_stage_wrap["keep_direction"] = "horizontal";
+    //加载图片资源
+    exports.loader = new PIXI.loaders.Loader();
+    exports.loader.add("button", "./res/game_res.png");
+    exports.loader.load();
+    var loading_text = new PIXI.Text("游戏加载中……", { font: common_4.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    exports.current_stage.addChild(loading_text);
+    exports.loader.once("complete", renderInit);
+    function renderInit(loader, resource) {
+        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
+            exports.current_stage.removeChildAt(0);
+        }
+        /**素材加载
+         * 初始化场景
+         */
+        exports.current_stage.on("resize", function () {
+            exports.current_stage.clear();
+            exports.current_stage.beginFill(0x333ddd, 0.5);
+            exports.current_stage.drawRect(0, 0, common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT);
+            exports.current_stage.endFill();
+            // current_stage.scale.y = -1;
+            // current_stage.position.y = VIEW.HEIGHT;
+        });
+        // 子弹层
+        var bullets = new PIXI.Container();
+        exports.current_stage.addChild(bullets);
+        var flyer = new Flyer_2.default({
+            x: 260,
+            y: 250,
+            x_speed: 10 * 2 * (Math.random() - 0.5),
+            y_speed: 10 * 2 * (Math.random() - 0.5),
+            body_color: 0x0f00dd
+        });
+        exports.current_stage.addChild(flyer);
+        world_1.engine.add(flyer);
+        var flyer = new Flyer_2.default({
+            x: 480,
+            y: 250,
+            x_speed: 10 * 2 * (Math.random() - 0.5),
+            y_speed: 10 * 2 * (Math.random() - 0.5),
+            body_color: 0x0fdd00
+        });
+        exports.current_stage.addChild(flyer);
+        world_1.engine.add(flyer);
+        var flyer = new Flyer_2.default({
+            x: 600,
+            y: 250,
+            x_speed: 10 * 2 * (Math.random() - 0.5),
+            y_speed: 10 * 2 * (Math.random() - 0.5),
+            body_color: 0xdd000f
+        });
+        exports.current_stage.addChild(flyer);
+        world_1.engine.add(flyer);
+        // 四边限制
+        var top_edge = new Wall_2.default({
+            x: common_4.VIEW.CENTER.x, y: 5,
+            width: common_4.VIEW.WIDTH,
+            height: 10
+        });
+        exports.current_stage.addChild(top_edge);
+        world_1.engine.add(top_edge);
+        var bottom_edge = new Wall_2.default({
+            x: common_4.VIEW.CENTER.x, y: common_4.VIEW.HEIGHT - 5,
+            width: common_4.VIEW.WIDTH,
+            height: 10
+        });
+        exports.current_stage.addChild(bottom_edge);
+        world_1.engine.add(bottom_edge);
+        var left_edge = new Wall_2.default({
+            x: 5, y: common_4.VIEW.CENTER.y,
+            width: 10,
+            height: common_4.VIEW.HEIGHT
+        });
+        exports.current_stage.addChild(left_edge);
+        world_1.engine.add(left_edge);
+        var right_edge = new Wall_2.default({
+            x: common_4.VIEW.WIDTH - 5, y: common_4.VIEW.CENTER.y,
+            width: 10,
+            height: common_4.VIEW.HEIGHT
+        });
+        exports.current_stage.addChild(right_edge);
+        world_1.engine.add(right_edge);
+        (function () {
+            var x_len = 2;
+            var y_len = 2;
+            var x_unit = common_4.VIEW.WIDTH / (x_len + 1);
+            var y_unit = common_4.VIEW.HEIGHT / (y_len + 1);
+            var width = 40;
+            for (var _x = 1; _x <= x_len; _x += 1) {
+                for (var _y = 1; _y <= y_len; _y += 1) {
+                    var mid_edge = new Wall_2.default({
+                        x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
+                        width: width,
+                        height: width
+                    });
+                    exports.current_stage.addChild(mid_edge);
+                    world_1.engine.add(mid_edge);
+                }
+            }
+        })();
+        var my_ship = new Ship_3.default({
+            x: common_4.VIEW.CENTER.x,
+            y: common_4.VIEW.CENTER.y,
+            body_color: 0x366345
+        });
+        exports.current_stage.addChild(my_ship);
+        world_1.engine.add(my_ship);
+        var other_ship = new Ship_3.default({
+            x: common_4.VIEW.CENTER.x - 100,
+            y: common_4.VIEW.CENTER.y - 100,
+            body_color: 0x633645,
+            team_tag: 12
+        });
+        exports.current_stage.addChild(other_ship);
+        world_1.engine.add(other_ship);
+        /**初始化动画
+         *
+         */
+        var pre_time;
+        ani_ticker.add(function () {
+            pre_time || (pre_time = performance.now());
+            var cur_time = performance.now();
+            var dif_time = cur_time - pre_time;
+            pre_time = cur_time;
+            // 物理引擎运作
+            world_1.engine.update(dif_time);
+        });
+        /**按钮事件
+         *
+         */
+        /**交互动画
+         *
+         */
+        var speed_ux = {
+            37: "-x",
+            65: "-x",
+            38: "-y",
+            87: "-y",
+            39: "+x",
+            68: "+x",
+            40: "+y",
+            83: "+y",
+        };
+        var effect_speed = {};
+        common_4.on(exports.current_stage, "keydown", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode)) {
+                var speed_info = speed_ux[e.keyCode];
+                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
+                var _dir = speed_info.charAt(1) + "_speed";
+                effect_speed[_dir] = _symbol;
+                my_ship.setConfig((_a = {}, _a[_dir] = _symbol * my_ship.config.force, _a));
+            }
+            var _a;
+        });
+        common_4.on(exports.current_stage, "keyup", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode)) {
+                var speed_info = speed_ux[e.keyCode];
+                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
+                var _dir = speed_info.charAt(1) + "_speed";
+                if (effect_speed[_dir] === _symbol) {
+                    my_ship.setConfig((_a = {}, _a[_dir] = 0, _a));
+                }
+            }
+            var _a;
+        });
+        common_4.on(exports.current_stage, "rightclick", function (e) {
+            var to_point = common_4.VIEW.rotateXY(e.data.global);
+        });
+        common_4.on(exports.current_stage, "click|tap", function () {
+            var bullet = my_ship.fire();
+            bullets.addChild(bullet);
+            world_1.engine.add(bullet);
+        });
+        common_4.on(exports.current_stage, "mousemove|click|tap", function (e) {
+            var to_point = common_4.VIEW.rotateXY(e.data.global);
+            var direction = new Victor_3.default(to_point.x - common_4.VIEW.CENTER.x, to_point.y - common_4.VIEW.CENTER.y);
+            my_ship.setConfig({ rotation: direction.angle() });
+        });
+        // setTimeout(function () {
+        //     rule.close();
+        // }, 3000)
+        // 动画控制器
+        ani_ticker.add(function () {
+            ani_tween.update();
+            jump_tween.update();
+            exports.current_stage_wrap.x = common_4.VIEW.WIDTH / 2 - my_ship.x;
+            // current_stage_wrap.y = my_ship.y - VIEW.HEIGHT / 2
+            exports.current_stage_wrap.y = common_4.VIEW.HEIGHT / 2 - my_ship.y;
+        });
+        /**帧率
+         *
+         */
+        var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
+        exports.current_stage_wrap.addChild(FPS_Text);
+        FPS_ticker.add(function () {
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_4.VIEW.WIDTH + " H:" + common_4.VIEW.HEIGHT;
+        });
+        // 触发布局计算
+        common_4.emitReisze(exports.current_stage_wrap);
+        init_w.ok(0, []);
+    }
+    exports.current_stage_wrap.on("init", initStage);
+    exports.current_stage_wrap.on("reinit", function () {
+        renderInit(exports.loader, exports.loader.resources);
+        common_4.emitReisze(exports.current_stage);
+    });
+    exports.current_stage_wrap["_has_custom_resize"] = true;
+    exports.current_stage_wrap.on("resize", function () {
+        jump_tween.clear();
+        ani_tween.clear();
+        common_4.emitReisze(this);
+    });
+    var init_w = new When_2.default(2, function () {
+        common_4.emitReisze(exports.current_stage);
+        ani_tween.start();
+        jump_tween.start();
+        ani_ticker.start();
+        FPS_ticker.start();
+    });
+    function initStage() {
+        init_w.ok(1, []);
+    }
+    exports.initStage = initStage;
+});
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_6, When_3, Dialog_2, common_5) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_6.default();
@@ -6384,26 +6640,36 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     // current_stage_wrap["keep_direction"] = "vertical";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("logo", "res/game_res.png");
+    exports.loader.add("bg", "http://cdn2.youdob.com/4.jpg?imageView2/1/w/" + common_5.VIEW.WIDTH + "/h/" + common_5.VIEW.HEIGHT);
     exports.loader.load();
     var loading_text = new PIXI.Text("加载中……", {
-        font: common_4.pt2px(25) + "px 微软雅黑",
+        font: common_5.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     var waitting_text = new PIXI.Text("连接服务器中……", {
-        font: common_4.pt2px(25) + "px 微软雅黑",
+        font: common_5.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     function renderInit(loader, resource) {
         for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
             exports.current_stage.removeChildAt(0);
         }
+        var bg_tex = resource["bg"].texture;
+        var bg = new PIXI.Sprite(bg_tex);
+        exports.current_stage.addChild(bg);
+        if (bg_tex.width / bg_tex.height > common_5.VIEW.WIDTH / common_5.VIEW.HEIGHT) {
+            var bg_rate = common_5.VIEW.HEIGHT / bg_tex.height;
+        }
+        else {
+            var bg_rate = common_5.VIEW.WIDTH / bg_tex.width;
+        }
+        bg.scale.set(bg_rate, bg_rate);
         exports.current_stage.addChild(waitting_text);
-        common_4.stageManager.backgroundColor = "#333";
-        waitting_text.x = common_4.VIEW.CENTER.x - waitting_text.width / 2;
-        waitting_text.y = common_4.VIEW.CENTER.y - waitting_text.height / 2;
+        common_5.stageManager.backgroundColor = "#333";
+        waitting_text.x = common_5.VIEW.CENTER.x - waitting_text.width / 2;
+        waitting_text.y = common_5.VIEW.CENTER.y - waitting_text.height / 2;
         /**初始化动画
          *
          */
@@ -6415,11 +6681,11 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
             // });
             var title = new PIXI.Container();
             var content = new PIXI.Graphics();
-            content.beginFill(0x3333ff, 0.5);
-            var _r = Math.min(common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT) / 2 * 0.8;
+            content.beginFill(0xffffff, 0.5);
+            var _r = Math.min(common_5.VIEW.WIDTH, common_5.VIEW.HEIGHT) / 2 * 0.9;
             content.drawCircle(_r, _r, _r);
             content.endFill();
-            var dialog = new Dialog_1.default(title, content, ani_tween, {
+            var dialog = new Dialog_2.default(title, content, ani_tween, {
                 bg: {
                     alpha: 0,
                     paddingLR: 0,
@@ -6443,7 +6709,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 })
                     .to({
                     opacity: 1
-                }, common_4.B_ANI_TIME)
+                }, common_5.B_ANI_TIME)
                     .onUpdate(function (p) {
                     ui_wrap.style.transform = "scale(" + p + ")";
                 })
@@ -6456,7 +6722,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 })
                     .to({
                     opacity: 0
-                }, common_4.B_ANI_TIME)
+                }, common_5.B_ANI_TIME)
                     .start()
                     .onUpdate(function (p) {
                     ui_wrap.style.transform = "scale(" + (1 - p) + ")";
@@ -6470,15 +6736,15 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 ui_wrap = document.createElement("div");
                 ui_wrap.style.cssText = "\n                display: -webkit-flex;\n                display: flex;\n                position: absolute;\n                left:0;\n                top:0;\n                width:100%;\n                height:100%;\n                -webkit-align-items: center;\n                      align-items: center;\n                -webkit-justify-content: center;\n                      justify-content: center;\n            ";
                 exports.current_stage_wrap["ui_wrap"] = ui_wrap;
-                var input_width = common_4.pt2px(200);
-                var input_height = common_4.pt2px(20);
+                var input_width = common_5.pt2px(200);
+                var input_height = common_5.pt2px(20);
                 var input_placeholder = "请输入用户名";
-                ui_wrap.innerHTML = "\n            <div style=\"\n                width: " + input_width + "px;\n                height: " + input_height * 3 + "px;\n                text-align:center;\n                \">\n                <input placeholder=\"" + input_placeholder + "\" style=\"display:block;\n                    width:" + input_width + "px;\n                    border-radius:" + input_height * 0.3 + "px;\n                    padding:" + input_height * 0.3 + "px;\n                    margin:0;\n                    border:0;\n                    background-color:rgba(221,221,221,0.8);\n                    outline:none;\n                    color:#333;\n                    font-size:" + input_height * 0.8 + "px;\"/>\n                <button style=\"\n                    border-radius:" + input_height * 0.1 + "px;\n                    min-width:" + input_width * 0.6 + "px;\n                    margin:" + input_height * 0.4 + "px 0 0 0;\n                    border:0;\n                    color:#ddd;\n                    background-color:rgba(33,33,221,0.8);\n                    outline:none;\n                    padding:" + input_height * 0.1 + "px;\n                    font-size:" + input_height * 0.8 + "px;\">\u63D0\u4EA4</button>\n            </div>\n            ";
+                ui_wrap.innerHTML = "\n            <div style=\"\n                width: " + input_width + "px;\n                height: " + input_height * 3 + "px;\n                text-align:center;\n                \">\n                <input placeholder=\"" + input_placeholder + "\" style=\"display:block;\n                    width:" + input_width + "px;\n                    border-radius:" + input_height * 0.3 + "px;\n                    padding:" + input_height * 0.3 + "px;\n                    margin:0;\n                    border:0;\n                    background-color:rgba(221,221,221,0.9);\n                    outline:none;\n                    color:#333;\n                    font-size:" + input_height * 0.8 + "px;\"/>\n                <button style=\"\n                    cursor:point;\n                    border-radius:" + input_height * 0.1 + "px;\n                    min-width:" + input_width * 0.6 + "px;\n                    margin:" + input_height * 0.4 + "px 0 0 0;\n                    border:0;\n                    color:#ddd;\n                    background-color:rgba(33,33,221,0.8);\n                    outline:none;\n                    padding:" + input_height * 0.1 + "px;\n                    font-size:" + input_height * 0.8 + "px;\">\u63D0\u4EA4</button>\n            </div>\n            ";
                 var ui_input = ui_wrap.firstElementChild.firstElementChild;
                 ui_input["showError"] = function (errorText) {
                     ui_input.value = "";
                     ui_input.placeholder = errorText;
-                    ui_input.style.boxShadow = "0 0 " + common_4.pt2px(10) + "px rgba(221,33,33,1)";
+                    ui_input.style.boxShadow = "0 0 " + common_5.pt2px(10) + "px rgba(221,33,33,1)";
                     setTimeout(function () {
                         ui_input.placeholder = input_placeholder;
                         ui_input.style.boxShadow = "none";
@@ -6501,7 +6767,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 var ui_input = ui_wrap.firstElementChild.firstElementChild;
                 ui_input["showError"](errorText);
             }
-            inputName_dialog.open(exports.current_stage_wrap);
+            inputName_dialog.open(exports.current_stage_wrap, exports.current_stage, common_5.renderer);
         });
         /**按钮事件
          *
@@ -6518,7 +6784,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
          *
          */
         // 触发布局计算
-        common_4.emitReisze(exports.current_stage_wrap);
+        common_5.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
@@ -6529,7 +6795,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_4.emitReisze(this);
+        common_5.emitReisze(this);
     });
     var init_w = new When_3.default(2, function () {
         ani_tween.start();
@@ -6542,10 +6808,10 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     }
     exports.initStage = initStage;
 });
-define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_5, game2_1, game_oline_1, loader_1, Pomelo_2) {
+define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_6, game2_1, game_oline_1, loader_1, Pomelo_2) {
     "use strict";
-    common_5.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
-    common_5.stageManager.set(loader_1.current_stage_wrap);
+    common_6.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
+    common_6.stageManager.set(loader_1.current_stage_wrap);
     var host = location.hostname;
     var port = "3051";
     Pomelo_2.pomelo.init({
@@ -6553,12 +6819,6 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
         port: port,
         log: true
     }, function () {
-        // 初始化本机ID
-        var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
-        if (!mac_ship_id) {
-            mac_ship_id = (Math.random() * Date.now()).toString().replace(".", "");
-            localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
-        }
         // 随机选择服务器
         Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
             if (data.code === 200) {
@@ -6568,22 +6828,13 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
                     log: true
                 }, function () {
                     loader_1.current_stage_wrap.emit("connected", function _(username) {
-                        // 发送名字，初始化角色
-                        Pomelo_2.pomelo.request("connector.entryHandler.enter", {
-                            username: username,
-                            mac_ship_id: mac_ship_id,
-                            width: document.body.clientWidth,
-                            height: document.body.clientHeight,
-                        }, function (game_info) {
-                            if (game_info.code === 500) {
-                                console.log(game_info);
-                                if (game_info.error == "重复登录") {
-                                    loader_1.current_stage_wrap.emit("connected", _, "名字已被使用，请重新输入");
-                                }
+                        game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
+                            if (err) {
+                                loader_1.current_stage_wrap.emit("connected", _, err);
                             }
                             else {
                                 game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                                common_5.stageManager.set(game_oline_1.current_stage_wrap);
+                                common_6.stageManager.set(game_oline_1.current_stage_wrap);
                             }
                         });
                     });
@@ -6596,7 +6847,7 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
     });
     // stageManager.set(g_stage);
     function animate() {
-        common_5.renderer.render(common_5.stageManager.get());
+        common_6.renderer.render(common_6.stageManager.get());
         requestAnimationFrame(animate);
     }
     animate();

@@ -104,25 +104,25 @@ engine.add(right_edge);
     }
 })();
 
-var my_ship = new Ship({
-    x: VIEW.CENTER.x,
-    y: VIEW.CENTER.y,
-    body_color: 0x366345
-});
-// current_stage.addChild(my_ship);
-engine.add(my_ship);
-setInterval(function () {
-    engine.fire(my_ship._id);
-},3000)
+// var my_ship = new Ship({
+//     x: VIEW.CENTER.x,
+//     y: VIEW.CENTER.y,
+//     body_color: 0x366345
+// });
+// // current_stage.addChild(my_ship);
+// engine.add(my_ship);
+// setInterval(function () {
+//     engine.fire(my_ship._id);
+// },3000)
 
-var other_ship = new Ship({
-    x: VIEW.CENTER.x - 100,
-    y: VIEW.CENTER.y - 100,
-    body_color: 0x633645,
-    team_tag: 12
-});
-// current_stage.addChild(other_ship);
-engine.add(other_ship);
+// var other_ship = new Ship({
+//     x: VIEW.CENTER.x - 100,
+//     y: VIEW.CENTER.y - 100,
+//     body_color: 0x633645,
+//     team_tag: 12
+// });
+// // current_stage.addChild(other_ship);
+// engine.add(other_ship);
 
 /**初始化动画
  * 

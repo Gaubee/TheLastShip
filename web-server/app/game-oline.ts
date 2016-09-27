@@ -40,7 +40,7 @@ const FPS_ticker = new PIXI.ticker.Ticker();
 export const current_stage_wrap = new PIXI.Graphics();
 export const current_stage = new PIXI.Container();
 current_stage_wrap.addChild(current_stage);
-current_stage_wrap["keep_direction"] = "horizontal";
+// current_stage_wrap["keep_direction"] = "horizontal";
 //加载图片资源
 export const loader = new PIXI.loaders.Loader();
 
@@ -137,19 +137,24 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 
     var ping = 0;
     var timeSinceLastCalled = 0;
+    var timeSinceLastCalledMS = 0;
     var isNewDataFrame = false;
+    var can_next = true;;
     function getViewData() {
         var pre_time = performance.now();
-        var i = -1;
-        var can_next = true;;
         ani_ticker.add(function() {
-            i += 1;
-            can_next||(can_next = i % 20===0);
-            if (!can_next) {
+            var p_now = performance.now();
+            // 上一次请求到现在的时间
+            var pre_req_delay = p_now - timeSinceLastCalledMS;
+            if(pre_req_delay >= 100) {//请求至少是10FPS，多于这个时间差，强制请求
+                can_next = true
+            }else if(pre_req_delay < 25){ // 封顶请求40FPS，少于这个时间差，忽略请求
+                return
+            }
+            if (can_next === false) {
                 return
             }
             can_next = false;
-            i = 0;
             var start_ping = performance.now();
             pomelo.request("connector.worldHandler.getWorld", {
                 x: 0,
@@ -160,13 +165,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 var cur_time =  performance.now();
                 var dif_time = cur_time - pre_time;
                 pre_time = cur_time;
+                timeSinceLastCalledMS = cur_time;
                 timeSinceLastCalled = dif_time/1000;
                 isNewDataFrame = true;
 
                 ping = cur_time - start_ping;
                 showViewData(data.objects);
                 can_next = true;
-                i = 0;
             });
         });
     };
@@ -204,7 +209,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     };
     const effect_speed = {};
     on(current_stage_wrap, "keydown", function(e) {
-        if (speed_ux.hasOwnProperty(e.keyCode)) {
+        if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent) {
             var speed_info = speed_ux[e.keyCode];
             var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
             var _dir = speed_info.charAt(1) + "_speed";
@@ -224,7 +229,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
 
     on(current_stage_wrap, "keyup", function(e) {
-        if (speed_ux.hasOwnProperty(e.keyCode)) {
+        if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent) {
             var speed_info = speed_ux[e.keyCode];
             var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
             var _dir = speed_info.charAt(1) + "_speed";
@@ -242,23 +247,26 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
     // 转向
     on(current_stage_wrap, "mousemove|click|tap", function(e) {
-        var to_point = VIEW.rotateXY(e.data.global);
-        var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
+        // if(can_next) {
+        if(true) {
+            var to_point = VIEW.rotateXY(e.data.global);
+            var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
 
-        var angle_value = direction.angle();
-        if (angle_value < 0) {
-            angle_value += PIXI.PI_2
+            var angle_value = direction.angle();
+            if (angle_value < 0) {
+                angle_value += PIXI.PI_2
+            }
+
+            var new_config = {
+                rotation: angle_value
+            };
+
+            pomelo.request("connector.worldHandler.setConfig", {
+                config: new_config
+            }, function(data) {
+                // console.log("setConfig:turn-head", data);
+            });
         }
-
-        var new_config = {
-            rotation: angle_value
-        };
-
-        pomelo.request("connector.worldHandler.setConfig", {
-            config: new_config
-        }, function(data) {
-            // console.log("setConfig:turn-head", data);
-        });
     });
     // 发射
     on(current_stage_wrap, "click|tap", function() {

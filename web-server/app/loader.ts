@@ -1,10 +1,14 @@
-/// <reference path="../typings/pixi.js/pixi.js.d.ts" />
 import BackgroundGaussianBlur from "../class/BackgroundGaussianBlur";
 import SVGGraphics from "../class/SVGGraphics";
-import TWEEN, {Tween} from "../class/Tween";
+import TWEEN, {
+    Tween
+} from "../class/Tween";
 import When from "../class/When";
 import FlowLayout from "../class/FlowLayout";
 import TextBuilder from "../class/TextBuilder";
+
+// UI 
+import Dialog from "./ui/Dialog";
 
 import {
     VIEW,
@@ -35,25 +39,172 @@ export const loader = new PIXI.loaders.Loader();
 loader.add("logo", "res/game_res.png");
 loader.load();
 
-const loading_text = new PIXI.Text("加载中……", { font: pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+const loading_text = new PIXI.Text("加载中……", {
+    font: pt2px(25) + "px 微软雅黑",
+    fill: "#FFF"
+});
 current_stage.addChild(loading_text);
 
 loader.once("complete", renderInit);
 
+const waitting_text = new PIXI.Text("连接服务器中……", {
+    font: pt2px(25) + "px 微软雅黑",
+    fill: "#FFF"
+});
 
 function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.ResourceDictionary) {
     for (var i = 0, len = current_stage.children.length; i < len; i += 1) {
         current_stage.removeChildAt(0)
     }
 
-    var waitting_text = new PIXI.Text("连接服务器中……", { font: pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     current_stage.addChild(waitting_text);
-    waitting_text.x = VIEW.CENTER.x - waitting_text.width / 2
-    waitting_text.y = VIEW.CENTER.y - waitting_text.height / 2
+    stageManager.backgroundColor = "#333";
+
+    waitting_text.x = VIEW.CENTER.x - waitting_text.width / 2;
+    waitting_text.y = VIEW.CENTER.y - waitting_text.height / 2;
     /**初始化动画
      * 
      */
+    var inputName_dialog = (function() {
+        // var title = new TextBuilder("输入您的名字", {
+        //     fontSize: pt2px(25),
+        //     fontFamily: "微软雅黑",
+        //     fill: "#33ee23",
+        // });
+        var title = new PIXI.Container();
+        var content = new PIXI.Graphics();
+        content.beginFill(0x3333ff, 0.5);
+        var _r = Math.min(VIEW.WIDTH, VIEW.HEIGHT)/2*0.8;
+        content.drawCircle(_r, _r, _r);
+        content.endFill();
 
+        var dialog = new Dialog(title, content, ani_tween,{
+            bg:{
+                alpha: 0,
+                paddingLR:0,
+                paddingTB:0
+            },
+            closeButton:{
+                show: false
+            }
+        });
+        return dialog;
+    }());
+    // 连接到服务器，用户开始命名
+    current_stage_wrap.on("connected", function(next,errorText) {
+        current_stage.removeChild(waitting_text);
+        inputName_dialog.once("added",function () {
+            document.body.appendChild(ui_wrap);
+            ani_tween.Tween(ui_wrap.style)
+                .set({
+                    opacity:0,
+                    transform:"scale(0)"
+                })
+                .to({
+                    opacity:1
+                },B_ANI_TIME)
+                .onUpdate(p=>{
+                    ui_wrap.style.transform = `scale(${p})`;
+                })
+                .start();
+        });
+        inputName_dialog.once("close",function () {
+            ani_tween.Tween(ui_wrap.style)
+                .set({
+                    opacity:1
+                })
+                .to({
+                    opacity:0
+                },B_ANI_TIME)
+                .start()
+                .onUpdate(p=>{
+                    ui_wrap.style.transform = `scale(${1-p})`;
+                })
+                .onComplete(function () {
+                    document.body.removeChild(ui_wrap);
+                });
+        });
+
+        var ui_wrap =current_stage_wrap["ui_wrap"];
+        if(!ui_wrap) {
+            ui_wrap = document.createElement("div");
+            ui_wrap.style.cssText = `
+                display: -webkit-flex;
+                display: flex;
+                position: absolute;
+                left:0;
+                top:0;
+                width:100%;
+                height:100%;
+                -webkit-align-items: center;
+                      align-items: center;
+                -webkit-justify-content: center;
+                      justify-content: center;
+            `;
+            current_stage_wrap["ui_wrap"] = ui_wrap;
+
+            var input_width = pt2px(200);
+            var input_height = pt2px(20);
+            var input_placeholder = "请输入用户名";
+            ui_wrap.innerHTML = `
+            <div style="
+                width: ${input_width}px;
+                height: ${input_height*3}px;
+                text-align:center;
+                ">
+                <input placeholder="${input_placeholder}" style="display:block;
+                    width:${input_width}px;
+                    border-radius:${input_height*0.3}px;
+                    padding:${input_height*0.3}px;
+                    margin:0;
+                    border:0;
+                    background-color:rgba(221,221,221,0.8);
+                    outline:none;
+                    color:#333;
+                    font-size:${input_height*0.8}px;"/>
+                <button style="
+                    border-radius:${input_height*0.1}px;
+                    min-width:${input_width*0.6}px;
+                    margin:${input_height*0.4}px 0 0 0;
+                    border:0;
+                    color:#ddd;
+                    background-color:rgba(33,33,221,0.8);
+                    outline:none;
+                    padding:${input_height*0.1}px;
+                    font-size:${input_height*0.8}px;">提交</button>
+            </div>
+            `;
+            var ui_input = <HTMLInputElement>ui_wrap.firstElementChild.firstElementChild;
+            ui_input["showError"] = function (errorText:string) {
+                ui_input.value = "";
+                ui_input.placeholder = errorText
+                ui_input.style.boxShadow = `0 0 ${pt2px(10)}px rgba(221,33,33,1)`;
+                setTimeout(function () {
+                    ui_input.placeholder = input_placeholder;
+                    ui_input.style.boxShadow = "none";
+                },1000);
+            };
+            var ui_button = ui_input.nextElementSibling;
+            ui_button.addEventListener("click",function () {
+                var username = ui_input.value.trim();
+                if(!username) {
+                    ui_input["showError"]("用户名不可为空")
+                    return;
+                }
+                inputName_dialog.close();
+                inputName_dialog.once("removed",function () {
+                    next(username);
+                });
+            })
+        }
+
+        if(errorText) {
+            var ui_input = <HTMLInputElement>ui_wrap.firstElementChild.firstElementChild;
+            ui_input["showError"](errorText)
+        }
+
+        inputName_dialog.open(current_stage_wrap);
+    });
 
 
     /**按钮事件
@@ -65,7 +216,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
      */
 
     // 动画控制器
-
+    ani_ticker.add(() => {
+        ani_tween.update();
+        jump_tween.update();
+    });
 
     /**帧率
      * 
@@ -78,11 +232,11 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     init_w.ok(0, []);
 }
 current_stage_wrap.on("init", initStage);
-current_stage_wrap.on("reinit", function () {
+current_stage_wrap.on("reinit", function() {
     renderInit(loader, loader.resources);
 });
 current_stage_wrap["_has_custom_resize"] = true;
-current_stage_wrap.on("resize", function () {
+current_stage_wrap.on("resize", function() {
     jump_tween.clear();
     ani_tween.clear();
     emitReisze(this);
@@ -97,4 +251,3 @@ const init_w = new When(2, () => {
 export function initStage() {
     init_w.ok(1, []);
 }
-

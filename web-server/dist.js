@@ -5362,7 +5362,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
     exports.current_stage_wrap.addChild(exports.current_stage);
-    exports.current_stage_wrap["keep_direction"] = "horizontal";
+    // current_stage_wrap["keep_direction"] = "horizontal";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
@@ -5452,20 +5452,26 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         ;
         var ping = 0;
         var timeSinceLastCalled = 0;
+        var timeSinceLastCalledMS = 0;
         var isNewDataFrame = false;
+        var can_next = true;
+        ;
         function getViewData() {
             var pre_time = performance.now();
-            var i = -1;
-            var can_next = true;
-            ;
             ani_ticker.add(function () {
-                i += 1;
-                can_next || (can_next = i % 20 === 0);
-                if (!can_next) {
+                var p_now = performance.now();
+                // 上一次请求到现在的时间
+                var pre_req_delay = p_now - timeSinceLastCalledMS;
+                if (pre_req_delay >= 100) {
+                    can_next = true;
+                }
+                else if (pre_req_delay < 25) {
+                    return;
+                }
+                if (can_next === false) {
                     return;
                 }
                 can_next = false;
-                i = 0;
                 var start_ping = performance.now();
                 Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
                     x: 0,
@@ -5476,12 +5482,12 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;
                     pre_time = cur_time;
+                    timeSinceLastCalledMS = cur_time;
                     timeSinceLastCalled = dif_time / 1000;
                     isNewDataFrame = true;
                     ping = cur_time - start_ping;
                     showViewData(data.objects);
                     can_next = true;
-                    i = 0;
                 });
             });
         }
@@ -5514,7 +5520,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         };
         var effect_speed = {};
         common_1.on(exports.current_stage_wrap, "keydown", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode)) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
                 var _dir = speed_info.charAt(1) + "_speed";
@@ -5534,7 +5540,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var _a;
         });
         common_1.on(exports.current_stage_wrap, "keyup", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode)) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent) {
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
                 var _dir = speed_info.charAt(1) + "_speed";
@@ -5554,20 +5560,23 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         });
         // 转向
         common_1.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
-            var to_point = common_1.VIEW.rotateXY(e.data.global);
-            var direction = new Victor_2.default(to_point.x - common_1.VIEW.CENTER.x, to_point.y - common_1.VIEW.CENTER.y);
-            var angle_value = direction.angle();
-            if (angle_value < 0) {
-                angle_value += PIXI.PI_2;
+            // if(can_next) {
+            if (true) {
+                var to_point = common_1.VIEW.rotateXY(e.data.global);
+                var direction = new Victor_2.default(to_point.x - common_1.VIEW.CENTER.x, to_point.y - common_1.VIEW.CENTER.y);
+                var angle_value = direction.angle();
+                if (angle_value < 0) {
+                    angle_value += PIXI.PI_2;
+                }
+                var new_config = {
+                    rotation: angle_value
+                };
+                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                    config: new_config
+                }, function (data) {
+                    // console.log("setConfig:turn-head", data);
+                });
             }
-            var new_config = {
-                rotation: angle_value
-            };
-            Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                config: new_config
-            }, function (data) {
-                // console.log("setConfig:turn-head", data);
-            });
         });
         // 发射
         common_1.on(exports.current_stage_wrap, "click|tap", function () {
@@ -6207,11 +6216,167 @@ define("class/TextBuilder", ["require", "exports"], function (require, exports) 
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = TextBuilder;
 });
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/common"], function (require, exports, Tween_5, When_3, common_3) {
+define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics"], function (require, exports, common_3, Tween_5, SVGGraphics_1) {
+    "use strict";
+    var Dialog = (function (_super) {
+        __extends(Dialog, _super);
+        function Dialog(title, content, ani_control, options) {
+            var _this = this;
+            _super.call(this);
+            this.style = {
+                bg: {
+                    color: 0xe51928,
+                    alpha: 1,
+                    paddingLR: common_3.pt2px(40),
+                    paddingTB: common_3.pt2px(76),
+                    radius: common_3.pt2px(10)
+                },
+                closeButton: {
+                    show: true,
+                    size: common_3.pt2px(18),
+                    bold: common_3.pt2px(1),
+                    top: 0,
+                    left: 0
+                },
+                title: {
+                    padding: common_3.pt2px(20)
+                }
+            };
+            this._is_anining = false;
+            this.ani = ani_control;
+            options || (options = {});
+            var style = this.style;
+            common_3.mix_options(style, options);
+            // 焦点层: 0
+            // 背景层:1
+            var bg = this.bg = new PIXI.Graphics();
+            this.addChild(bg);
+            this._on_content_update = function () {
+                this.resize();
+            }.bind(this);
+            // 内容层:2
+            this.setContent(content);
+            // 标题层:3
+            if (title instanceof PIXI.Sprite) {
+                this.title = title;
+                title.texture.on("update", function () {
+                    console.log("Dialog resize..");
+                    _this.resize();
+                });
+            }
+            else if (title instanceof PIXI.Texture) {
+                var title_spr = this.title = new PIXI.Sprite(title);
+                title_spr.texture.on("update", function () {
+                    console.log("Dialog resize..");
+                    _this.resize();
+                });
+            }
+            else if (title instanceof PIXI.Container) {
+                this.title = title;
+            }
+            else {
+                this.title = PIXI.Sprite.fromImage(title);
+            }
+            this.addChild(this.title);
+            // 关闭按钮:4
+            var _closeButton_font_size = style.closeButton.size / 3 * 2;
+            var _closeButton_font_bold = style.closeButton.bold;
+            this.closeButton = SVGGraphics_1.default.importFromSVG("<svg version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n            <circle cy=\"0\" cx=\"0\" r=\"" + style.closeButton.size + "\" fill=\"#ffc03a\" stroke-width=\"0\"/>\n            <path d=\"M " + _closeButton_font_size + " 0 L -" + _closeButton_font_size + " 0 \" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n            <path d=\"M 0 " + _closeButton_font_size + " L 0 -" + _closeButton_font_size + "\" stroke-width=\"" + _closeButton_font_bold + "\" stroke=\"#000\"/>\n        </svg>")._graphics;
+            this.closeButton.rotation = Math.PI / 4;
+            this.closeButton.interactive = true;
+            ["tap", "click"].forEach(function (eventName) { return _this.closeButton.on(eventName, _this.close.bind(_this)); });
+            if (style.closeButton.show) {
+                this.addChild(this.closeButton);
+            }
+            this.resize();
+        }
+        Dialog.prototype.resize = function () {
+            var style = this.style;
+            var bg = this.bg;
+            bg.clear();
+            bg.lineStyle(0);
+            bg.beginFill(style.bg.color, style.bg.alpha);
+            var bg_width = Math.max(this.content.width, this.title.width + style.title.padding) + style.bg.paddingLR; //14.10 / 16.94 * VIEW.WIDTH;
+            var bg_height = this.content.height + style.bg.paddingTB;
+            var bg_x = (common_3.VIEW.WIDTH - bg_width) / 2;
+            var bg_y = (common_3.VIEW.HEIGHT - bg_height) / 2;
+            bg.drawRoundedRect(bg_x, bg_y, bg_width, bg_height, style.bg.radius);
+            bg.endFill();
+            this.closeButton.x = bg_x + bg_width - this.closeButton.width / 4 + style.closeButton.left;
+            this.closeButton.y = bg_y + this.closeButton.height / 4 + style.closeButton.top;
+            this.content.x = bg_x + style.bg.paddingLR / 2;
+            this.content.y = bg_y + style.bg.paddingTB / 2;
+            this.title.x = bg_width / 2 + bg_x - this.title.width / 2;
+            this.title.y = bg_y - this.title.height + style.bg.paddingLR / 2;
+        };
+        Dialog.prototype._on_content_update = function () { };
+        Dialog.prototype.setContent = function (content) {
+            if (this.content) {
+                this.content.off("update", this._on_content_update);
+                this.removeChild(this.content);
+            }
+            else {
+                this.content = content;
+                content.on("update", this._on_content_update);
+                this.addChild(content);
+            }
+        };
+        Dialog.prototype.open = function (parent) {
+            var _this = this;
+            if (this._is_anining) {
+                return;
+            }
+            this.emit("open");
+            parent.addChild(this);
+            this._is_anining = true;
+            // 还原来计算出正确的宽高
+            this.scale.set(1, 1);
+            this.ani.Tween(this)
+                .to({ x: this.x, y: this.y }, common_3.B_ANI_TIME)
+                .set({ x: this.x + common_3.VIEW.CENTER.x, y: this.y + common_3.VIEW.CENTER.y })
+                .easing(Tween_5.default.Easing.Quintic.Out)
+                .start();
+            this.ani.Tween(this.scale)
+                .set({ x: 0, y: 0 })
+                .to({ x: 1, y: 1 }, common_3.B_ANI_TIME)
+                .easing(Tween_5.default.Easing.Quintic.Out)
+                .start()
+                .onComplete(function () { _this._is_anining = false; });
+        };
+        Dialog.prototype.close = function () {
+            var _this = this;
+            if (this._is_anining) {
+                return;
+            }
+            this.emit("close");
+            this._is_anining = true;
+            this.ani.Tween(this.scale)
+                .set({ x: 1, y: 1 })
+                .to({ x: 0, y: 0 }, common_3.B_ANI_TIME)
+                .easing(Tween_5.default.Easing.Quintic.In)
+                .start();
+            var cur_x = this.x;
+            var cur_y = this.y;
+            this.ani.Tween(this)
+                .to({ x: this.x + common_3.VIEW.CENTER.x, y: this.y + common_3.VIEW.CENTER.y }, common_3.B_ANI_TIME)
+                .easing(Tween_5.default.Easing.Quintic.In)
+                .start()
+                .onComplete(function () {
+                _this.position.set(cur_x, cur_y);
+                _this._is_anining = false;
+                _this.parent && _this.parent.removeChild(_this);
+            });
+        };
+        return Dialog;
+    }(PIXI.Container));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Dialog;
+});
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_6, When_3, Dialog_1, common_4) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_5.default();
-    var jump_tween = new Tween_5.default();
+    var ani_tween = new Tween_6.default();
+    var jump_tween = new Tween_6.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Container();
@@ -6221,20 +6386,123 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("logo", "res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("加载中……", { font: common_3.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("加载中……", {
+        font: common_4.pt2px(25) + "px 微软雅黑",
+        fill: "#FFF"
+    });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
+    var waitting_text = new PIXI.Text("连接服务器中……", {
+        font: common_4.pt2px(25) + "px 微软雅黑",
+        fill: "#FFF"
+    });
     function renderInit(loader, resource) {
         for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
             exports.current_stage.removeChildAt(0);
         }
-        var waitting_text = new PIXI.Text("连接服务器中……", { font: common_3.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
         exports.current_stage.addChild(waitting_text);
-        waitting_text.x = common_3.VIEW.CENTER.x - waitting_text.width / 2;
-        waitting_text.y = common_3.VIEW.CENTER.y - waitting_text.height / 2;
+        common_4.stageManager.backgroundColor = "#333";
+        waitting_text.x = common_4.VIEW.CENTER.x - waitting_text.width / 2;
+        waitting_text.y = common_4.VIEW.CENTER.y - waitting_text.height / 2;
         /**初始化动画
          *
          */
+        var inputName_dialog = (function () {
+            // var title = new TextBuilder("输入您的名字", {
+            //     fontSize: pt2px(25),
+            //     fontFamily: "微软雅黑",
+            //     fill: "#33ee23",
+            // });
+            var title = new PIXI.Container();
+            var content = new PIXI.Graphics();
+            content.beginFill(0x3333ff, 0.5);
+            var _r = Math.min(common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT) / 2 * 0.8;
+            content.drawCircle(_r, _r, _r);
+            content.endFill();
+            var dialog = new Dialog_1.default(title, content, ani_tween, {
+                bg: {
+                    alpha: 0,
+                    paddingLR: 0,
+                    paddingTB: 0
+                },
+                closeButton: {
+                    show: false
+                }
+            });
+            return dialog;
+        }());
+        // 连接到服务器，用户开始命名
+        exports.current_stage_wrap.on("connected", function (next, errorText) {
+            exports.current_stage.removeChild(waitting_text);
+            inputName_dialog.once("added", function () {
+                document.body.appendChild(ui_wrap);
+                ani_tween.Tween(ui_wrap.style)
+                    .set({
+                    opacity: 0,
+                    transform: "scale(0)"
+                })
+                    .to({
+                    opacity: 1
+                }, common_4.B_ANI_TIME)
+                    .onUpdate(function (p) {
+                    ui_wrap.style.transform = "scale(" + p + ")";
+                })
+                    .start();
+            });
+            inputName_dialog.once("close", function () {
+                ani_tween.Tween(ui_wrap.style)
+                    .set({
+                    opacity: 1
+                })
+                    .to({
+                    opacity: 0
+                }, common_4.B_ANI_TIME)
+                    .start()
+                    .onUpdate(function (p) {
+                    ui_wrap.style.transform = "scale(" + (1 - p) + ")";
+                })
+                    .onComplete(function () {
+                    document.body.removeChild(ui_wrap);
+                });
+            });
+            var ui_wrap = exports.current_stage_wrap["ui_wrap"];
+            if (!ui_wrap) {
+                ui_wrap = document.createElement("div");
+                ui_wrap.style.cssText = "\n                display: -webkit-flex;\n                display: flex;\n                position: absolute;\n                left:0;\n                top:0;\n                width:100%;\n                height:100%;\n                -webkit-align-items: center;\n                      align-items: center;\n                -webkit-justify-content: center;\n                      justify-content: center;\n            ";
+                exports.current_stage_wrap["ui_wrap"] = ui_wrap;
+                var input_width = common_4.pt2px(200);
+                var input_height = common_4.pt2px(20);
+                var input_placeholder = "请输入用户名";
+                ui_wrap.innerHTML = "\n            <div style=\"\n                width: " + input_width + "px;\n                height: " + input_height * 3 + "px;\n                text-align:center;\n                \">\n                <input placeholder=\"" + input_placeholder + "\" style=\"display:block;\n                    width:" + input_width + "px;\n                    border-radius:" + input_height * 0.3 + "px;\n                    padding:" + input_height * 0.3 + "px;\n                    margin:0;\n                    border:0;\n                    background-color:rgba(221,221,221,0.8);\n                    outline:none;\n                    color:#333;\n                    font-size:" + input_height * 0.8 + "px;\"/>\n                <button style=\"\n                    border-radius:" + input_height * 0.1 + "px;\n                    min-width:" + input_width * 0.6 + "px;\n                    margin:" + input_height * 0.4 + "px 0 0 0;\n                    border:0;\n                    color:#ddd;\n                    background-color:rgba(33,33,221,0.8);\n                    outline:none;\n                    padding:" + input_height * 0.1 + "px;\n                    font-size:" + input_height * 0.8 + "px;\">\u63D0\u4EA4</button>\n            </div>\n            ";
+                var ui_input = ui_wrap.firstElementChild.firstElementChild;
+                ui_input["showError"] = function (errorText) {
+                    ui_input.value = "";
+                    ui_input.placeholder = errorText;
+                    ui_input.style.boxShadow = "0 0 " + common_4.pt2px(10) + "px rgba(221,33,33,1)";
+                    setTimeout(function () {
+                        ui_input.placeholder = input_placeholder;
+                        ui_input.style.boxShadow = "none";
+                    }, 1000);
+                };
+                var ui_button = ui_input.nextElementSibling;
+                ui_button.addEventListener("click", function () {
+                    var username = ui_input.value.trim();
+                    if (!username) {
+                        ui_input["showError"]("用户名不可为空");
+                        return;
+                    }
+                    inputName_dialog.close();
+                    inputName_dialog.once("removed", function () {
+                        next(username);
+                    });
+                });
+            }
+            if (errorText) {
+                var ui_input = ui_wrap.firstElementChild.firstElementChild;
+                ui_input["showError"](errorText);
+            }
+            inputName_dialog.open(exports.current_stage_wrap);
+        });
         /**按钮事件
          *
          */
@@ -6242,11 +6510,15 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
          *
          */
         // 动画控制器
+        ani_ticker.add(function () {
+            ani_tween.update();
+            jump_tween.update();
+        });
         /**帧率
          *
          */
         // 触发布局计算
-        common_3.emitReisze(exports.current_stage_wrap);
+        common_4.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
@@ -6257,7 +6529,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_3.emitReisze(this);
+        common_4.emitReisze(this);
     });
     var init_w = new When_3.default(2, function () {
         ani_tween.start();
@@ -6270,10 +6542,10 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/co
     }
     exports.initStage = initStage;
 });
-define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_4, game2_1, game_oline_1, loader_1, Pomelo_2) {
+define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_5, game2_1, game_oline_1, loader_1, Pomelo_2) {
     "use strict";
-    common_4.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
-    common_4.stageManager.set(loader_1.current_stage_wrap);
+    common_5.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
+    common_5.stageManager.set(loader_1.current_stage_wrap);
     var host = location.hostname;
     var port = "3051";
     Pomelo_2.pomelo.init({
@@ -6281,6 +6553,12 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
         port: port,
         log: true
     }, function () {
+        // 初始化本机ID
+        var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
+        if (!mac_ship_id) {
+            mac_ship_id = (Math.random() * Date.now()).toString().replace(".", "");
+            localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
+        }
         // 随机选择服务器
         Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
             if (data.code === 200) {
@@ -6289,15 +6567,25 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
                     port: data.port,
                     log: true
                 }, function () {
-                    // 发送名字，初始化角色
-                    Pomelo_2.pomelo.request("connector.entryHandler.enter", {
-                        username: "Gaubee" + Math.random(),
-                        width: document.body.clientWidth,
-                        height: document.body.clientHeight,
-                    }, function (game_info) {
-                        console.log(game_info);
-                        game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                        common_4.stageManager.set(game_oline_1.current_stage_wrap);
+                    loader_1.current_stage_wrap.emit("connected", function _(username) {
+                        // 发送名字，初始化角色
+                        Pomelo_2.pomelo.request("connector.entryHandler.enter", {
+                            username: username,
+                            mac_ship_id: mac_ship_id,
+                            width: document.body.clientWidth,
+                            height: document.body.clientHeight,
+                        }, function (game_info) {
+                            if (game_info.code === 500) {
+                                console.log(game_info);
+                                if (game_info.error == "重复登录") {
+                                    loader_1.current_stage_wrap.emit("connected", _, "名字已被使用，请重新输入");
+                                }
+                            }
+                            else {
+                                game_oline_1.current_stage_wrap.emit("before-active", game_info);
+                                common_5.stageManager.set(game_oline_1.current_stage_wrap);
+                            }
+                        });
                     });
                 });
             }
@@ -6308,7 +6596,7 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
     });
     // stageManager.set(g_stage);
     function animate() {
-        common_4.renderer.render(common_4.stageManager.get());
+        common_5.renderer.render(common_5.stageManager.get());
         requestAnimationFrame(animate);
     }
     animate();
@@ -6454,7 +6742,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_6, SVGGraphics_1, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_7, SVGGraphics_2, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -6479,7 +6767,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_6.default();
+            this._tween = new Tween_7.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -6543,7 +6831,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     var width = this._cache_line_width = this.line_width;
                     var color = this._cache_line_color = this.line_color;
                     var _cache_renderer = this._cache_renderer;
-                    var line = SVGGraphics_1.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
+                    var line = SVGGraphics_2.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
                     tex.width = tex.height = width;
                     tex.render(line);
                     this._line_texture = tex;
@@ -6559,7 +6847,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 if (!(this._cache_base_line_color === this.base_line_color)) {
                     var color = this._cache_base_line_color = this.base_line_color;
                     var _cache_renderer = this._cache_renderer;
-                    var line = SVGGraphics_1.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
+                    var line = SVGGraphics_2.default.importFromSVG("<rect x=\"0\" y=\"0\" width=\"" + _cache_renderer.width + "\" height=\"" + _cache_renderer.height + "\" fill=\"" + color + "\" />")._graphics;
                     tex.width = tex.height = 1;
                     tex.render(line);
                     this._base_line_texture = tex;
@@ -6755,7 +7043,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_6.default.Easing.Quartic.Out)
+                        .easing(Tween_7.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -6766,7 +7054,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_6.default.Easing.Quartic.Out)
+                    .easing(Tween_7.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -6781,7 +7069,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_6.default.Easing.Quartic.Out)
+                        .easing(Tween_7.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -6791,7 +7079,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_6.default.Easing.Quartic.Out)
+                        .easing(Tween_7.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -6817,7 +7105,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_6.default.Easing.Quartic.Out)
+                .easing(Tween_7.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -6993,7 +7281,7 @@ define("class/pixelCollision", ["require", "exports"], function (require, export
     }
     exports.isCollisionWithRect = isCollisionWithRect;
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_2, MouseWheel_1, Tween_7) {
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_8) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -7008,7 +7296,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_7.default();
+            this.ANI = new Tween_8.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -7042,7 +7330,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_7.default.Easing.Quartic.Out)
+                .easing(Tween_8.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -7083,7 +7371,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             this.wrap.addChild(this);
             if (config.is_debug) {
                 /**滚动速度显示 */
-                this.wrap.addChild(SVGGraphics_2.default.importFromSVG("<rect x=0 y=0 width=\"" + config.width + "\" height=20 stroke-width=\"0\" fill=\"rgba(0,0,0,0.8)\"/>")._graphics, this.speedText);
+                this.wrap.addChild(SVGGraphics_3.default.importFromSVG("<rect x=0 y=0 width=\"" + config.width + "\" height=20 stroke-width=\"0\" fill=\"rgba(0,0,0,0.8)\"/>")._graphics, this.speedText);
             }
             if (config.show_scroll_bar) {
                 this.showScrollBar();
@@ -7126,7 +7414,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             }
             if (!scroll_bar) {
                 var _mid_bar_height = scorll_bar_height - scorll_bar_width;
-                scroll_bar = this.scroll_bar = SVGGraphics_2.default.importFromSVG("<path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/><rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" width=" + scorll_bar_width + " height=" + _mid_bar_height + " /><path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_bar_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_bar_height) + "\"/>")._graphics;
+                scroll_bar = this.scroll_bar = SVGGraphics_3.default.importFromSVG("<path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/><rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" width=" + scorll_bar_width + " height=" + _mid_bar_height + " /><path fill=\"" + scorll_bar_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_bar_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_bar_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_bar_height) + "\"/>")._graphics;
                 scroll_bar.alpha = 0;
                 scroll_bar.x = this.scroll_config.width - scorll_bar_width;
                 var mask = scroll_bar.clone();
@@ -7135,9 +7423,9 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                 var scorll_handle_color = SCROLL_BAR_COLOR;
                 var _mid_handle_height = _mid_bar_height / content_height * _mid_bar_height;
                 var scroll_handle = this.scroll_handle = new PIXI.Container();
-                var scroll_handle_top = SVGGraphics_2.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/>")._graphics;
-                var scroll_handle_mid = SVGGraphics_2.default.importFromSVG("<rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" stroke-width=\"0\" width=" + scorll_bar_width + " height=" + _mid_handle_height + " fill=" + scorll_handle_color + " />")._graphics;
-                var scroll_handle_btm = SVGGraphics_2.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_handle_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_handle_height) + "\"/>")._graphics;
+                var scroll_handle_top = SVGGraphics_3.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\" d=\"M0 " + scorll_bar_width / 2 + " C 0 " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + (scorll_bar_width - scorll_bar_width_SQRT2) / 2 + ", " + scorll_bar_width + " " + scorll_bar_width / 2 + "\"/>")._graphics;
+                var scroll_handle_mid = SVGGraphics_3.default.importFromSVG("<rect x=\"0\" y=\"" + scorll_bar_width / 2 + "\" stroke-width=\"0\" width=" + scorll_bar_width + " height=" + _mid_handle_height + " fill=" + scorll_handle_color + " />")._graphics;
+                var scroll_handle_btm = SVGGraphics_3.default.importFromSVG("<path fill=\"" + scorll_handle_color + "\" stroke-width=\"0\"  d=\"M0 " + (scorll_bar_width / 2 + _mid_handle_height) + " C 0 " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + ((scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height) + ", " + scorll_bar_width + " " + (scorll_bar_width / 2 + _mid_handle_height) + "\"/>")._graphics;
                 scroll_handle.addChild(scroll_handle_top, scroll_handle_mid, scroll_handle_btm);
                 // SVGGraphics.importFromSVG(`<path fill="${scorll_handle_color}" stroke-width="0" d="M0 ${scorll_bar_width / 2} C 0 ${(scorll_bar_width - scorll_bar_width_SQRT2) / 2}, ${scorll_bar_width} ${(scorll_bar_width - scorll_bar_width_SQRT2) / 2}, ${scorll_bar_width} ${scorll_bar_width / 2}"/><rect x="0" y="${scorll_bar_width / 2}" width=${scorll_bar_width} height=${_mid_handle_height} /><path fill="${scorll_handle_color}" stroke-width="0"  d="M0 ${scorll_bar_width / 2 + _mid_handle_height} C 0 ${(scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height}, ${scorll_bar_width} ${(scorll_bar_width_SQRT2 + scorll_bar_width) / 2 + _mid_handle_height}, ${scorll_bar_width} ${scorll_bar_width / 2 + _mid_handle_height}"/>`)._graphics;
                 this.update_scroll_handle = function () {
@@ -7153,7 +7441,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_7.default.Easing.Quartic.Out)
+                        .easing(Tween_8.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

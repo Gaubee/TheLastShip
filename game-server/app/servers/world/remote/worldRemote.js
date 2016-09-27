@@ -14,9 +14,9 @@ var WorldRemote = function(app) {
 	const channelService = this.channelService = app.get('channelService');
 	// 监听子弹爆炸
 	// 监听血量减少
-	["explode", "change-hp", "die"].forEach(eventName=>{
+	["explode", "change-hp", "die"].forEach(eventName => {
 		events.on(eventName, function(data) {
-			for(var channel_name in channelService.channels){
+			for (var channel_name in channelService.channels) {
 				var channel = channelService.channels[channel_name];
 				channel.pushMessage({
 					route: eventName,
@@ -37,15 +37,21 @@ var WorldRemote = function(app) {
  * @param {boolean} flag channel parameter
  *
  */
-WorldRemote.prototype.add = function(uid, sid, name, flag, cb) {
+WorldRemote.prototype.add = function(uid, sid, name, ship_md5_id, cb) {
 	const channel = this.channelService.getChannel(name, true);
 	channel.add(uid, sid);
-
-	const new_ship = this.world.newShip();
+	if (ship_md5_id) {
+		var cur_ship = this.world.getShip(ship_md5_id)
+	}
+	if (!cur_ship) {
+		var cur_ship = this.world.newShip({
+			ship_md5_id: ship_md5_id
+		});
+	}
 	const base_info = this.world.getGameBaseInfo();
 	cb(null, {
-		ship: new_ship,
-		baseInfo: base_info
+		ship: cur_ship,
+		baseInfo: base_info,
 	});
 };
 WorldRemote.prototype.getRectangleObjects = function(view_x, view_y, view_width, view_height, cb) {

@@ -1,3 +1,12 @@
+const crypto = require('crypto');
+
+function MD5(str) {
+	var md5sum = crypto.createHash("md5");
+	md5sum.update(str);
+	str = md5sum.digest("hex");
+	return str;
+};
+
 module.exports = function(app) {
 	return new Handler(app);
 };
@@ -10,6 +19,7 @@ Handler.prototype = {
 	enter: function(msg, session, next) {
 		const roomid = this.roomid;
 		const username = msg.username;
+		const mac_ship_id = msg.mac_ship_id;
 		const uid = roomid + username;
 
 		const sessionService = this.app.get("sessionService");
@@ -24,14 +34,6 @@ Handler.prototype = {
 
 		// 绑定ID
 		session.bind(uid);
-		// 缓存roomid
-		session.set("roomid", roomid);
-		// 给网页添加cookie
-		session.push("roomid", (err) => {
-			if (err) {
-				console.error("客户端添加ROOMID失败：%j", err.stack);
-			}
-		});
 
 		session.on("close", ((app, session) => {
 			if (session && session.uid) {
@@ -41,12 +43,18 @@ Handler.prototype = {
 			}
 		}).bind(null, this.app));
 
+		if (mac_ship_id) {
+			var md5_mac_ship_id = MD5(mac_ship_id);
+		}
+
+		console.log("SESSION ship_id", mac_ship_id, md5_mac_ship_id);
+
 		// 进入游戏世界
-		this.app.rpc.world.worldRemote.add(session, uid, this.app.get("serverId"), roomid, false, function(err, game_info) {
-			if(err){
+		this.app.rpc.world.worldRemote.add(session, uid, this.app.get("serverId"), roomid, md5_mac_ship_id, function(err, game_info) {
+			if (err) {
 				return next(err);
 			}
-			console.log(game_info);
+			console.log("INIT GAME INFO:", game_info);
 			// game_info 包括 总在线数，当前房间人数、rank排名信息、以及新飞船的信息
 			var new_ship = game_info.ship;
 			// 缓存ship_id

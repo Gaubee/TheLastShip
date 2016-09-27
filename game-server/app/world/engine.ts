@@ -63,8 +63,11 @@ world.on("impact", function(evt) {
         maybe_ship.emit("change-hp", bullet.config.damage);
     }
 });
-var All_ships_map = new Map<string,Ship>();
-var All_ships_weakmap = new WeakMap<p2.Body,Ship>();
+const All_ships_map = new Map<string,Ship>();
+const All_ships_weakmap = new WeakMap<p2.Body,Ship>();
+// TODO 使用数据库？
+const ship_md5_id_map = new Map<string,string>();
+const ship_id_md5_map = new Map<string,string>();
 
 const p2is = [];
 export const engine = {
@@ -93,7 +96,11 @@ export const engine = {
                 });
             })
             item.on("destroy",function () {
-                All_ships_map.delete(this._id);
+                var ship_id = this._id;
+                var ship_md5_id = ship_id_md5_map.get(ship_id);
+                ship_md5_id_map.delete(ship_md5_id);
+                ship_id_md5_map.delete(ship_id)
+                All_ships_map.delete(ship_id);
                 All_ships_weakmap.delete(this.p2_body);
             });
         }
@@ -127,7 +134,15 @@ export const engine = {
         ship_config = ship_config ? Object.assign(ship_config, default_ship_config):default_ship_config;
         var new_ship = new Ship(ship_config);
         engine.add(new_ship);
+        if(ship_config["ship_md5_id"]) {
+            ship_md5_id_map.set(ship_config["ship_md5_id"],new_ship._id);
+            ship_id_md5_map.set(new_ship._id, ship_config["ship_md5_id"]);
+        }
         return new_ship;
+    },
+    getShip(ship_md5_id){
+        var ship_id = ship_md5_id_map.get(ship_md5_id);
+        return ship_id && All_ships_map.get(ship_id);
     },
     setConfig(ship_id, new_ship_config:ShipConfig){
         var current_ship = All_ships_map.get(ship_id);

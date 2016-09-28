@@ -69,7 +69,7 @@ export default class Ship extends P2I {
         bullet_force: 30000,//子弹的推进力
         bullet_damage: 5,
         bullet_penetrate: 0.5,
-        overload_speed: 0.625,
+        overload_speed: 1,
 
         // 标志
         team_tag: 10,
@@ -274,7 +274,7 @@ export default class Ship extends P2I {
         if (
             limit_config.x_speed * limit_config.x_speed +
             limit_config.y_speed * limit_config.y_speed >
-            config.force * config.force
+            config.force * config.force + 1// JS小数问题，确保全速前进不会出现问题
         ) { // 判定移动速度上限
             console.log("非法操作，取消这次操作");
             return //非法操作，取消这次操作

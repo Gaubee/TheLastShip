@@ -1413,6 +1413,15 @@ define("app/engine/Victor", ["require", "exports"], function (require, exports) 
             return { x: this.x, y: this.y };
         };
         ;
+        /**
+         * 在方向不变的情况下改变矢量的长度
+         */
+        Victor.prototype.setLength = function (amount) {
+            var length = this.length();
+            var rate = amount / length;
+            this.x *= rate;
+            this.y *= rate;
+        };
         return Victor;
     }());
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -1432,7 +1441,8 @@ define("app/const", ["require", "exports"], function (require, exports) {
     "use strict";
     exports._isNode = typeof process === "object";
     exports._isBorwser = !exports._isNode;
-    var devicePixelRatio = typeof this._isMobile === "boolean" && this._isMobile ? 2 : 1;
+    exports._isMobile = this._isMobile;
+    var devicePixelRatio = typeof exports._isMobile === "boolean" && exports._isMobile ? 1 : 1;
     var __pt2px = devicePixelRatio * 2;
     exports.pt2px = function (pt) { return pt * __pt2px; };
     exports.L_ANI_TIME = 1225;
@@ -2553,7 +2563,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 bullet_force: 30000,
                 bullet_damage: 5,
                 bullet_penetrate: 0.5,
-                overload_speed: 0.625,
+                overload_speed: 1,
                 // 标志
                 team_tag: 10,
             };
@@ -2738,7 +2748,8 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             const_4.mix_options(limit_config, new_config);
             if (limit_config.x_speed * limit_config.x_speed +
                 limit_config.y_speed * limit_config.y_speed >
-                config.force * config.force) {
+                config.force * config.force + 1 // JS小数问题，确保全速前进不会出现问题
+            ) {
                 console.log("非法操作，取消这次操作");
                 return; //非法操作，取消这次操作
             }
@@ -3643,7 +3654,7 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
     "use strict";
     var _this = this;
     exports.square = function (v) { return v * v; }; // 平方
-    var devicePixelRatio = window["_isMobile"] ? 2 : 1;
+    var devicePixelRatio = window["_isMobile"] ? 1 : 1;
     var __pt2px = devicePixelRatio * 2;
     exports.pt2px = function (pt) { return pt * __pt2px; };
     var body = document.getElementById("body");
@@ -5687,6 +5698,7 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             p2i_B.emit("out-wall");
         }
     });
+
     var All_body_weakmap = new WeakMap();
     var All_id_map = new Map();
     // TODO 使用数据库？
@@ -6975,7 +6987,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common"], function (require, exports, Tween_7, When_2, Flyer_3, Ship_3, Wall_3, Victor_3, world_1, common_5) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_7, When_2, Flyer_3, Ship_3, Wall_3, Victor_3, world_1, common_5, const_6) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_7.default();
@@ -6989,7 +7001,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: common_5.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_6.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     function renderInit(loader, resource) {
@@ -7134,8 +7146,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     var speed_info = speed_ux[keyCode];
                     effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
                 }
-                effect_speed.norm();
-                effect_speed.multiplyScalar(force);
+                effect_speed.setLength(force);
             }
             return effect_speed;
         }
@@ -7163,42 +7174,97 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 });
             }
         });
-        // 将要去的目的点，在接近的时候改变飞船速度
-        var move_target_point;
-        var target_anchor = new PIXI.Graphics();
-        target_anchor.lineStyle(common_5.pt2px(2), 0xff2244, 0.8);
-        target_anchor.drawCircle(0, 0, common_5.pt2px(10));
-        target_anchor.cacheAsBitmap = true;
-        target_anchor.scale.set(0);
-        exports.current_stage.addChild(target_anchor);
-        common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
-            if (my_ship) {
-                move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
-                target_anchor.position.set(move_target_point.x, move_target_point.y);
-                ani_tween.Tween(target_anchor.scale)
-                    .set({ x: 1, y: 1 })
-                    .to({ x: 0, y: 0 }, common_5.B_ANI_TIME)
-                    .start();
-            }
-        });
-        var origin_vic = new Victor_3.default(0, 0);
-        ani_ticker.add(function () {
-            if (move_target_point) {
-                var curren_point = Victor_3.default.fromArray(my_ship.p2_body.interpolatedPosition);
-                var current_to_target_dis = curren_point.distance(move_target_point);
-                // 动力、质量、以及空间摩擦力的比例
-                var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
-                var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
-                var force_vic = new Victor_3.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
-                force_vic.norm();
-                force_vic.multiplyScalar(my_ship.config.force * force_rate);
-                if (force_vic.distanceSq(origin_vic) <= 100) {
-                    console.log("基本到达，停止自动移动");
-                    move_target_point = null;
+        var touch_list = [];
+        if (const_6._isMobile) {
+            var mobile_operator_1 = new PIXI.Graphics();
+            (function () {
+                var _size = Math.min(common_5.VIEW.HEIGHT, common_5.VIEW.WIDTH) / 6;
+                var _border = _size / 6;
+                mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
+                mobile_operator_1.beginFill(0xFFFFFF, 0.3);
+                mobile_operator_1.drawCircle(0, 0, _size);
+                mobile_operator_1.endFill();
+                mobile_operator_1.x = _border * 2 + _size;
+                mobile_operator_1.y = common_5.VIEW.HEIGHT - _size - _border * 2;
+                var handle = new PIXI.Graphics();
+                var _h_size = _size / 3;
+                handle.beginFill(0xFFFFFF, 0.6);
+                handle.drawCircle(0, 0, _h_size);
+                handle.endFill();
+                handle.cacheAsBitmap = true;
+                handle.x = mobile_operator_1.x; // + _size;
+                handle.y = mobile_operator_1.y; // - _size;
+                exports.current_stage_wrap.addChild(handle);
+                // 交互
+                mobile_operator_1.interactive = true;
+                var handle_dir = new Victor_3.default(0, 0);
+                common_5.on(mobile_operator_1, "touchstart|touchmove", function (e) {
+                    touch_list = e.data.originalEvent.touches;
+                    alert(touch_list.length)
+                    var touch_point = e.data.global;
+                    handle_dir.x = touch_point.x - mobile_operator_1.x;
+                    handle_dir.y = touch_point.y - mobile_operator_1.y;
+                    var _length = Math.min(handle_dir.length(), _size);
+                    var force_rate = _length / _size;
+                    handle_dir.setLength(force_rate * my_ship.config.force);
+                    my_ship.operateShip({
+                        x_speed: handle_dir.x,
+                        y_speed: handle_dir.y,
+                    });
+                    // 移动handle控制球
+                    handle_dir.setLength(force_rate * _size);
+                    handle.x = mobile_operator_1.x + handle_dir.x;
+                    handle.y = mobile_operator_1.y + handle_dir.y;
+                });
+                function _cancel_force(e) {
+                    my_ship.operateShip({
+                        x_speed: 0,
+                        y_speed: 0,
+                    });
+                    handle.x = mobile_operator_1.x;
+                    handle.y = mobile_operator_1.y;
                 }
-                my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
-            }
-        });
+                common_5.on(mobile_operator_1, "touchend|touchendoutside", _cancel_force);
+            }());
+            // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
+            exports.current_stage_wrap.addChild(mobile_operator_1);
+        }
+        else {
+            // 将要去的目的点，在接近的时候改变飞船速度
+            var move_target_point;
+            var target_anchor = new PIXI.Graphics();
+            target_anchor.lineStyle(const_6.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_6.pt2px(10));
+            target_anchor.cacheAsBitmap = true;
+            target_anchor.scale.set(0);
+            exports.current_stage.addChild(target_anchor);
+            common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
+                if (my_ship) {
+                    move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                    target_anchor.position.set(move_target_point.x, move_target_point.y);
+                    ani_tween.Tween(target_anchor.scale)
+                        .set({ x: 1, y: 1 })
+                        .to({ x: 0, y: 0 }, const_6.B_ANI_TIME)
+                        .start();
+                }
+            });
+            ani_ticker.add(function () {
+                if (move_target_point) {
+                    var curren_point = Victor_3.default.fromArray(my_ship.p2_body.interpolatedPosition);
+                    var current_to_target_dis = curren_point.distance(move_target_point);
+                    // 动力、质量、以及空间摩擦力的比例
+                    var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
+                    var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
+                    var force_vic = new Victor_3.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+                    force_vic.setLength(my_ship.config.force * force_rate);
+                    if (force_vic.lengthSq() <= 100) {
+                        console.log("基本到达，停止自动移动");
+                        move_target_point = null;
+                    }
+                    my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
+                }
+            });
+        }
         common_5.on(exports.current_stage_wrap, "click|tap", function () {
             var bullet = my_ship.fire();
             if (bullet) {
@@ -7206,7 +7272,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 world_1.engine.add(bullet);
             }
         });
-        common_5.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
+        // 旋转角度
+        common_5.on(exports.current_stage_wrap, "mousemove|click|touchstart|touchmove", function (e) {
             var to_point = common_5.VIEW.rotateXY(e.data.global);
             var direction = new Victor_3.default(to_point.x - common_5.VIEW.CENTER.x, to_point.y - common_5.VIEW.CENTER.y);
             my_ship.operateShip({ rotation: direction.angle() });

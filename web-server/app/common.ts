@@ -2,7 +2,7 @@ import SVGGraphics from "../class/SVGGraphics";
 import color2color from "../class/color2color";
 
 export const square = (v) => v * v;// 平方
-const devicePixelRatio = window["_isMobile"] ? 2 : 1;
+const devicePixelRatio = window["_isMobile"] ? 1 : 1;
 const __pt2px = devicePixelRatio * 2;
 export const pt2px = (pt) => pt * __pt2px;
 

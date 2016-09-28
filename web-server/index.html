@@ -52,6 +52,7 @@ var _isMobile = isMobile();
 <!--<script src="js/lib/pixi.js-4.0.1/pixi.min.js"></script>-->
 <!--<script src="js/lib/esl.nocache.js"></script>-->
 <script src="js/lib/esl.full.js"></script>
+<script src="js/lib/es6-map-shim.js"></script>
 <script>
 define('json', [], function () {
     var ready = false;
@@ -119,11 +120,20 @@ define('json', [], function () {
 	</div>
 	<div id="body">
 	</div>
-	<script src="./dist.js"></script>
 	<script>
-		require(["app/main"],function () {
-			
-		});
+		(function(argument) {
+			var s = document.createElement("script");
+			s.src = "dist.js?_=" + new Date;
+			document.body.appendChild(s);
+			s.onload = function () {
+				require(["app/main"],function () { });
+			}
+		}());
+	</script>
+	<!-- <script src="./dist.js"></script> -->
+	<script>
+		// require(["app/main"],function () { });
+
 		// SystemJS.config({
 		// 	transpiler: "ts",
 		// 	packages: {

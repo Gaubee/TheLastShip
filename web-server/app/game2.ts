@@ -18,18 +18,24 @@ import {engine} from "./engine/world";
 
 import {
     VIEW,
-    L_ANI_TIME,
-    B_ANI_TIME,
-    M_ANI_TIME,
-    S_ANI_TIME,
     on,
     square,
     stageManager,
     renderer,
-    pt2px,
     emitReisze,
-    mix_options
 } from "./common";
+
+import {
+    L_ANI_TIME,
+    B_ANI_TIME,
+    M_ANI_TIME,
+    S_ANI_TIME,
+    pt2px,
+    mix_options,
+    _isBorwser,
+    _isNode,
+    _isMobile,
+} from "./const";
 
 
 const ani_ticker = new PIXI.ticker.Ticker();
@@ -202,13 +208,12 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     const effect_speed_keys = [];// 记录按下的按钮
     function generate_speed(force) {
         var effect_speed = new Victor(0,0);
-            if(effect_speed_keys.length) {
+        if(effect_speed_keys.length) {
             for(var i = 0,keyCode; keyCode = effect_speed_keys[i]; i+=1){
                 var speed_info = speed_ux[keyCode];
                 effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1
             }
-            effect_speed.norm();
-            effect_speed.multiplyScalar(force);
+            effect_speed.setLength(force);
         }
         return effect_speed;
     }
@@ -237,43 +242,100 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             });
         }
     });
-    // 将要去的目的点，在接近的时候改变飞船速度
-    var move_target_point:Victor;
-    var target_anchor = new PIXI.Graphics();
-    target_anchor.lineStyle(pt2px(2),0xff2244,0.8);
-    target_anchor.drawCircle(0,0,pt2px(10));
-    target_anchor.cacheAsBitmap = true;
-    target_anchor.scale.set(0);
-    current_stage.addChild(target_anchor);
 
-    on(current_stage_wrap, "rightclick", function (e) {
-        if(my_ship) {
-            move_target_point = new Victor(e.x-current_stage.x, e.y-current_stage.y);
-            target_anchor.position.set(move_target_point.x,move_target_point.y);
-            ani_tween.Tween(target_anchor.scale)
-                .set({x:1,y:1})
-                .to({x:0,y:0},B_ANI_TIME)
-                .start()
-        }
-    });
-    var origin_vic = new Victor(0,0);
-    ani_ticker.add(() => {
-        if(move_target_point) {
-            var curren_point = Victor.fromArray(my_ship.p2_body.interpolatedPosition);
-            var current_to_target_dis = curren_point.distance(move_target_point);
-            // 动力、质量、以及空间摩擦力的比例
-            var force_mass_rate = my_ship.config.force/my_ship.p2_body.mass/my_ship.p2_body.damping;
-            var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate,0),1);
-            var force_vic = new Victor(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
-            force_vic.norm();
-            force_vic.multiplyScalar(my_ship.config.force*force_rate);
-            if(force_vic.distanceSq(origin_vic) <= 100) {
-                console.log("基本到达，停止自动移动");
-                move_target_point = null;
+    if(_isMobile) {// 手机版本添加摇柄的支持
+        const mobile_operator = new PIXI.Graphics();
+        (function(){
+            const _size = Math.min(VIEW.HEIGHT,VIEW.WIDTH)/6;
+            const _border = _size/6;
+            mobile_operator.lineStyle(_border,0xFFFFFF,0.5);
+            mobile_operator.beginFill(0xFFFFFF,0.3);
+            mobile_operator.drawCircle(0,0,_size);
+            mobile_operator.endFill();
+            mobile_operator.x = _border*2 + _size;
+            mobile_operator.y = VIEW.HEIGHT - _size - _border*2;
+
+            const handle = new PIXI.Graphics();
+            const _h_size = _size / 3;
+            handle.beginFill(0xFFFFFF,0.6);
+            handle.drawCircle(0,0,_h_size);
+            handle.endFill();
+            handle.cacheAsBitmap = true;
+            handle.x = mobile_operator.x;// + _size;
+            handle.y = mobile_operator.y;// - _size;
+            current_stage_wrap.addChild(handle);
+
+            // 交互
+            mobile_operator.interactive = true;
+            const handle_dir = new Victor(0,0);
+            on(mobile_operator,"touchstart|touchmove",function (e) {
+                var touch_point = e.data.global;
+                handle_dir.x = touch_point.x-mobile_operator.x;
+                handle_dir.y = touch_point.y-mobile_operator.y;
+                var _length = Math.min(handle_dir.length(),_size);
+                var force_rate = _length/_size;
+                handle_dir.setLength(force_rate*my_ship.config.force);
+                my_ship.operateShip({ 
+                    x_speed: handle_dir.x,
+                    y_speed: handle_dir.y,
+                });
+                // 移动handle控制球
+                handle_dir.setLength(force_rate*_size);
+                handle.x = mobile_operator.x + handle_dir.x;
+                handle.y = mobile_operator.y + handle_dir.y;
+            });
+            function _cancel_force(e) {
+                my_ship.operateShip({ 
+                    x_speed: 0,
+                    y_speed: 0,
+                });
+                handle.x = mobile_operator.x 
+                handle.y = mobile_operator.y 
             }
-            my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
-        }
-    });
+            on(mobile_operator,"touchend|touchendoutside",_cancel_force);
+
+        }());
+        // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
+        current_stage_wrap.addChild(mobile_operator);
+
+    }else{// 电脑版本提供右键操作的支持
+        // 将要去的目的点，在接近的时候改变飞船速度
+        var move_target_point:Victor;
+        var target_anchor = new PIXI.Graphics();
+        target_anchor.lineStyle(pt2px(2),0xff2244,0.8);
+        target_anchor.drawCircle(0,0,pt2px(10));
+        target_anchor.cacheAsBitmap = true;
+        target_anchor.scale.set(0);
+        current_stage.addChild(target_anchor);
+
+        on(current_stage_wrap, "rightclick", function (e) {
+            if(my_ship) {
+                move_target_point = new Victor(e.x-current_stage.x, e.y-current_stage.y);
+                target_anchor.position.set(move_target_point.x,move_target_point.y);
+                ani_tween.Tween(target_anchor.scale)
+                    .set({x:1,y:1})
+                    .to({x:0,y:0},B_ANI_TIME)
+                    .start()
+            }
+        });
+
+        ani_ticker.add(() => {
+            if(move_target_point) {
+                var curren_point = Victor.fromArray(my_ship.p2_body.interpolatedPosition);
+                var current_to_target_dis = curren_point.distance(move_target_point);
+                // 动力、质量、以及空间摩擦力的比例
+                var force_mass_rate = my_ship.config.force/my_ship.p2_body.mass/my_ship.p2_body.damping;
+                var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate,0),1);
+                var force_vic = new Victor(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+                force_vic.setLength(my_ship.config.force*force_rate);
+                if(force_vic.lengthSq() <= 100) {
+                    console.log("基本到达，停止自动移动");
+                    move_target_point = null;
+                }
+                my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
+            }
+        });
+    }
 
     on(current_stage_wrap, "click|tap", function () {
         var bullet = my_ship.fire();
@@ -282,7 +344,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             engine.add(bullet);
         }
     });
-    on(current_stage_wrap, "mousemove|click|tap", function (e) {
+    // 旋转角度
+    on(current_stage_wrap, "mousemove|click|touchstart|touchmove", function (e) {
         var to_point = VIEW.rotateXY(e.data.global);
         var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
         my_ship.operateShip({ rotation: direction.angle() })

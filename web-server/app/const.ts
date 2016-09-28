@@ -1,7 +1,8 @@
 declare const process;
 export const _isNode = typeof process === "object"
 export const _isBorwser = !_isNode;
-const devicePixelRatio = typeof this._isMobile === "boolean"&&this._isMobile ? 2 : 1;
+export const _isMobile = this._isMobile;
+const devicePixelRatio = typeof _isMobile === "boolean"&&_isMobile ? 1 : 1;
 const __pt2px = devicePixelRatio * 2;
 export const pt2px = (pt) => pt * __pt2px;
 

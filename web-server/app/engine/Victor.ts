@@ -1331,6 +1331,16 @@ export default class Victor {
 	toObject() {
 		return { x: this.x, y: this.y };
 	};
+
+	/**
+	 * 在方向不变的情况下改变矢量的长度
+	 */
+	setLength(amount:number){
+		var length = this.length();
+		var rate = amount/length;
+		this.x *= rate;
+		this.y *= rate;
+	}
 }
 
 

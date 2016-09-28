@@ -17,6 +17,7 @@ var WorldRemote = function(app) {
 		, "change-hp" //飞船、物体血量减少
 		, "die" //飞船死亡
 		, "ember" //物体销毁
+		, "fire_start" // 飞船发射
 	].forEach(eventName => {
 		events.on(eventName, function(data) {
 			for (var channel_name in channelService.channels) {

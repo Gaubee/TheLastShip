@@ -1432,8 +1432,9 @@ define("app/const", ["require", "exports"], function (require, exports) {
     "use strict";
     exports._isNode = typeof process === "object";
     exports._isBorwser = !exports._isNode;
-    // const devicePixelRatio = window["_isMobile"] ? 2 : 1;
-    exports.pt2px = function (pt) { return pt * 2; }; //((window.devicePixelRatio) || 1);//px 转 pt
+    var devicePixelRatio = typeof this._isMobile === "boolean" && this._isMobile ? 2 : 1;
+    var __pt2px = devicePixelRatio * 2;
+    exports.pt2px = function (pt) { return pt * __pt2px; };
     exports.L_ANI_TIME = 1225;
     exports.B_ANI_TIME = 375;
     exports.M_ANI_TIME = 225;
@@ -2190,7 +2191,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
             // 覆盖配置
             const_1.mix_options(config, typeInfo.config);
             var body = self.body;
-            body.lineStyle(const_1.pt2px(1), 0x000000, 1);
+            body.lineStyle(const_1.pt2px(1.5), 0x000000, 1);
             body.beginFill(config.body_color);
             if (typeInfo.type === "Circle") {
                 // 绘制外观形状
@@ -2538,12 +2539,13 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 force: 100000,
                 size: const_4.pt2px(15),
                 body_color: 0x2255ff,
-                is_firing: false,
                 rotation: 0,
                 max_hp: 100,
                 cur_hp: 100,
                 restore_hp: 1,
                 density: 1,
+                is_firing: false,
+                ison_BTAR: false,
                 // 战斗相关的属性
                 bullet_speed: 800000,
                 bullet_damage: 5,
@@ -2552,21 +2554,20 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 // 标志
                 team_tag: 10,
             };
-            this.restore_hp_ti = null;
             var self = this;
             var config = self.config;
             const_4.mix_options(config, new_config);
             var body = self.body;
             var body_size = config.size;
             body.clear();
-            body.lineStyle(4, 0x000000, 1);
+            body.lineStyle(const_4.pt2px(1.5), 0x000000, 1);
             body.beginFill(config.body_color);
             body.drawCircle(body_size / 2, body_size / 2, body_size);
             body.endFill();
             var gun = self.gun;
             var gun_height = body_size * 2 / 3;
             var gun_width = body_size;
-            gun.lineStyle(4, 0x000000, 1);
+            gun.lineStyle(const_4.pt2px(1.5), 0x000000, 1);
             gun.beginFill(0x666666);
             gun.drawRect(body_size / 2 + body_size * 0.8, body_size / 2 - gun_height / 2, gun_width, gun_height);
             gun.endFill();
@@ -2603,22 +2604,94 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                     }
                 }
             });
-            self.once("add-to-world", function () {
-                self.restore_hp_ti = setInterval(function () {
-                    if (config.max_hp !== config.cur_hp) {
-                        self.emit("change-hp", config.restore_hp);
+            // 攻速限制
+            (function () {
+                var before_the_attack_roll_ani = 0.5; // 攻击前腰在整个动画时间的占比
+                var acc_overload_time = 0;
+                self.once("fire_start", function _fire_start() {
+                    config.is_firing = true;
+                    config.ison_BTAR = true;
+                    // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
+                    // 射击钱摇枪管不可转向。 = true;
+                    var overload_ani = 1000 / config.overload_speed;
+                    var _update = function (delay) {
+                        acc_overload_time += delay;
+                        if (acc_overload_time >= overload_ani * before_the_attack_roll_ani) {
+                            config.ison_BTAR = false;
+                            if (acc_overload_time >= overload_ani) {
+                                self.emit("fire_end");
+                                acc_overload_time -= overload_ani;
+                            }
+                        }
+                    };
+                    self.on("update", _update);
+                    self.once("fire_end", function () {
+                        config.is_firing = false;
+                        self.off("update", _update);
+                        self.once("fire_start", _fire_start);
+                    });
+                    // 浏览器端要加动画
+                    if (const_4._isBorwser) {
+                        self.emit("fire_ani");
                     }
-                }, 2000);
-            });
+                });
+                // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
+                // 射击钱摇枪管不可转向。
+                self.on("fire_ani", function _fire_ani() {
+                    self.emit("cancel_fire_ani");
+                    var acc_fire_time = 0;
+                    self.cacheAsBitmap = false;
+                    var overload_ani = 1000 / config.overload_speed;
+                    var from_gun_x = self.gun.x;
+                    var to_gun_x = from_gun_x - self.gun.width / 2;
+                    var dif_gun_x = to_gun_x - from_gun_x;
+                    var _update = function (delay) {
+                        acc_fire_time += delay;
+                        var _progress = acc_fire_time / overload_ani;
+                        var ani_progress = Math.min(Math.max(_progress, 0), 1);
+                        // 动画分两段
+                        if (ani_progress <= before_the_attack_roll_ani) {
+                            ani_progress /= before_the_attack_roll_ani;
+                            self.gun.x = from_gun_x + dif_gun_x * Easing.Elastic.Out(ani_progress);
+                        }
+                        else {
+                            ani_progress = (ani_progress - before_the_attack_roll_ani) / (1 - before_the_attack_roll_ani);
+                            self.gun.x = to_gun_x - dif_gun_x * Easing.Sinusoidal.Out(ani_progress);
+                        }
+                        if (_progress >= 1) {
+                            self.emit("cancel_fire_ani");
+                        }
+                    };
+                    self.on("update", _update);
+                    self.once("cancel_fire_ani", function () {
+                        self.gun.x = from_gun_x;
+                        self.cacheAsBitmap = true;
+                        self.once("fire_ani", _fire_ani);
+                        self.off("update", _update);
+                    });
+                });
+            }());
             if (const_4._isNode) {
                 self.once("die", function () {
-                    self.restore_hp_ti && clearInterval(self.restore_hp_ti);
                     self.emit("destroy");
+                });
+                // 生命回复、攻速限制
+                self.once("add-to-world", function () {
+                    var acc_time = 0;
+                    var restore_hp_ani = 2000;
+                    self.on("update", function (delay) {
+                        if (config.max_hp !== config.cur_hp) {
+                            acc_time += delay;
+                            if (acc_time >= restore_hp_ani) {
+                                self.emit("change-hp", ~~(config.restore_hp * acc_time / restore_hp_ani));
+                                acc_time = acc_time % restore_hp_ani;
+                            }
+                        }
+                    });
                 });
             }
             else {
                 self.once("die", function () {
-                    self.restore_hp_ti && clearInterval(self.restore_hp_ti);
                     var ani_time = const_4.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
@@ -2655,10 +2728,12 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             const_4.mix_options(config, new_config);
             this.p2_body.position[0] = config.x;
             this.p2_body.position[1] = config.y;
-            this.p2_body["rotation"] = config.rotation;
             this.x = config.x;
             this.y = config.y;
-            this.rotation = config.rotation;
+            if (!config.ison_BTAR) {
+                this.p2_body["rotation"] = config.rotation;
+                this.rotation = config.rotation;
+            }
         };
         Ship.prototype.fire = function () {
             var _this = this;
@@ -2666,24 +2741,29 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             if (config.is_firing) {
                 return;
             }
+            this.emit("fire_start");
             var bullet_size = const_4.pt2px(5);
             var bullet_speed = new Victor_1.default(config.bullet_speed, 0);
-            var bullet_start = new Victor_1.default(config.size + bullet_size, 0);
+            var bullet_start = new Victor_1.default(config.size + bullet_size / 2, 0);
             bullet_speed.rotate(config.rotation);
             bullet_start.rotate(config.rotation);
             var bullet = new Bullet_1.default({
                 team_tag: config.team_tag,
-                x: config.x,
-                y: config.y,
+                x: config.x + bullet_start.x,
+                y: config.y + bullet_start.y,
                 start_x_speed: bullet_speed.x,
                 start_y_speed: bullet_speed.y,
                 size: bullet_size,
                 damage: config.bullet_damage,
                 penetrate: config.bullet_penetrate,
             });
+            var mass_rate = bullet.p2_body.mass / this.p2_body.mass;
+            // 子弹的初始移动速度受到飞船加成
+            var bullet_force = bullet.p2_body.force;
+            bullet_force[0] += config.x_speed / mass_rate;
+            bullet_force[1] += config.y_speed / mass_rate;
             // 一旦发射，飞船受到后座力
             bullet.once("add-to-world", function () {
-                var mass_rate = bullet.p2_body.mass / _this.p2_body.mass;
                 _this.p2_body.force[0] -= bullet_speed.x * mass_rate;
                 _this.p2_body.force[1] -= bullet_speed.y * mass_rate;
             });
@@ -3541,26 +3621,18 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
     "use strict";
     var _this = this;
     exports.square = function (v) { return v * v; }; // 平方
-    // const devicePixelRatio = window["_isMobile"] ? 2 : 1;
-    exports.pt2px = function (pt) { return pt * 2; }; //((window.devicePixelRatio) || 1);//px 转 pt
+    var devicePixelRatio = window["_isMobile"] ? 2 : 1;
+    var __pt2px = devicePixelRatio * 2;
+    exports.pt2px = function (pt) { return pt * __pt2px; };
     var body = document.getElementById("body");
     // 禁用右键菜单
     document.oncontextmenu = function () {
         return false;
     };
-    // document.on"contextmenu"=RightMouseDown;
-    // document.onmousedown = mouseDown; 
-    // function mouseDown(e) {
-    //     if (e.which==3) {//righClick
-    //         alert("Disabled - do whatever you like here..");
-    //     }
-    // }
-    // function RightMouseDown() { return false;}
     function emitReisze(con) {
         con.children.forEach(function (item) {
             item.emit("resize");
             if (item instanceof PIXI.Container && !item["_has_custom_resize"]) {
-                // requestAnimationFrame(function () {
                 emitReisze(item);
             }
         });
@@ -3572,13 +3644,6 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
         var total = time || 30;
         var from_rotation = _main_stage.rotation;
         var dif_rotation = to_rotation - from_rotation;
-        // requestAnimationFrame(function _ro() {
-        //     _main_stage.rotation = from_rotation + dif_rotation * i / total;
-        //     i += 1;
-        //     if (i <= total) {
-        //         requestAnimationFrame(_ro);
-        //     }
-        // });
         _main_stage.rotation = to_rotation;
     }
     function resizeView() {
@@ -3604,17 +3669,17 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
     }
     window.addEventListener("resize", resizeView);
     // export const renderer = window["R"] = new PIXI.lights.WebGLDeferredRenderer(body.clientWidth - 2 || 400, body.clientHeight - 2 || 300);
-    exports.renderer = window["R"] = PIXI.autoDetectRenderer(body.clientWidth, body.clientHeight, {
+    exports.renderer = window["R"] = PIXI.autoDetectRenderer(body.clientWidth * devicePixelRatio, body.clientHeight * devicePixelRatio, {
         antialias: true,
-        resolution: 1
+        resolution: 1 / devicePixelRatio
     });
     body.appendChild(exports.renderer.view);
     exports.VIEW = {
         get WIDTH() {
-            return _main_stage.rotation % Math.PI ? exports.renderer.view.height : exports.renderer.view.width;
+            return (_main_stage.rotation % Math.PI ? exports.renderer.view.height : exports.renderer.view.width) * devicePixelRatio;
         },
         get HEIGHT() {
-            return _main_stage.rotation % Math.PI ? exports.renderer.view.width : exports.renderer.view.height;
+            return (_main_stage.rotation % Math.PI ? exports.renderer.view.width : exports.renderer.view.height) * devicePixelRatio;
         },
         get CENTER() {
             return new PIXI.Point(exports.VIEW.WIDTH / 2, exports.VIEW.HEIGHT / 2);
@@ -5702,8 +5767,10 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
                 throw "SHIP ID NO REF INSTANCE:" + ship_id;
             }
             var bullet = current_ship.fire();
-            exports.engine.add(bullet);
-            return bullet;
+            if (bullet) {
+                exports.engine.add(bullet);
+                return bullet;
+            }
         }
     };
     // 材质信息
@@ -6661,6 +6728,15 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 instanceMap[bullet_info.id] = null;
             }
         });
+        Pomelo_1.pomelo.on("fire_start", function (arg) {
+            var bullet_info = arg.data;
+            console.log("fire_start:", bullet_info);
+            var bullet = instanceMap[bullet_info.id];
+            if (bullet) {
+                bullet.setConfig(bullet_info.config);
+                bullet.emit("fire_start");
+            }
+        });
         Pomelo_1.pomelo.on("change-hp", function (arg) {
             var ship_info = arg.data;
             console.log("change-hp:", ship_info);
@@ -7061,8 +7137,10 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         });
         common_5.on(exports.current_stage_wrap, "click|tap", function () {
             var bullet = my_ship.fire();
-            bullet_stage.addChild(bullet);
-            world_1.engine.add(bullet);
+            if (bullet) {
+                bullet_stage.addChild(bullet);
+                world_1.engine.add(bullet);
+            }
         });
         common_5.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
             var to_point = common_5.VIEW.rotateXY(e.data.global);

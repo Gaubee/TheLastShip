@@ -180,8 +180,10 @@ export const engine = {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
         var bullet = current_ship.fire();
-        engine.add(bullet)
-        return bullet;
+        if(bullet) {
+            engine.add(bullet)
+            return bullet;
+        }
     }
 };
 // 材质信息

@@ -2,30 +2,20 @@ import SVGGraphics from "../class/SVGGraphics";
 import color2color from "../class/color2color";
 
 export const square = (v) => v * v;// 平方
-// const devicePixelRatio = window["_isMobile"] ? 2 : 1;
-export const pt2px = (pt) => pt * 2;//((window.devicePixelRatio) || 1);//px 转 pt
+const devicePixelRatio = window["_isMobile"] ? 2 : 1;
+const __pt2px = devicePixelRatio * 2;
+export const pt2px = (pt) => pt * __pt2px;
 
 const body = document.getElementById("body");
 // 禁用右键菜单
 document.oncontextmenu = function () {
     return false;
 };
-// document.on"contextmenu"=RightMouseDown;
-// document.onmousedown = mouseDown; 
-
-// function mouseDown(e) {
-//     if (e.which==3) {//righClick
-//         alert("Disabled - do whatever you like here..");
-//     }
-// }
-// function RightMouseDown() { return false;}
 export function emitReisze(con: PIXI.Container) {
     con.children.forEach(item => {
         item.emit("resize");
         if (item instanceof PIXI.Container && !item["_has_custom_resize"]) {
-            // requestAnimationFrame(function () {
             emitReisze(item);
-            // })
         }
     });
 }
@@ -36,13 +26,7 @@ function _aniRotation(to_rotation: number, time?: number) {
     var total = time || 30;
     var from_rotation = _main_stage.rotation;
     var dif_rotation = to_rotation - from_rotation;
-    // requestAnimationFrame(function _ro() {
-    //     _main_stage.rotation = from_rotation + dif_rotation * i / total;
-    //     i += 1;
-    //     if (i <= total) {
-    //         requestAnimationFrame(_ro);
-    //     }
-    // });
+
     _main_stage.rotation = to_rotation;
 }
 function resizeView() {
@@ -69,17 +53,17 @@ function resizeView() {
 }
 window.addEventListener("resize", resizeView);
 // export const renderer = window["R"] = new PIXI.lights.WebGLDeferredRenderer(body.clientWidth - 2 || 400, body.clientHeight - 2 || 300);
-export const renderer = window["R"] = PIXI.autoDetectRenderer(body.clientWidth, body.clientHeight, {
+export const renderer = window["R"] = PIXI.autoDetectRenderer(body.clientWidth*devicePixelRatio, body.clientHeight*devicePixelRatio, {
     antialias: true,
-    resolution: 1
+    resolution: 1/devicePixelRatio
 });
 body.appendChild(renderer.view);
 export const VIEW = {
     get WIDTH() {
-        return _main_stage.rotation % Math.PI ? renderer.view.height : renderer.view.width
+        return (_main_stage.rotation % Math.PI ? renderer.view.height : renderer.view.width)*devicePixelRatio
     },
     get HEIGHT() {
-        return _main_stage.rotation % Math.PI ? renderer.view.width : renderer.view.height
+        return (_main_stage.rotation % Math.PI ? renderer.view.width : renderer.view.height)*devicePixelRatio
     },
     get CENTER() {
         return new PIXI.Point(VIEW.WIDTH / 2, VIEW.HEIGHT / 2);

@@ -334,7 +334,15 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             instanceMap[bullet_info.id] = null;
         }
     });
-
+    pomelo.on("fire_start", function(arg) {
+        var bullet_info = arg.data;
+        console.log("fire_start:", bullet_info);
+        var bullet = instanceMap[bullet_info.id];
+        if (bullet) {
+            bullet.setConfig(bullet_info.config);
+            bullet.emit("fire_start");
+        }
+    });
 
     pomelo.on("change-hp",function (arg) {
         const ship_info = arg.data;

@@ -250,8 +250,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 
     on(current_stage_wrap, "click|tap", function () {
         var bullet = my_ship.fire();
-        bullet_stage.addChild(bullet);
-        engine.add(bullet);
+        if(bullet) {
+            bullet_stage.addChild(bullet);
+            engine.add(bullet);
+        }
     });
     on(current_stage_wrap, "mousemove|click|tap", function (e) {
         var to_point = VIEW.rotateXY(e.data.global);

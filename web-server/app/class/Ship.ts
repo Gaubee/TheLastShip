@@ -25,13 +25,15 @@ export interface ShipConfig {
     force?: number
     size?: number
     body_color?: number
-    is_firing?: boolean
     rotation?: number
     max_hp?: number
     cur_hp?: number
     restore_hp?: number
     // 密度，影响着子弹的穿透力
     density?: number
+    //战斗相关的状态
+    is_firing?: boolean
+    ison_BTAR?: boolean // 是否处于攻击钱摇
 
     // 战斗相关的属性
     bullet_speed?: number
@@ -54,12 +56,14 @@ export default class Ship extends P2I {
         force: 100000,
         size: pt2px(15),
         body_color: 0x2255ff,
-        is_firing: false,
         rotation: 0,
         max_hp: 100,
         cur_hp: 100,
         restore_hp: 1,
         density:1,
+        
+        is_firing: false,
+        ison_BTAR: false,
 
         // 战斗相关的属性
         bullet_speed: 800000,
@@ -71,7 +75,6 @@ export default class Ship extends P2I {
         team_tag: 10,
     }
     body_shape: p2.Shape
-    restore_hp_ti = null
     constructor(new_config: ShipConfig = {}) {
         super();
         const self = this;
@@ -81,7 +84,7 @@ export default class Ship extends P2I {
         const body = self.body;
         const body_size = config.size
         body.clear();
-        body.lineStyle(4, 0x000000, 1);
+        body.lineStyle(pt2px(1.5), 0x000000, 1);
         body.beginFill(config.body_color);
         body.drawCircle(body_size/2, body_size/2, body_size);
         body.endFill();
@@ -89,7 +92,7 @@ export default class Ship extends P2I {
         const gun = self.gun;
         const gun_height = body_size * 2 / 3;
         const gun_width = body_size;
-        gun.lineStyle(4, 0x000000, 1);
+        gun.lineStyle(pt2px(1.5), 0x000000, 1);
         gun.beginFill(0x666666);
         gun.drawRect(body_size/2+body_size * 0.8, body_size/2-gun_height / 2, gun_width, gun_height);
         gun.endFill();
@@ -131,21 +134,99 @@ export default class Ship extends P2I {
                 }
             }
         });
-        self.once("add-to-world",function () {
-            self.restore_hp_ti = setInterval(function () {
-                if(config.max_hp!==config.cur_hp) {
-                    self.emit("change-hp", config.restore_hp);
+
+        // 攻速限制
+        (function () {
+            var before_the_attack_roll_ani = 0.5;// 攻击前腰在整个动画时间的占比
+            var acc_overload_time = 0;
+            self.once("fire_start",function _fire_start() {
+                config.is_firing = true;
+                config.ison_BTAR = true;
+                // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
+                // 射击钱摇枪管不可转向。 = true;
+                var overload_ani = 1000 / config.overload_speed;
+                var _update = function (delay){
+                    acc_overload_time+=delay;
+                    if(acc_overload_time >= overload_ani*before_the_attack_roll_ani) {
+                        config.ison_BTAR = false;
+                        if(acc_overload_time >= overload_ani) {
+                            self.emit("fire_end");
+                            acc_overload_time -= overload_ani;
+                        }
+                    }
+                };
+                self.on("update",_update);
+                self.once("fire_end",function () {
+                    config.is_firing = false;
+                    self.off("update", _update);
+                    self.once("fire_start", _fire_start);
+                });
+                // 浏览器端要加动画
+                if(_isBorwser) {
+                    self.emit("fire_ani");
                 }
-            },2000);
-        });
+            });
+
+            // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
+            // 射击钱摇枪管不可转向。
+            self.on("fire_ani",function _fire_ani() {
+                self.emit("cancel_fire_ani");
+
+                var acc_fire_time = 0;
+                self.cacheAsBitmap = false;
+                var overload_ani = 1000 / config.overload_speed;
+                var from_gun_x = self.gun.x;
+                var to_gun_x = from_gun_x - self.gun.width/2;
+                var dif_gun_x = to_gun_x - from_gun_x;
+                var _update = function (delay){
+                    acc_fire_time+=delay;
+                    var _progress = acc_fire_time/overload_ani;
+                    var ani_progress = Math.min(Math.max(_progress,0),1);
+                    // 动画分两段
+                    if(ani_progress <= before_the_attack_roll_ani) {//第一段，缩进去
+                        ani_progress /= before_the_attack_roll_ani;
+                        self.gun.x = from_gun_x + dif_gun_x * Easing.Elastic.Out(ani_progress);
+                    }else{//第二段，复原
+                        ani_progress = (ani_progress - before_the_attack_roll_ani)/(1-before_the_attack_roll_ani);
+                        self.gun.x = to_gun_x - dif_gun_x * Easing.Sinusoidal.Out(ani_progress);
+                    }
+
+                    if(_progress >= 1){
+                        self.emit("cancel_fire_ani");
+                    }
+                };
+                self.on("update",_update);
+                self.once("cancel_fire_ani",function () {
+                    self.gun.x = from_gun_x;
+                    self.cacheAsBitmap = true;
+                    self.once("fire_ani", _fire_ani);
+                    self.off("update", _update);
+                });
+            });
+        }());
+
         if(_isNode) {// Nodejs
             self.once("die",function () {
-                self.restore_hp_ti && clearInterval(self.restore_hp_ti);
                 self.emit("destroy");
             });
+
+            // 生命回复、攻速限制
+            self.once("add-to-world",function () {
+                var acc_time = 0;
+                var restore_hp_ani = 2000;
+                self.on("update",function (delay) {
+                    if(config.max_hp!==config.cur_hp) {
+                        acc_time += delay;
+                        if(acc_time >= restore_hp_ani) {
+                            self.emit("change-hp", ~~(config.restore_hp*acc_time/restore_hp_ani));
+                            acc_time = acc_time%restore_hp_ani;
+                        }
+                    }
+                });
+            });
+
         }else{// 瀏覽器
             self.once("die",function () {
-                self.restore_hp_ti && clearInterval(self.restore_hp_ti);
                 var ani_time = B_ANI_TIME;
                 var ani_progress = 0;
                 var _update = self.update;
@@ -185,34 +266,43 @@ export default class Ship extends P2I {
 
         this.p2_body.position[0] = config.x;
         this.p2_body.position[1] = config.y;
-        this.p2_body["rotation"] = config.rotation;
         this.x = config.x;
         this.y = config.y;
-        this.rotation =  config.rotation;
+        if(!config.ison_BTAR) {
+            this.p2_body["rotation"] = config.rotation;
+            this.rotation =  config.rotation;
+        }
     }
     fire() {
         var config = this.config;
         if (config.is_firing) {
             return
         }
+        this.emit("fire_start");
         var bullet_size = pt2px(5);
         var bullet_speed = new Victor(config.bullet_speed, 0);
-        var bullet_start = new Victor(config.size + bullet_size, 0);
+        var bullet_start = new Victor(config.size + bullet_size/2, 0);
         bullet_speed.rotate(config.rotation);
         bullet_start.rotate(config.rotation);
         var bullet = new Bullet({
             team_tag: config.team_tag,
-            x: config.x ,
-            y: config.y ,
+            x: config.x + bullet_start.x,
+            y: config.y + bullet_start.y,
             start_x_speed: bullet_speed.x,
             start_y_speed: bullet_speed.y,
             size: bullet_size,
             damage: config.bullet_damage,
             penetrate: config.bullet_penetrate,
         });
+
+        var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
+        // 子弹的初始移动速度受到飞船加成
+        var bullet_force = bullet.p2_body.force;
+        bullet_force[0] += config.x_speed / mass_rate;
+        bullet_force[1] += config.y_speed / mass_rate;
+
         // 一旦发射，飞船受到后座力
         bullet.once("add-to-world", () => {
-            var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
             this.p2_body.force[0] -= bullet_speed.x*mass_rate;
             this.p2_body.force[1] -= bullet_speed.y*mass_rate;
         });

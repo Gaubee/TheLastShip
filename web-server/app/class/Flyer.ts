@@ -76,7 +76,7 @@ export default class Flyer extends P2I {
         mix_options(config, typeInfo.config);
 
         const body = self.body;
-        body.lineStyle(pt2px(1), 0x000000, 1);
+        body.lineStyle(pt2px(1.5), 0x000000, 1);
         body.beginFill(config.body_color);
         if(typeInfo.type === "Circle") {
             // 绘制外观形状

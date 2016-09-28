@@ -3842,6 +3842,31 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
         }
     };
     exports.stageManager.backgroundColor = "#ddd";
+    exports.touchManager = {
+        _touchRegMap: {},
+        register: function (touch) {
+            var touch_id = touch.identifier;
+            this._touchRegMap[touch_id] = true;
+            return touch_id;
+        },
+        free: function (touch_id) {
+            this._touchRegMap[touch_id] = false;
+        },
+        getFreeOne: function (touchs) {
+            for (var i = 0, touch; touch = touchs[i]; i += 1) {
+                if (!this._touchRegMap[touch.identifier]) {
+                    return touch;
+                }
+            }
+        },
+        getById: function (touchs, touch_identifier) {
+            for (var i = 0, touch; touch = touchs[i]; i += 1) {
+                if (touch.identifier == touch_identifier) {
+                    return touch;
+                }
+            }
+        }
+    };
     function mix_options(tmp_options, new_options) {
         for (var key in new_options) {
             if (tmp_options.hasOwnProperty(key)) {
@@ -5698,7 +5723,6 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             p2i_B.emit("out-wall");
         }
     });
-
     var All_body_weakmap = new WeakMap();
     var All_id_map = new Map();
     // TODO 使用数据库？
@@ -7174,34 +7198,62 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 });
             }
         });
-        var touch_list = [];
         if (const_6._isMobile) {
             var mobile_operator_1 = new PIXI.Graphics();
             (function () {
-                var _size = Math.min(common_5.VIEW.HEIGHT, common_5.VIEW.WIDTH) / 6;
-                var _border = _size / 6;
-                mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
-                mobile_operator_1.beginFill(0xFFFFFF, 0.3);
-                mobile_operator_1.drawCircle(0, 0, _size);
-                mobile_operator_1.endFill();
-                mobile_operator_1.x = _border * 2 + _size;
-                mobile_operator_1.y = common_5.VIEW.HEIGHT - _size - _border * 2;
+                var _size;
+                var _border;
+                mobile_operator_1.on("resize", function () {
+                    mobile_operator_1.clear();
+                    _size = Math.min(common_5.VIEW.HEIGHT, common_5.VIEW.WIDTH) / 6;
+                    _border = _size / 6;
+                    mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
+                    mobile_operator_1.beginFill(0xFFFFFF, 0.3);
+                    mobile_operator_1.drawCircle(0, 0, _size);
+                    mobile_operator_1.endFill();
+                    mobile_operator_1.x = _border * 2 + _size;
+                    mobile_operator_1.y = common_5.VIEW.HEIGHT - _size - _border * 2;
+                    // handle resize
+                    handle.clear();
+                    var _h_size;
+                    _h_size = _size / 3;
+                    handle.beginFill(0xFFFFFF, 0.6);
+                    handle.drawCircle(0, 0, _h_size);
+                    handle.endFill();
+                    handle.cacheAsBitmap = true;
+                    handle.x = mobile_operator_1.x; // + _size;
+                    handle.y = mobile_operator_1.y; // - _size;
+                });
                 var handle = new PIXI.Graphics();
-                var _h_size = _size / 3;
-                handle.beginFill(0xFFFFFF, 0.6);
-                handle.drawCircle(0, 0, _h_size);
-                handle.endFill();
-                handle.cacheAsBitmap = true;
-                handle.x = mobile_operator_1.x; // + _size;
-                handle.y = mobile_operator_1.y; // - _size;
                 exports.current_stage_wrap.addChild(handle);
                 // 交互
                 mobile_operator_1.interactive = true;
                 var handle_dir = new Victor_3.default(0, 0);
+                var current_touch_id = null;
                 common_5.on(mobile_operator_1, "touchstart|touchmove", function (e) {
-                    touch_list = e.data.originalEvent.touches;
-                    alert(touch_list.length)
-                    var touch_point = e.data.global;
+                    var touch_list = e.data.originalEvent.touches;
+                    // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
+                    if (current_touch_id !== null) {
+                        var touch = common_5.touchManager.getById(touch_list, current_touch_id);
+                        var touch_point = { x: touch.clientX, y: touch.clientY };
+                    }
+                    else {
+                        var _touch_com = new Victor_3.default(0, 0);
+                        var _control_able_size = _size + _border * 2; // 可控制的空间范围
+                        for (var i = 0, touch; touch = touch_list[i]; i += 1) {
+                            _touch_com.x = touch.clientX - mobile_operator_1.x;
+                            _touch_com.y = touch.clientY - mobile_operator_1.y;
+                            if (_touch_com.length() <= _control_able_size) {
+                                var touch_point = { x: touch.clientX, y: touch.clientY };
+                                current_touch_id = common_5.touchManager.register(touch);
+                                break;
+                            }
+                        }
+                    }
+                    if (!touch_point) {
+                        current_touch_id = null;
+                        return;
+                    }
                     handle_dir.x = touch_point.x - mobile_operator_1.x;
                     handle_dir.y = touch_point.y - mobile_operator_1.y;
                     var _length = Math.min(handle_dir.length(), _size);
@@ -7216,15 +7268,19 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     handle.x = mobile_operator_1.x + handle_dir.x;
                     handle.y = mobile_operator_1.y + handle_dir.y;
                 });
-                function _cancel_force(e) {
+                common_5.on(mobile_operator_1, "touchend|touchendoutside", function _cancel_force(e) {
+                    if (current_touch_id === null) {
+                        return;
+                    }
+                    common_5.touchManager.free(current_touch_id);
+                    current_touch_id = null;
                     my_ship.operateShip({
                         x_speed: 0,
                         y_speed: 0,
                     });
                     handle.x = mobile_operator_1.x;
                     handle.y = mobile_operator_1.y;
-                }
-                common_5.on(mobile_operator_1, "touchend|touchendoutside", _cancel_force);
+                });
             }());
             // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
             exports.current_stage_wrap.addChild(mobile_operator_1);
@@ -7274,8 +7330,13 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         });
         // 旋转角度
         common_5.on(exports.current_stage_wrap, "mousemove|click|touchstart|touchmove", function (e) {
-            var to_point = common_5.VIEW.rotateXY(e.data.global);
-            var direction = new Victor_3.default(to_point.x - common_5.VIEW.CENTER.x, to_point.y - common_5.VIEW.CENTER.y);
+            var touch_list = e.data.originalEvent.touches;
+            var touch = common_5.touchManager.getFreeOne(touch_list);
+            if (!touch) {
+                return;
+            }
+            var touch_point = { x: touch.clientX, y: touch.clientY };
+            var direction = new Victor_3.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
             my_ship.operateShip({ rotation: direction.angle() });
         });
         // setTimeout(function () {

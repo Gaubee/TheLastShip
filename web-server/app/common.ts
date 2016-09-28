@@ -197,6 +197,31 @@ export const stageManager = {
 };
 stageManager.backgroundColor = "#ddd";
 
+export const touchManager = {
+    _touchRegMap: {},
+    register(touch){// 占用
+        var touch_id = touch.identifier;
+        this._touchRegMap[touch_id] = true;
+        return touch_id
+    },
+    free(touch_id){
+        this._touchRegMap[touch_id] = false;
+    },
+    getFreeOne(touchs){
+        for(var i = 0,touch; touch = touchs[i]; i+=1){
+            if(!this._touchRegMap[touch.identifier]) {
+                return touch
+            }
+        }
+    },
+    getById(touchs, touch_identifier){
+        for(var i = 0,touch; touch = touchs[i]; i+=1){
+            if(touch.identifier == touch_identifier) {
+                return touch
+            }
+        }
+    }
+}
 
 export function mix_options(tmp_options, new_options) {
     for (var key in new_options) {

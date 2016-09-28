@@ -23,6 +23,7 @@ import {
     stageManager,
     renderer,
     emitReisze,
+    touchManager,
 } from "./common";
 
 import {
@@ -246,30 +247,62 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     if(_isMobile) {// 手机版本添加摇柄的支持
         const mobile_operator = new PIXI.Graphics();
         (function(){
-            const _size = Math.min(VIEW.HEIGHT,VIEW.WIDTH)/6;
-            const _border = _size/6;
-            mobile_operator.lineStyle(_border,0xFFFFFF,0.5);
-            mobile_operator.beginFill(0xFFFFFF,0.3);
-            mobile_operator.drawCircle(0,0,_size);
-            mobile_operator.endFill();
-            mobile_operator.x = _border*2 + _size;
-            mobile_operator.y = VIEW.HEIGHT - _size - _border*2;
+            var _size;
+            var _border;
+            mobile_operator.on("resize",function () {
+                mobile_operator.clear();
+                _size = Math.min(VIEW.HEIGHT,VIEW.WIDTH)/6;
+                _border = _size/6;
+                mobile_operator.lineStyle(_border,0xFFFFFF,0.5);
+                mobile_operator.beginFill(0xFFFFFF,0.3);
+                mobile_operator.drawCircle(0,0,_size);
+                mobile_operator.endFill();
+                mobile_operator.x = _border*2 + _size;
+                mobile_operator.y = VIEW.HEIGHT - _size - _border*2;
+
+                // handle resize
+                handle.clear();
+                var _h_size;
+                _h_size = _size / 3;
+                handle.beginFill(0xFFFFFF,0.6);
+                handle.drawCircle(0,0,_h_size);
+                handle.endFill();
+                handle.cacheAsBitmap = true;
+                handle.x = mobile_operator.x;// + _size;
+                handle.y = mobile_operator.y;// - _size;
+            });
 
             const handle = new PIXI.Graphics();
-            const _h_size = _size / 3;
-            handle.beginFill(0xFFFFFF,0.6);
-            handle.drawCircle(0,0,_h_size);
-            handle.endFill();
-            handle.cacheAsBitmap = true;
-            handle.x = mobile_operator.x;// + _size;
-            handle.y = mobile_operator.y;// - _size;
             current_stage_wrap.addChild(handle);
 
             // 交互
             mobile_operator.interactive = true;
             const handle_dir = new Victor(0,0);
+            var current_touch_id = null;
             on(mobile_operator,"touchstart|touchmove",function (e) {
-                var touch_point = e.data.global;
+                var touch_list = e.data.originalEvent.touches;
+                // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
+                if(current_touch_id !== null) {
+                    var touch = touchManager.getById(touch_list, current_touch_id);
+                    var touch_point = {x:touch.clientX,y:touch.clientY};
+                }else{
+                    var _touch_com =new Victor(0,0) ;
+                    var _control_able_size = _size + _border*2;// 可控制的空间范围
+                    for(var i = 0,touch;touch = touch_list[i];i+=1){
+                        _touch_com.x = touch.clientX-mobile_operator.x;
+                        _touch_com.y = touch.clientY-mobile_operator.y;
+                        if(_touch_com.length()<=_control_able_size) {
+                            var touch_point = {x:touch.clientX,y:touch.clientY};
+                            current_touch_id = touchManager.register(touch);
+                            break
+                        }
+                    }
+                }
+                if(!touch_point) {// 找不到处于左下角的点就算了
+                    current_touch_id = null
+                    return
+                }
+              
                 handle_dir.x = touch_point.x-mobile_operator.x;
                 handle_dir.y = touch_point.y-mobile_operator.y;
                 var _length = Math.min(handle_dir.length(),_size);
@@ -284,15 +317,20 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 handle.x = mobile_operator.x + handle_dir.x;
                 handle.y = mobile_operator.y + handle_dir.y;
             });
-            function _cancel_force(e) {
+            
+            on(mobile_operator,"touchend|touchendoutside",function _cancel_force(e) {
+                if(current_touch_id === null) {
+                    return
+                }
+                touchManager.free(current_touch_id);
+                current_touch_id = null;
                 my_ship.operateShip({ 
                     x_speed: 0,
                     y_speed: 0,
                 });
                 handle.x = mobile_operator.x 
                 handle.y = mobile_operator.y 
-            }
-            on(mobile_operator,"touchend|touchendoutside",_cancel_force);
+            });
 
         }());
         // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
@@ -346,8 +384,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
     // 旋转角度
     on(current_stage_wrap, "mousemove|click|touchstart|touchmove", function (e) {
-        var to_point = VIEW.rotateXY(e.data.global);
-        var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
+        var touch_list = e.data.originalEvent.touches;
+        var touch = touchManager.getFreeOne(touch_list);
+        if(!touch) {
+            return
+        }
+        var touch_point = {x:touch.clientX,y:touch.clientY};
+        var direction = new Victor(touch_point.x - VIEW.CENTER.x, touch_point.y - VIEW.CENTER.y);
         my_ship.operateShip({ rotation: direction.angle() })
     });
     // setTimeout(function () {

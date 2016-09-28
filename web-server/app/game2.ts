@@ -200,26 +200,42 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         83:"+y",
     };
     const effect_speed = {};
+    const effect_speed_keys = [];// 记录按下的按钮
+    function generate_speed(force) {
+        var effect_speed = new Victor(0,0);
+            if(effect_speed_keys.length) {
+            for(var i = 0,keyCode; keyCode = effect_speed_keys[i]; i+=1){
+                var speed_info = speed_ux[keyCode];
+                effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1
+            }
+            effect_speed.norm();
+            effect_speed.multiplyScalar(force);
+        }
+        return effect_speed;
+    }
     on(current_stage_wrap, "keydown", function (e) {
         if(speed_ux.hasOwnProperty(e.keyCode)&&my_ship){
             move_target_point = null;
-            var speed_info = speed_ux[e.keyCode];
-            var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-            var _dir = speed_info.charAt(1) + "_speed";
-            effect_speed[_dir] = _symbol;
-            my_ship.setConfig({ [_dir]: _symbol*my_ship.config.force });
+            if(effect_speed_keys.indexOf(e.keyCode) === -1){
+                effect_speed_keys.push(e.keyCode);
+            }
+            var effect_speed = generate_speed(my_ship.config.force);
+            my_ship.operateShip({ 
+                x_speed: effect_speed.x,
+                y_speed: effect_speed.y,
+            });
         }
     });
 
     on(current_stage_wrap, "keyup", function (e) {
         if(speed_ux.hasOwnProperty(e.keyCode)&&my_ship){
             move_target_point = null;
-            var speed_info = speed_ux[e.keyCode];
-            var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-            var _dir = speed_info.charAt(1) + "_speed";
-            if(effect_speed[_dir] === _symbol){
-                my_ship.setConfig({ [_dir]: 0 });
-            }
+            effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode),1);
+            var effect_speed = generate_speed(my_ship.config.force);
+            my_ship.operateShip({ 
+                x_speed: effect_speed.x,
+                y_speed: effect_speed.y,
+            });
         }
     });
     // 将要去的目的点，在接近的时候改变飞船速度
@@ -244,7 +260,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 console.log("基本到达，停止自动移动");
                 move_target_point = null;
             }
-            my_ship.setConfig({ x_speed: force_vic.x, y_speed: force_vic.y });
+            my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
         }
     });
 
@@ -258,7 +274,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     on(current_stage_wrap, "mousemove|click|tap", function (e) {
         var to_point = VIEW.rotateXY(e.data.global);
         var direction = new Victor(to_point.x - VIEW.CENTER.x, to_point.y - VIEW.CENTER.y);
-        my_ship.setConfig({ rotation: direction.angle() })
+        my_ship.operateShip({ rotation: direction.angle() })
     });
     // setTimeout(function () {
     //     rule.close();

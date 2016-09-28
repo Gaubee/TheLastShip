@@ -155,8 +155,8 @@ export const engine = {
     },
     newShip(ship_config?: ShipConfig) {
         var default_ship_config = {
-            x: VIEW.WIDTH * Math.random(),
-            y: VIEW.HEIGHT * Math.random(),
+            x: 50+(VIEW.WIDTH-100) * Math.random(),
+            y: 50+(VIEW.HEIGHT-100) * Math.random(),
             body_color: 0x777777 * Math.random(),
             team_tag: Math.random()
         };
@@ -174,16 +174,16 @@ export const engine = {
         return ship_id && All_id_map.get(ship_id);
     },
     setConfig(ship_id, new_ship_config:ShipConfig){
-        var current_ship = All_id_map.get(ship_id);
-        if(!current_ship) {
+        var current_ship = <Ship>All_id_map.get(ship_id);
+        if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
-        current_ship.setConfig(new_ship_config);
+        current_ship.operateShip(new_ship_config);
         return current_ship;
     },
     fire(ship_id){
         var current_ship = <Ship>All_id_map.get(ship_id);
-         if(!current_ship&&!(current_ship instanceof Ship)) {
+         if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
         var bullet = current_ship.fire();

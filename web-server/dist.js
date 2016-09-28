@@ -2723,6 +2723,24 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             this.rotation = this.p2_body["rotation"];
             this.p2_body.force = [this.config.x_speed, this.config.y_speed];
         };
+        // 操控飞船
+        Ship.prototype.operateShip = function (new_config) {
+            var config = this.config;
+            // 这个接口只能修改这三个参数
+            var limit_config = {
+                y_speed: config.y_speed,
+                x_speed: config.x_speed,
+                rotation: config.rotation,
+            };
+            const_4.mix_options(limit_config, new_config);
+            if (limit_config.x_speed * limit_config.x_speed +
+                limit_config.y_speed * limit_config.y_speed >
+                config.force * config.force) {
+                console.log("非法操作，取消这次操作");
+                return; //非法操作，取消这次操作
+            }
+            this.setConfig(limit_config);
+        };
         Ship.prototype.setConfig = function (new_config) {
             var config = this.config;
             const_4.mix_options(config, new_config);
@@ -2757,13 +2775,14 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 damage: config.bullet_damage,
                 penetrate: config.bullet_penetrate,
             });
-            var mass_rate = bullet.p2_body.mass / this.p2_body.mass;
             // 子弹的初始移动速度受到飞船加成
-            var bullet_force = bullet.p2_body.force;
-            bullet_force[0] += config.x_speed / mass_rate;
-            bullet_force[1] += config.y_speed / mass_rate;
+            // var bullet_force = bullet.p2_body.force;
+            // bullet_force[0] += config.x_speed / mass_rate;
+            // bullet_force[1] += config.y_speed / mass_rate;
+            bullet.p2_body.velocity = this.p2_body.velocity.slice();
             // 一旦发射，飞船受到后座力
             bullet.once("add-to-world", function () {
+                var mass_rate = bullet.p2_body.mass / _this.p2_body.mass;
                 _this.p2_body.force[0] -= bullet_speed.x * mass_rate;
                 _this.p2_body.force[1] -= bullet_speed.y * mass_rate;
             });
@@ -7087,28 +7106,42 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             83: "+y",
         };
         var effect_speed = {};
+        var effect_speed_keys = []; // 记录按下的按钮
+        function generate_speed(force) {
+            var effect_speed = new Victor_3.default(0, 0);
+            if (effect_speed_keys.length) {
+                for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
+                    var speed_info = speed_ux[keyCode];
+                    effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
+                }
+                effect_speed.norm();
+                effect_speed.multiplyScalar(force);
+            }
+            return effect_speed;
+        }
         common_5.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
                 move_target_point = null;
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                effect_speed[_dir] = _symbol;
-                my_ship.setConfig((_a = {}, _a[_dir] = _symbol * my_ship.config.force, _a));
+                if (effect_speed_keys.indexOf(e.keyCode) === -1) {
+                    effect_speed_keys.push(e.keyCode);
+                }
+                var effect_speed = generate_speed(my_ship.config.force);
+                my_ship.operateShip({
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                });
             }
-            var _a;
         });
         common_5.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
                 move_target_point = null;
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                if (effect_speed[_dir] === _symbol) {
-                    my_ship.setConfig((_a = {}, _a[_dir] = 0, _a));
-                }
+                effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode), 1);
+                var effect_speed = generate_speed(my_ship.config.force);
+                my_ship.operateShip({
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                });
             }
-            var _a;
         });
         // 将要去的目的点，在接近的时候改变飞船速度
         var move_target_point;
@@ -7132,7 +7165,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     console.log("基本到达，停止自动移动");
                     move_target_point = null;
                 }
-                my_ship.setConfig({ x_speed: force_vic.x, y_speed: force_vic.y });
+                my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
             }
         });
         common_5.on(exports.current_stage_wrap, "click|tap", function () {
@@ -7145,7 +7178,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         common_5.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
             var to_point = common_5.VIEW.rotateXY(e.data.global);
             var direction = new Victor_3.default(to_point.x - common_5.VIEW.CENTER.x, to_point.y - common_5.VIEW.CENTER.y);
-            my_ship.setConfig({ rotation: direction.angle() });
+            my_ship.operateShip({ rotation: direction.angle() });
         });
         // setTimeout(function () {
         //     rule.close();

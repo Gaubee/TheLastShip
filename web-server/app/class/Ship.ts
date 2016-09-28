@@ -260,7 +260,28 @@ export default class Ship extends P2I {
         this.rotation = this.p2_body["rotation"];
         this.p2_body.force = [this.config.x_speed, this.config.y_speed];
     }
-    setConfig(new_config) {
+    // 操控飞船
+    operateShip(new_config:ShipConfig){
+        var config = this.config;
+        // 这个接口只能修改这三个参数
+        var limit_config = {
+            y_speed:config.y_speed,
+            x_speed:config.x_speed,
+            rotation:config.rotation,
+        };
+        mix_options(limit_config,new_config);
+
+        if (
+            limit_config.x_speed * limit_config.x_speed +
+            limit_config.y_speed * limit_config.y_speed >
+            config.force * config.force
+        ) { // 判定移动速度上限
+            console.log("非法操作，取消这次操作");
+            return //非法操作，取消这次操作
+        }
+        this.setConfig(limit_config);
+    }
+    setConfig(new_config:ShipConfig) {
         var config = this.config;
         mix_options(config, new_config);
 
@@ -295,14 +316,15 @@ export default class Ship extends P2I {
             penetrate: config.bullet_penetrate,
         });
 
-        var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
         // 子弹的初始移动速度受到飞船加成
-        var bullet_force = bullet.p2_body.force;
-        bullet_force[0] += config.x_speed / mass_rate;
-        bullet_force[1] += config.y_speed / mass_rate;
+        // var bullet_force = bullet.p2_body.force;
+        // bullet_force[0] += config.x_speed / mass_rate;
+        // bullet_force[1] += config.y_speed / mass_rate;
+        bullet.p2_body.velocity = this.p2_body.velocity.slice();
 
         // 一旦发射，飞船受到后座力
         bullet.once("add-to-world", () => {
+            var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
             this.p2_body.force[0] -= bullet_speed.x*mass_rate;
             this.p2_body.force[1] -= bullet_speed.y*mass_rate;
         });

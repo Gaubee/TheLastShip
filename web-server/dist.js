@@ -6506,7 +6506,7 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = FlowLayout;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common"], function (require, exports, Tween_6, When_1, Flyer_2, Wall_2, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_2, Pomelo_1, common_4) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_6, When_1, Flyer_2, Wall_2, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_2, Pomelo_1, common_4, const_6) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_6.default();
@@ -6521,7 +6521,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: common_4.pt2px(25) + "px 微软雅黑",
+        font: const_6.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
@@ -6681,8 +6681,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     var speed_info = speed_ux[keyCode];
                     effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
                 }
-                effect_speed.norm();
-                effect_speed.multiplyScalar(force);
+                effect_speed.setLength(force);
             }
             return effect_speed;
         }
@@ -6722,75 +6721,201 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 });
             }
         });
-        // 将要去的目的点，在接近的时候改变飞船速度
-        var move_target_point;
-        var target_anchor = new PIXI.Graphics();
-        target_anchor.lineStyle(common_4.pt2px(2), 0xff2244, 0.8);
-        target_anchor.drawCircle(0, 0, common_4.pt2px(10));
-        target_anchor.cacheAsBitmap = true;
-        target_anchor.scale.set(0);
-        exports.current_stage.addChild(target_anchor);
-        common_4.on(exports.current_stage_wrap, "rightclick", function (e) {
-            if (view_ship) {
-                move_target_point = new Victor_2.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
-                target_anchor.position.set(move_target_point.x, move_target_point.y);
-                ani_tween.Tween(target_anchor.scale)
-                    .set({ x: 1, y: 1 })
-                    .to({ x: 0, y: 0 }, common_4.B_ANI_TIME)
-                    .start();
-            }
-        });
-        var origin_vic = new Victor_2.default(0, 0);
-        ani_ticker.add(function () {
-            if (move_target_point) {
-                var curren_point = Victor_2.default.fromArray(view_ship.p2_body.interpolatedPosition);
-                var current_to_target_dis = curren_point.distance(move_target_point);
-                // 动力、质量、以及空间摩擦力的比例
-                var force_mass_rate = view_ship.config.force / view_ship.p2_body.mass / view_ship.p2_body.damping;
-                var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
-                var force_vic = new Victor_2.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
-                force_vic.norm();
-                force_vic.multiplyScalar(view_ship.config.force * force_rate);
-                if (force_vic.distanceSq(origin_vic) <= 100) {
-                    console.log("基本到达，停止自动移动");
-                    move_target_point = null;
+        if (const_6._isMobile) {
+            var mobile_operator_1 = new PIXI.Graphics();
+            (function () {
+                var _size;
+                var _border;
+                mobile_operator_1.on("resize", function () {
+                    mobile_operator_1.clear();
+                    _size = Math.min(common_4.VIEW.HEIGHT, common_4.VIEW.WIDTH) / 6;
+                    _border = _size / 6;
+                    mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
+                    mobile_operator_1.beginFill(0xFFFFFF, 0.3);
+                    mobile_operator_1.drawCircle(0, 0, _size);
+                    mobile_operator_1.endFill();
+                    mobile_operator_1.x = _border * 2 + _size;
+                    mobile_operator_1.y = common_4.VIEW.HEIGHT - _size - _border * 2;
+                    // handle resize
+                    handle.clear();
+                    var _h_size;
+                    _h_size = _size / 3;
+                    handle.beginFill(0xFFFFFF, 0.6);
+                    handle.drawCircle(0, 0, _h_size);
+                    handle.endFill();
+                    handle.cacheAsBitmap = true;
+                    handle.x = mobile_operator_1.x; // + _size;
+                    handle.y = mobile_operator_1.y; // - _size;
+                });
+                var handle = new PIXI.Graphics();
+                exports.current_stage_wrap.addChild(handle);
+                // 交互
+                mobile_operator_1.interactive = true;
+                var handle_dir = new Victor_2.default(0, 0);
+                var current_touch_id = null;
+                common_4.on(mobile_operator_1, "touchstart|touchmove", function (e) {
+                    var touch_list = e.data.originalEvent.touches;
+                    // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
+                    if (current_touch_id !== null) {
+                        var touch = common_4.touchManager.getById(touch_list, current_touch_id);
+                        var touch_point = { x: touch.clientX, y: touch.clientY };
+                    }
+                    else {
+                        var _touch_com = new Victor_2.default(0, 0);
+                        var _control_able_size = _size + _border * 2; // 可控制的空间范围
+                        for (var i = 0, touch; touch = touch_list[i]; i += 1) {
+                            _touch_com.x = touch.clientX - mobile_operator_1.x;
+                            _touch_com.y = touch.clientY - mobile_operator_1.y;
+                            if (_touch_com.length() <= _control_able_size) {
+                                var touch_point = { x: touch.clientX, y: touch.clientY };
+                                current_touch_id = common_4.touchManager.register(touch);
+                                break;
+                            }
+                        }
+                    }
+                    if (!touch_point) {
+                        current_touch_id = null;
+                        return;
+                    }
+                    handle_dir.x = touch_point.x - mobile_operator_1.x;
+                    handle_dir.y = touch_point.y - mobile_operator_1.y;
+                    var _length = Math.min(handle_dir.length(), _size);
+                    var force_rate = _length / _size;
+                    handle_dir.setLength(force_rate * view_ship.config.force);
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: {
+                            x_speed: handle_dir.x,
+                            y_speed: handle_dir.y,
+                        }
+                    }, function (data) { });
+                    // 移动handle控制球
+                    handle_dir.setLength(force_rate * _size);
+                    handle.x = mobile_operator_1.x + handle_dir.x;
+                    handle.y = mobile_operator_1.y + handle_dir.y;
+                });
+                common_4.on(mobile_operator_1, "touchend|touchendoutside", function _cancel_force(e) {
+                    if (current_touch_id === null) {
+                        return;
+                    }
+                    requestAnimationFrame(function () {
+                        common_4.touchManager.free(current_touch_id);
+                        current_touch_id = null;
+                    });
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: {
+                            x_speed: 0,
+                            y_speed: 0,
+                        }
+                    }, function (data) { });
+                    handle.x = mobile_operator_1.x;
+                    handle.y = mobile_operator_1.y;
+                });
+            }());
+            // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
+            exports.current_stage_wrap.addChild(mobile_operator_1);
+        }
+        else {
+            // 将要去的目的点，在接近的时候改变飞船速度
+            var move_target_point;
+            var target_anchor = new PIXI.Graphics();
+            target_anchor.lineStyle(const_6.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_6.pt2px(10));
+            target_anchor.cacheAsBitmap = true;
+            target_anchor.scale.set(0);
+            exports.current_stage.addChild(target_anchor);
+            common_4.on(exports.current_stage_wrap, "rightclick", function (e) {
+                if (view_ship) {
+                    move_target_point = new Victor_2.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                    target_anchor.position.set(move_target_point.x, move_target_point.y);
+                    ani_tween.Tween(target_anchor.scale)
+                        .set({ x: 1, y: 1 })
+                        .to({ x: 0, y: 0 }, const_6.B_ANI_TIME)
+                        .start();
                 }
-                var new_config = { x_speed: force_vic.x, y_speed: force_vic.y };
-                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                    config: new_config
-                }, function (data) {
-                    // console.log("setConfig:stop-move", data);
-                });
-            }
-        });
-        // 转向
-        common_4.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
-            // if(can_next) {
-            if (view_ship) {
-                var to_point = common_4.VIEW.rotateXY(e.data.global);
-                var direction = new Victor_2.default(to_point.x - common_4.VIEW.CENTER.x, to_point.y - common_4.VIEW.CENTER.y);
-                var angle_value = direction.angle();
-                if (angle_value < 0) {
-                    angle_value += PIXI.PI_2;
+            });
+            var origin_vic = new Victor_2.default(0, 0);
+            ani_ticker.add(function () {
+                if (move_target_point) {
+                    var curren_point = Victor_2.default.fromArray(view_ship.p2_body.interpolatedPosition);
+                    var current_to_target_dis = curren_point.distance(move_target_point);
+                    // 动力、质量、以及空间摩擦力的比例
+                    var force_mass_rate = view_ship.config.force / view_ship.p2_body.mass / view_ship.p2_body.damping;
+                    var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
+                    var force_vic = new Victor_2.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
+                    force_vic.setLength(view_ship.config.force * force_rate);
+                    if (force_vic.distanceSq(origin_vic) <= 100) {
+                        console.log("基本到达，停止自动移动");
+                        move_target_point = null;
+                    }
+                    var new_config = { x_speed: force_vic.x, y_speed: force_vic.y };
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) {
+                        // console.log("setConfig:stop-move", data);
+                    });
                 }
-                var new_config = {
-                    rotation: angle_value
-                };
-                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                    config: new_config
-                }, function (data) {
-                    // console.log("setConfig:turn-head", data);
-                });
-            }
-        });
-        // 发射
-        common_4.on(exports.current_stage_wrap, "click|tap", function () {
-            if (view_ship) {
-                Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
-                    // console.log("setConfig:fire", data);
-                });
-            }
-        });
+            });
+        }
+        if (const_6._isMobile) {
+            // 旋转角度
+            common_4.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
+                if (view_ship) {
+                    var touch_list = e.data.originalEvent.touches;
+                    var touch = common_4.touchManager.getFreeOne(touch_list);
+                    if (!touch) {
+                        return;
+                    }
+                    var touch_point = { x: touch.clientX, y: touch.clientY };
+                    var direction = new Victor_2.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
+                    var angle_value = direction.angle();
+                    if (angle_value < 0) {
+                        angle_value += PIXI.PI_2;
+                    }
+                    var new_config = {
+                        rotation: angle_value
+                    };
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) { });
+                }
+            });
+            // 发射
+            common_4.on(exports.current_stage_wrap, "touchstart", function (e) {
+                if (view_ship) {
+                    var touch_list = e.data.originalEvent.touches;
+                    var touch = common_4.touchManager.getFreeOne(touch_list);
+                    if (!touch) {
+                        return;
+                    }
+                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
+                }
+            });
+        }
+        else {
+            // 旋转角度
+            common_4.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
+                if (view_ship) {
+                    var touch_point = e.data.global;
+                    var direction = new Victor_2.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
+                    var angle_value = direction.angle();
+                    if (angle_value < 0) {
+                        angle_value += PIXI.PI_2;
+                    }
+                    var new_config = {
+                        rotation: angle_value
+                    };
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) { });
+                }
+            });
+            // 发射
+            common_4.on(exports.current_stage_wrap, "mousedown", function (e) {
+                if (view_ship) {
+                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
+                }
+            });
+        }
         /**响应服务端事件
          *
          */
@@ -6848,24 +6973,24 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var title = new PIXI.Container();
             var restart_button = new Button_1.default({
                 value: "重新开始",
-                fontSize: common_4.pt2px(14),
-                paddingTop: common_4.pt2px(4),
-                paddingBottom: common_4.pt2px(4),
-                paddingLeft: common_4.pt2px(4),
-                paddingRight: common_4.pt2px(4),
+                fontSize: const_6.pt2px(14),
+                paddingTop: const_6.pt2px(4),
+                paddingBottom: const_6.pt2px(4),
+                paddingLeft: const_6.pt2px(4),
+                paddingRight: const_6.pt2px(4),
                 color: 0xffffff,
                 fontFamily: "微软雅黑"
             });
             var content = new FlowLayout_1.default([
                 new TextBuilder_1.default("被击杀！", {
-                    fontSize: common_4.pt2px(16),
+                    fontSize: const_6.pt2px(16),
                     fontFamily: "微软雅黑"
                 }),
                 restart_button
             ], {
                 float: "center"
             });
-            content.max_width = common_4.pt2px(60);
+            content.max_width = const_6.pt2px(60);
             content.reDrawFlow();
             common_4.on(restart_button, "click|tap", function (e) {
                 exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
@@ -7011,7 +7136,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_7, When_2, Flyer_3, Ship_3, Wall_3, Victor_3, world_1, common_5, const_6) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_7, When_2, Flyer_3, Ship_3, Wall_3, Victor_3, world_1, common_5, const_7) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_7.default();
@@ -7025,7 +7150,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: const_6.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_7.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     function renderInit(loader, resource) {
@@ -7198,21 +7323,21 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 });
             }
         });
-        if (const_6._isMobile) {
-            var mobile_operator_1 = new PIXI.Graphics();
+        if (const_7._isMobile) {
+            var mobile_operator_2 = new PIXI.Graphics();
             (function () {
                 var _size;
                 var _border;
-                mobile_operator_1.on("resize", function () {
-                    mobile_operator_1.clear();
+                mobile_operator_2.on("resize", function () {
+                    mobile_operator_2.clear();
                     _size = Math.min(common_5.VIEW.HEIGHT, common_5.VIEW.WIDTH) / 6;
                     _border = _size / 6;
-                    mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
-                    mobile_operator_1.beginFill(0xFFFFFF, 0.3);
-                    mobile_operator_1.drawCircle(0, 0, _size);
-                    mobile_operator_1.endFill();
-                    mobile_operator_1.x = _border * 2 + _size;
-                    mobile_operator_1.y = common_5.VIEW.HEIGHT - _size - _border * 2;
+                    mobile_operator_2.lineStyle(_border, 0xFFFFFF, 0.5);
+                    mobile_operator_2.beginFill(0xFFFFFF, 0.3);
+                    mobile_operator_2.drawCircle(0, 0, _size);
+                    mobile_operator_2.endFill();
+                    mobile_operator_2.x = _border * 2 + _size;
+                    mobile_operator_2.y = common_5.VIEW.HEIGHT - _size - _border * 2;
                     // handle resize
                     handle.clear();
                     var _h_size;
@@ -7221,16 +7346,16 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     handle.drawCircle(0, 0, _h_size);
                     handle.endFill();
                     handle.cacheAsBitmap = true;
-                    handle.x = mobile_operator_1.x; // + _size;
-                    handle.y = mobile_operator_1.y; // - _size;
+                    handle.x = mobile_operator_2.x; // + _size;
+                    handle.y = mobile_operator_2.y; // - _size;
                 });
                 var handle = new PIXI.Graphics();
                 exports.current_stage_wrap.addChild(handle);
                 // 交互
-                mobile_operator_1.interactive = true;
+                mobile_operator_2.interactive = true;
                 var handle_dir = new Victor_3.default(0, 0);
                 var current_touch_id = null;
-                common_5.on(mobile_operator_1, "touchstart|touchmove", function (e) {
+                common_5.on(mobile_operator_2, "touchstart|touchmove", function (e) {
                     var touch_list = e.data.originalEvent.touches;
                     // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
                     if (current_touch_id !== null) {
@@ -7241,8 +7366,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                         var _touch_com = new Victor_3.default(0, 0);
                         var _control_able_size = _size + _border * 2; // 可控制的空间范围
                         for (var i = 0, touch; touch = touch_list[i]; i += 1) {
-                            _touch_com.x = touch.clientX - mobile_operator_1.x;
-                            _touch_com.y = touch.clientY - mobile_operator_1.y;
+                            _touch_com.x = touch.clientX - mobile_operator_2.x;
+                            _touch_com.y = touch.clientY - mobile_operator_2.y;
                             if (_touch_com.length() <= _control_able_size) {
                                 var touch_point = { x: touch.clientX, y: touch.clientY };
                                 current_touch_id = common_5.touchManager.register(touch);
@@ -7254,8 +7379,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                         current_touch_id = null;
                         return;
                     }
-                    handle_dir.x = touch_point.x - mobile_operator_1.x;
-                    handle_dir.y = touch_point.y - mobile_operator_1.y;
+                    handle_dir.x = touch_point.x - mobile_operator_2.x;
+                    handle_dir.y = touch_point.y - mobile_operator_2.y;
                     var _length = Math.min(handle_dir.length(), _size);
                     var force_rate = _length / _size;
                     handle_dir.setLength(force_rate * my_ship.config.force);
@@ -7265,32 +7390,34 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     });
                     // 移动handle控制球
                     handle_dir.setLength(force_rate * _size);
-                    handle.x = mobile_operator_1.x + handle_dir.x;
-                    handle.y = mobile_operator_1.y + handle_dir.y;
+                    handle.x = mobile_operator_2.x + handle_dir.x;
+                    handle.y = mobile_operator_2.y + handle_dir.y;
                 });
-                common_5.on(mobile_operator_1, "touchend|touchendoutside", function _cancel_force(e) {
+                common_5.on(mobile_operator_2, "touchend|touchendoutside", function _cancel_force(e) {
                     if (current_touch_id === null) {
                         return;
                     }
-                    common_5.touchManager.free(current_touch_id);
-                    current_touch_id = null;
+                    requestAnimationFrame(function () {
+                        common_5.touchManager.free(current_touch_id);
+                        current_touch_id = null;
+                    });
                     my_ship.operateShip({
                         x_speed: 0,
                         y_speed: 0,
                     });
-                    handle.x = mobile_operator_1.x;
-                    handle.y = mobile_operator_1.y;
+                    handle.x = mobile_operator_2.x;
+                    handle.y = mobile_operator_2.y;
                 });
             }());
             // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
-            exports.current_stage_wrap.addChild(mobile_operator_1);
+            exports.current_stage_wrap.addChild(mobile_operator_2);
         }
         else {
             // 将要去的目的点，在接近的时候改变飞船速度
             var move_target_point;
             var target_anchor = new PIXI.Graphics();
-            target_anchor.lineStyle(const_6.pt2px(2), 0xff2244, 0.8);
-            target_anchor.drawCircle(0, 0, const_6.pt2px(10));
+            target_anchor.lineStyle(const_7.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_7.pt2px(10));
             target_anchor.cacheAsBitmap = true;
             target_anchor.scale.set(0);
             exports.current_stage.addChild(target_anchor);
@@ -7300,7 +7427,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     target_anchor.position.set(move_target_point.x, move_target_point.y);
                     ani_tween.Tween(target_anchor.scale)
                         .set({ x: 1, y: 1 })
-                        .to({ x: 0, y: 0 }, const_6.B_ANI_TIME)
+                        .to({ x: 0, y: 0 }, const_7.B_ANI_TIME)
                         .start();
                 }
             });
@@ -7321,24 +7448,48 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 }
             });
         }
-        common_5.on(exports.current_stage_wrap, "click|tap", function () {
-            var bullet = my_ship.fire();
-            if (bullet) {
-                bullet_stage.addChild(bullet);
-                world_1.engine.add(bullet);
-            }
-        });
-        // 旋转角度
-        common_5.on(exports.current_stage_wrap, "mousemove|click|touchstart|touchmove", function (e) {
-            var touch_list = e.data.originalEvent.touches;
-            var touch = common_5.touchManager.getFreeOne(touch_list);
-            if (!touch) {
-                return;
-            }
-            var touch_point = { x: touch.clientX, y: touch.clientY };
-            var direction = new Victor_3.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
-            my_ship.operateShip({ rotation: direction.angle() });
-        });
+        if (const_7._isMobile) {
+            // 旋转角度
+            common_5.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
+                var touch_list = e.data.originalEvent.touches;
+                var touch = common_5.touchManager.getFreeOne(touch_list);
+                if (!touch) {
+                    return;
+                }
+                var touch_point = { x: touch.clientX, y: touch.clientY };
+                var direction = new Victor_3.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
+                my_ship.operateShip({ rotation: direction.angle() });
+            });
+            // 发射
+            common_5.on(exports.current_stage_wrap, "touchstart", function (e) {
+                var touch_list = e.data.originalEvent.touches;
+                var touch = common_5.touchManager.getFreeOne(touch_list);
+                if (!touch) {
+                    return;
+                }
+                var bullet = my_ship.fire();
+                if (bullet) {
+                    bullet_stage.addChild(bullet);
+                    world_1.engine.add(bullet);
+                }
+            });
+        }
+        else {
+            // 旋转角度
+            common_5.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
+                var touch_point = e.data.global;
+                var direction = new Victor_3.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
+                my_ship.operateShip({ rotation: direction.angle() });
+            });
+            // 发射
+            common_5.on(exports.current_stage_wrap, "mousedown", function (e) {
+                var bullet = my_ship.fire();
+                if (bullet) {
+                    bullet_stage.addChild(bullet);
+                    world_1.engine.add(bullet);
+                }
+            });
+        }
         // setTimeout(function () {
         //     rule.close();
         // }, 3000)

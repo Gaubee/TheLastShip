@@ -322,8 +322,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 if(current_touch_id === null) {
                     return
                 }
-                touchManager.free(current_touch_id);
-                current_touch_id = null;
+                requestAnimationFrame(function () {// 延迟释放，避免事件队列其它成员得到这个touchend
+                    touchManager.free(current_touch_id);
+                    current_touch_id = null;
+                });
                 my_ship.operateShip({ 
                     x_speed: 0,
                     y_speed: 0,
@@ -374,25 +376,47 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             }
         });
     }
-
-    on(current_stage_wrap, "click|tap", function () {
-        var bullet = my_ship.fire();
-        if(bullet) {
-            bullet_stage.addChild(bullet);
-            engine.add(bullet);
-        }
-    });
-    // 旋转角度
-    on(current_stage_wrap, "mousemove|click|touchstart|touchmove", function (e) {
-        var touch_list = e.data.originalEvent.touches;
-        var touch = touchManager.getFreeOne(touch_list);
-        if(!touch) {
-            return
-        }
-        var touch_point = {x:touch.clientX,y:touch.clientY};
-        var direction = new Victor(touch_point.x - VIEW.CENTER.x, touch_point.y - VIEW.CENTER.y);
-        my_ship.operateShip({ rotation: direction.angle() })
-    });
+    if(_isMobile) {
+        // 旋转角度
+        on(current_stage_wrap, "touchstart|touchmove", function (e) {
+            var touch_list = e.data.originalEvent.touches;
+            var touch = touchManager.getFreeOne(touch_list);
+            if(!touch) {
+                return
+            }
+            var touch_point = {x:touch.clientX,y:touch.clientY};
+            var direction = new Victor(touch_point.x - VIEW.CENTER.x, touch_point.y - VIEW.CENTER.y);
+            my_ship.operateShip({ rotation: direction.angle() })
+        });
+        // 发射
+        on(current_stage_wrap, "touchstart", function (e) {
+            var touch_list = e.data.originalEvent.touches;
+            var touch = touchManager.getFreeOne(touch_list);
+            if(!touch) {
+                return
+            }
+            var bullet = my_ship.fire();
+            if(bullet) {
+                bullet_stage.addChild(bullet);
+                engine.add(bullet);
+            }
+        });
+    }else{
+        // 旋转角度
+        on(current_stage_wrap, "mousemove|mousedown", function (e) {
+            var touch_point = e.data.global
+            var direction = new Victor(touch_point.x - VIEW.CENTER.x, touch_point.y - VIEW.CENTER.y);
+            my_ship.operateShip({ rotation: direction.angle() })
+        });
+        // 发射
+        on(current_stage_wrap, "mousedown", function (e) {
+            var bullet = my_ship.fire();
+            if(bullet) {
+                bullet_stage.addChild(bullet);
+                engine.add(bullet);
+            }
+        });
+    }
     // setTimeout(function () {
     //     rule.close();
     // }, 3000)

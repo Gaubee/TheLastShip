@@ -21,8 +21,8 @@ import {
 export interface BulletConfig {
     x ? : number
     y ? : number
-    start_y_speed ? : number
-    start_x_speed ? : number
+    x_force ? : number
+    y_force ? : number
     size ? : number
     body_color ? : number
 
@@ -49,12 +49,12 @@ export default class Bullet extends P2I {
     config: BulletConfig = {
         x: 0,
         y: 0,
-        start_y_speed: 10,
-        start_x_speed: 0,
+        x_force: 0,
+        y_force: 0,
         size: pt2px(5),
         body_color: 0x2255ff,
         lift_time: 3500,
-        density: 1.5,
+        density: 2,
         penetrate : 0,
 
         team_tag: NaN,
@@ -89,18 +89,20 @@ export default class Bullet extends P2I {
         // self.body_shape.sensor = true;
         self.body_shape["bullet_team_tag"] = config.team_tag;
 
-        self.p2_body.damping = self.p2_body.angularDamping = 0;// 1/config.penetrate;
+        // self.p2_body.damping = self.p2_body.angularDamping = 0;// 1/config.penetrate;
 
         self.p2_body.addShape(self.body_shape);
         self.p2_body.setDensity(config.density);
 
-        self.p2_body.force = [config.start_x_speed, config.start_y_speed];
+        self.p2_body.force = [config.x_force, config.y_force];
         self.p2_body.position = [config.x, config.y];
         self.position.set(config.x, config.y);
 
         self.once("add-to-world", () => {
             var acc_time = 0
             self.on("update",function (delay) {
+                // 持续的推进力
+                self.p2_body.force = [config.x_force, config.y_force];
                 acc_time += delay;
                 if(acc_time >= config.lift_time) {
                     self.emit("explode");

@@ -199,7 +199,6 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         40:"+y",
         83:"+y",
     };
-    const effect_speed = {};
     const effect_speed_keys = [];// 记录按下的按钮
     function generate_speed(force) {
         var effect_speed = new Victor(0,0);
@@ -240,9 +239,21 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
     // 将要去的目的点，在接近的时候改变飞船速度
     var move_target_point:Victor;
+    var target_anchor = new PIXI.Graphics();
+    target_anchor.lineStyle(pt2px(2),0xff2244,0.8);
+    target_anchor.drawCircle(0,0,pt2px(10));
+    target_anchor.cacheAsBitmap = true;
+    target_anchor.scale.set(0);
+    current_stage.addChild(target_anchor);
+
     on(current_stage_wrap, "rightclick", function (e) {
         if(my_ship) {
             move_target_point = new Victor(e.x-current_stage.x, e.y-current_stage.y);
+            target_anchor.position.set(move_target_point.x,move_target_point.y);
+            ani_tween.Tween(target_anchor.scale)
+                .set({x:1,y:1})
+                .to({x:0,y:0},B_ANI_TIME)
+                .start()
         }
     });
     var origin_vic = new Victor(0,0);

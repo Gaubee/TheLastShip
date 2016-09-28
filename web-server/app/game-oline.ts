@@ -216,18 +216,30 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         40: "+y",
         83: "+y",
     };
-    const effect_speed = {};
+    const effect_speed_keys = [];// 记录按下的按钮
+    function generate_speed(force) {
+        var effect_speed = new Victor(0,0);
+            if(effect_speed_keys.length) {
+            for(var i = 0,keyCode; keyCode = effect_speed_keys[i]; i+=1){
+                var speed_info = speed_ux[keyCode];
+                effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1
+            }
+            effect_speed.norm();
+            effect_speed.multiplyScalar(force);
+        }
+        return effect_speed;
+    }
     on(current_stage_wrap, "keydown", function(e) {
         if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent&&view_ship) {
             move_target_point = null;
-            var speed_info = speed_ux[e.keyCode];
-            var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-            var _dir = speed_info.charAt(1) + "_speed";
-            effect_speed[_dir] = _symbol;
-
-            var new_config = {
-                [_dir]: _symbol * view_ship.config.force
+            if(effect_speed_keys.indexOf(e.keyCode) === -1){
+                effect_speed_keys.push(e.keyCode);
             }
+            var effect_speed = generate_speed(view_ship.config.force);
+            var new_config = { 
+                x_speed: effect_speed.x,
+                y_speed: effect_speed.y,
+            };
             pomelo.request("connector.worldHandler.setConfig", {
                 config: new_config
             }, function(data) {
@@ -241,26 +253,35 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     on(current_stage_wrap, "keyup", function(e) {
         if (speed_ux.hasOwnProperty(e.keyCode)&&current_stage_wrap.parent&&view_ship) {
             move_target_point = null;
-            var speed_info = speed_ux[e.keyCode];
-            var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-            var _dir = speed_info.charAt(1) + "_speed";
-            if (effect_speed[_dir] === _symbol) {
-                var new_config = {
-                    [_dir]: 0
-                }
-                pomelo.request("connector.worldHandler.setConfig", {
-                    config: new_config
-                }, function(data) {
-                    // console.log("setConfig:stop-move", data);
-                });
-            }
+            effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode),1);
+            var effect_speed = generate_speed(view_ship.config.force);
+            var new_config = { 
+                x_speed: effect_speed.x,
+                y_speed: effect_speed.y,
+            };
+            pomelo.request("connector.worldHandler.setConfig", {
+                config: new_config
+            }, function(data) {
+                // console.log("setConfig:stop-move", data);
+            });
         }
     });
     // 将要去的目的点，在接近的时候改变飞船速度
     var move_target_point:Victor;
+    var target_anchor = new PIXI.Graphics();
+    target_anchor.lineStyle(pt2px(2),0xff2244,0.8);
+    target_anchor.drawCircle(0,0,pt2px(10));
+    target_anchor.cacheAsBitmap = true;
+    target_anchor.scale.set(0);
+    current_stage.addChild(target_anchor);
     on(current_stage_wrap, "rightclick", function (e) {
         if(view_ship) {
             move_target_point = new Victor(e.x-current_stage.x, e.y-current_stage.y);
+            target_anchor.position.set(move_target_point.x,move_target_point.y);
+            ani_tween.Tween(target_anchor.scale)
+                .set({x:1,y:1})
+                .to({x:0,y:0},B_ANI_TIME)
+                .start()
         }
     });
     var origin_vic = new Victor(0,0);

@@ -2239,6 +2239,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
             self.body_shape.material = Flyer.material;
             self.p2_body.addShape(self.body_shape);
             self.p2_body.setDensity(config.density);
+            self.p2_body.angularVelocity = Math.PI * Math.random();
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
             self.position.set(config.x, config.y);
@@ -2387,12 +2388,12 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             this.config = {
                 x: 0,
                 y: 0,
-                start_y_speed: 10,
-                start_x_speed: 0,
+                x_force: 0,
+                y_force: 0,
                 size: const_3.pt2px(5),
                 body_color: 0x2255ff,
                 lift_time: 3500,
-                density: 1.5,
+                density: 2,
                 penetrate: 0,
                 team_tag: NaN,
                 damage: 0,
@@ -2417,15 +2418,17 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             self.body_shape.material = Bullet.material;
             // self.body_shape.sensor = true;
             self.body_shape["bullet_team_tag"] = config.team_tag;
-            self.p2_body.damping = self.p2_body.angularDamping = 0; // 1/config.penetrate;
+            // self.p2_body.damping = self.p2_body.angularDamping = 0;// 1/config.penetrate;
             self.p2_body.addShape(self.body_shape);
             self.p2_body.setDensity(config.density);
-            self.p2_body.force = [config.start_x_speed, config.start_y_speed];
+            self.p2_body.force = [config.x_force, config.y_force];
             self.p2_body.position = [config.x, config.y];
             self.position.set(config.x, config.y);
             self.once("add-to-world", function () {
                 var acc_time = 0;
                 self.on("update", function (delay) {
+                    // 持续的推进力
+                    self.p2_body.force = [config.x_force, config.y_force];
                     acc_time += delay;
                     if (acc_time >= config.lift_time) {
                         self.emit("explode");
@@ -2547,7 +2550,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 is_firing: false,
                 ison_BTAR: false,
                 // 战斗相关的属性
-                bullet_speed: 800000,
+                bullet_force: 30000,
                 bullet_damage: 5,
                 bullet_penetrate: 0.5,
                 overload_speed: 0.625,
@@ -2761,30 +2764,30 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             }
             this.emit("fire_start");
             var bullet_size = const_4.pt2px(5);
-            var bullet_speed = new Victor_1.default(config.bullet_speed, 0);
+            var bullet_force = new Victor_1.default(config.bullet_force, 0);
             var bullet_start = new Victor_1.default(config.size + bullet_size / 2, 0);
-            bullet_speed.rotate(config.rotation);
+            bullet_force.rotate(config.rotation);
             bullet_start.rotate(config.rotation);
             var bullet = new Bullet_1.default({
                 team_tag: config.team_tag,
                 x: config.x + bullet_start.x,
                 y: config.y + bullet_start.y,
-                start_x_speed: bullet_speed.x,
-                start_y_speed: bullet_speed.y,
+                x_force: bullet_force.x,
+                y_force: bullet_force.y,
                 size: bullet_size,
                 damage: config.bullet_damage,
                 penetrate: config.bullet_penetrate,
             });
-            // 子弹的初始移动速度受到飞船加成
-            // var bullet_force = bullet.p2_body.force;
-            // bullet_force[0] += config.x_speed / mass_rate;
-            // bullet_force[1] += config.y_speed / mass_rate;
             bullet.p2_body.velocity = this.p2_body.velocity.slice();
             // 一旦发射，飞船受到后座力
             bullet.once("add-to-world", function () {
                 var mass_rate = bullet.p2_body.mass / _this.p2_body.mass;
-                _this.p2_body.force[0] -= bullet_speed.x * mass_rate;
-                _this.p2_body.force[1] -= bullet_speed.y * mass_rate;
+                // 飞船自身提供给子弹大量的初始推动力
+                var init_x_force = bullet_force.x * 20;
+                var init_y_force = bullet_force.y * 20;
+                bullet.p2_body.force = [init_x_force, init_y_force];
+                _this.p2_body.force[0] -= init_x_force * mass_rate;
+                _this.p2_body.force[1] -= init_y_force * mass_rate;
             });
             return bullet;
             // config.firing
@@ -6634,18 +6637,30 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             40: "+y",
             83: "+y",
         };
-        var effect_speed = {};
+        var effect_speed_keys = []; // 记录按下的按钮
+        function generate_speed(force) {
+            var effect_speed = new Victor_2.default(0, 0);
+            if (effect_speed_keys.length) {
+                for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
+                    var speed_info = speed_ux[keyCode];
+                    effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
+                }
+                effect_speed.norm();
+                effect_speed.multiplyScalar(force);
+            }
+            return effect_speed;
+        }
         common_4.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
                 move_target_point = null;
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                effect_speed[_dir] = _symbol;
-                var new_config = (_a = {},
-                    _a[_dir] = _symbol * view_ship.config.force,
-                    _a
-                );
+                if (effect_speed_keys.indexOf(e.keyCode) === -1) {
+                    effect_speed_keys.push(e.keyCode);
+                }
+                var effect_speed = generate_speed(view_ship.config.force);
+                var new_config = {
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                };
                 Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
                     config: new_config
                 }, function (data) {
@@ -6654,33 +6669,39 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     view_ship.emit("fire-ani");
                 });
             }
-            var _a;
         });
         common_4.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
                 move_target_point = null;
-                var speed_info = speed_ux[e.keyCode];
-                var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
-                var _dir = speed_info.charAt(1) + "_speed";
-                if (effect_speed[_dir] === _symbol) {
-                    var new_config = (_a = {},
-                        _a[_dir] = 0,
-                        _a
-                    );
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: new_config
-                    }, function (data) {
-                        // console.log("setConfig:stop-move", data);
-                    });
-                }
+                effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode), 1);
+                var effect_speed = generate_speed(view_ship.config.force);
+                var new_config = {
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                };
+                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                    config: new_config
+                }, function (data) {
+                    // console.log("setConfig:stop-move", data);
+                });
             }
-            var _a;
         });
         // 将要去的目的点，在接近的时候改变飞船速度
         var move_target_point;
+        var target_anchor = new PIXI.Graphics();
+        target_anchor.lineStyle(common_4.pt2px(2), 0xff2244, 0.8);
+        target_anchor.drawCircle(0, 0, common_4.pt2px(10));
+        target_anchor.cacheAsBitmap = true;
+        target_anchor.scale.set(0);
+        exports.current_stage.addChild(target_anchor);
         common_4.on(exports.current_stage_wrap, "rightclick", function (e) {
             if (view_ship) {
                 move_target_point = new Victor_2.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                target_anchor.position.set(move_target_point.x, move_target_point.y);
+                ani_tween.Tween(target_anchor.scale)
+                    .set({ x: 1, y: 1 })
+                    .to({ x: 0, y: 0 }, common_4.B_ANI_TIME)
+                    .start();
             }
         });
         var origin_vic = new Victor_2.default(0, 0);
@@ -7105,7 +7126,6 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             40: "+y",
             83: "+y",
         };
-        var effect_speed = {};
         var effect_speed_keys = []; // 记录按下的按钮
         function generate_speed(force) {
             var effect_speed = new Victor_3.default(0, 0);
@@ -7145,9 +7165,20 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         });
         // 将要去的目的点，在接近的时候改变飞船速度
         var move_target_point;
+        var target_anchor = new PIXI.Graphics();
+        target_anchor.lineStyle(common_5.pt2px(2), 0xff2244, 0.8);
+        target_anchor.drawCircle(0, 0, common_5.pt2px(10));
+        target_anchor.cacheAsBitmap = true;
+        target_anchor.scale.set(0);
+        exports.current_stage.addChild(target_anchor);
         common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
             if (my_ship) {
                 move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                target_anchor.position.set(move_target_point.x, move_target_point.y);
+                ani_tween.Tween(target_anchor.scale)
+                    .set({ x: 1, y: 1 })
+                    .to({ x: 0, y: 0 }, common_5.B_ANI_TIME)
+                    .start();
             }
         });
         var origin_vic = new Victor_3.default(0, 0);

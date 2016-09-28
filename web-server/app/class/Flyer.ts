@@ -124,6 +124,7 @@ export default class Flyer extends P2I {
         self.p2_body.addShape(self.body_shape);
         self.p2_body.setDensity(config.density);
 
+        self.p2_body.angularVelocity = Math.PI*Math.random();
         self.p2_body.force = [config.x_speed, config.y_speed];
         self.p2_body.position = [config.x, config.y];
         self.position.set(config.x, config.y);

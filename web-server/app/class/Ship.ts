@@ -36,7 +36,7 @@ export interface ShipConfig {
     ison_BTAR?: boolean // 是否处于攻击钱摇
 
     // 战斗相关的属性
-    bullet_speed?: number
+    bullet_force?: number
     bullet_damage?: number
     bullet_penetrate?: number// 穿透，意味着子弹存在时间
     overload_speed?: number// 攻速
@@ -66,7 +66,7 @@ export default class Ship extends P2I {
         ison_BTAR: false,
 
         // 战斗相关的属性
-        bullet_speed: 800000,
+        bullet_force: 30000,//子弹的推进力
         bullet_damage: 5,
         bullet_penetrate: 0.5,
         overload_speed: 0.625,
@@ -301,32 +301,33 @@ export default class Ship extends P2I {
         }
         this.emit("fire_start");
         var bullet_size = pt2px(5);
-        var bullet_speed = new Victor(config.bullet_speed, 0);
+        var bullet_force = new Victor(config.bullet_force, 0);
         var bullet_start = new Victor(config.size + bullet_size/2, 0);
-        bullet_speed.rotate(config.rotation);
+        bullet_force.rotate(config.rotation);
         bullet_start.rotate(config.rotation);
         var bullet = new Bullet({
             team_tag: config.team_tag,
             x: config.x + bullet_start.x,
             y: config.y + bullet_start.y,
-            start_x_speed: bullet_speed.x,
-            start_y_speed: bullet_speed.y,
+            x_force: bullet_force.x,
+            y_force: bullet_force.y,
             size: bullet_size,
             damage: config.bullet_damage,
             penetrate: config.bullet_penetrate,
         });
 
-        // 子弹的初始移动速度受到飞船加成
-        // var bullet_force = bullet.p2_body.force;
-        // bullet_force[0] += config.x_speed / mass_rate;
-        // bullet_force[1] += config.y_speed / mass_rate;
         bullet.p2_body.velocity = this.p2_body.velocity.slice();
 
         // 一旦发射，飞船受到后座力
         bullet.once("add-to-world", () => {
             var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
-            this.p2_body.force[0] -= bullet_speed.x*mass_rate;
-            this.p2_body.force[1] -= bullet_speed.y*mass_rate;
+            // 飞船自身提供给子弹大量的初始推动力
+            var init_x_force = bullet_force.x*20;
+            var init_y_force = bullet_force.y*20;
+            bullet.p2_body.force = [init_x_force,init_y_force];
+
+            this.p2_body.force[0] -= init_x_force*mass_rate;
+            this.p2_body.force[1] -= init_y_force*mass_rate;
         });
         return bullet;
         // config.firing

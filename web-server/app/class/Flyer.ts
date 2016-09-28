@@ -92,8 +92,8 @@ export default class Flyer extends P2I {
             self.pivot.set(config.size , config.size );
             // 绘制物理形状
             self.body_shape = new p2.Box({
-                width: config.size,
-                height: config.size,
+                width: config.size*2,
+                height: config.size*2,
             });
         }else if(typeInfo.type === "Convex"){
             var vertices = [];

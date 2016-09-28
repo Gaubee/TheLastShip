@@ -18,7 +18,7 @@ export default class HP extends PIXI.Graphics {
 		super();
 		this.owner = owner;
 		this.ani = ani;
-		this.source_width = owner.width||pt2px(40);
+		this.source_width = owner.config.size*2||owner.width||pt2px(40);
 		const owner_config = owner.config;
 
 		this.setHP(owner_config.cur_hp/owner_config.max_hp);

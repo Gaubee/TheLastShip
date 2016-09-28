@@ -5,14 +5,17 @@ import Bullet from "../class/Bullet";
 
 const worldStep = 1 / 60;
 var _ani_frame_num = 0;
+function body_to_config(body:p2.Body) {
+    return  {
+        x: body.position[0],
+        y: body.position[1],
+        angle: body.angle,
+        rotation: body["rotation"] || 0,
+    }
+}
 const world = {
     addBody: function(body: p2.Body) {
-        p2is_config_cache_pre[body.id] = p2is_config_cache[body.id] = {
-            x: body.position[0],
-            y: body.position[1],
-            angle: body.angle,
-            rotation: body["rotation"] || 0,
-        }
+        p2is_config_cache_pre[body.id] = p2is_config_cache[body.id] = body_to_config(body);
     },
     removeBody: function(body: p2.Body) {},
     step: function(dt, timeSinceLastCalled = 0, isNewDataFrame) {
@@ -24,12 +27,7 @@ const world = {
                 p2is_config_cache = {};
                 for (var i = 0, len = p2is.length; i < len; i += 1) {
                     var body = p2is[i].p2_body;
-                    p2is_config_cache[body.id] = {
-                        x: body.position[0],
-                        y: body.position[1],
-                        angle: body.angle,
-                        rotation: body["rotation"] || 0,
-                    }
+                    p2is_config_cache[body.id] = body_to_config(body);
                 }
             }
             return
@@ -47,23 +45,13 @@ const world = {
         for (var i = 0, len = p2is.length; i < len; i += 1) {
             var body = p2is[i].p2_body;
             if (isNewDataFrame) {
-                p2is_config_cache[body.id] = {
-                    x: body.position[0],
-                    y: body.position[1],
-                    angle: body.angle,
-                    rotation: body["rotation"] || 0,
-                }
+                p2is_config_cache[body.id] = body_to_config(body);
             }
             if (body["__changed"]) {
                 if (!isNewDataFrame) {
                     p2is_config_cache_pre[body.id] = p2is_config_cache[body.id];
                 }
-                p2is_config_cache[body.id] = {
-                    x: body.position[0],
-                    y: body.position[1],
-                    angle: body.angle,
-                    rotation: body["rotation"] || 0,
-                }
+                p2is_config_cache[body.id] = body_to_config(body);
                 body["__changed"] = false;
             }
             var cache_config = p2is_config_cache[body.id];
@@ -71,9 +59,9 @@ const world = {
             var dif_x = cache_config.x - pre_config.x;
             var dif_y = cache_config.y - pre_config.y;
             var dif_angle = cache_config.angle - pre_config.angle;
-            body.position[0] = pre_config.x + dif_x * ani_progress;
-            body.position[1] = pre_config.y + dif_y * ani_progress;
-            body.angle = pre_config.angle + dif_angle * ani_progress;
+            body.interpolatedPosition[0] = pre_config.x + dif_x * ani_progress;
+            body.interpolatedPosition[1] = pre_config.y + dif_y * ani_progress;
+            body.interpolatedAngle = pre_config.angle + dif_angle * ani_progress;
 
             var cache_rotation = cache_config.rotation
             var pre_rotation = pre_config.rotation

@@ -65,7 +65,6 @@ export default class Bullet extends P2I {
 
     body_shape: p2.Circle
     static material = new p2.Material()
-    lift_time_ti = null
     constructor(new_config: BulletConfig = {}) {
         super();
         const self = this;
@@ -97,12 +96,16 @@ export default class Bullet extends P2I {
 
         self.p2_body.force = [config.start_x_speed, config.start_y_speed];
         self.p2_body.position = [config.x, config.y];
+        self.position.set(config.x, config.y);
 
         self.once("add-to-world", () => {
-            self.lift_time_ti = setTimeout(()=>{
-                self.lift_time_ti = null;
-                self.emit("explode");
-            }, config.lift_time)
+            var acc_time = 0
+            self.on("update",function (delay) {
+                acc_time += delay;
+                if(acc_time >= config.lift_time) {
+                    self.emit("explode");
+                }
+            });
         });
 
         var source_damage = config.damage;
@@ -144,7 +147,6 @@ export default class Bullet extends P2I {
         });
         if (_isNode) { //NODEJS
             self.once("explode", function() {
-                self.lift_time_ti && clearTimeout(self.lift_time_ti);
                 console.log("explode", self._id);
                 // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
                 self.update = (delay) => {
@@ -153,7 +155,6 @@ export default class Bullet extends P2I {
             });
         } else {
             self.once("explode", function() {
-                self.lift_time_ti && clearTimeout(self.lift_time_ti);
 
                 var ani_time = B_ANI_TIME;
                 var ani_progress = 0;

@@ -130,7 +130,7 @@ engine.add(right_edge);
 
 var pre_time;
 ani_ticker.add(() => {
-    pre_time || (pre_time = performance.now());
+    pre_time || (pre_time = performance.now() - 1000/60);
     var cur_time = performance.now();
     var dif_time = cur_time - pre_time;
     pre_time = cur_time;

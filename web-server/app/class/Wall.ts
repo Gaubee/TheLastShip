@@ -69,6 +69,7 @@ export default class Wall extends P2I {
         self.p2_body.setDensity(config.density);
 
         self.p2_body.position = [config.x, config.y];
+        self.position.set(config.x, config.y);
         self.rotation = config.rotation;
     }
     setConfig(new_config) {
@@ -81,6 +82,6 @@ export default class Wall extends P2I {
     }
     update(delay) {
         super.update(delay);
-        this.rotation = this.config.rotation = this.p2_body.angle;
+        this.rotation = this.config.rotation = this.p2_body.interpolatedAngle;
     }
 } 

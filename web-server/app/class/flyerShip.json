@@ -1,0 +1,42 @@
+{
+	"S-Circle": {
+		"type": "Circle",
+		"args": {},
+		"config": {
+			"size": "pt2px!10",
+			"max_hp": 30,
+			"cur_hp": 30
+		}
+	},
+	"S-Box": {
+		"type": "Box",
+		"args": {},
+		"config": {
+			"size": "pt2px!20",
+			"max_hp": 50,
+			"cur_hp": 50
+		}
+	},
+	"S-Convex-1": {
+		"type": "Convex",
+		"args": {
+			"vertices_length": 3
+		},
+		"config": {
+			"size": "pt2px!24",
+			"max_hp": 70,
+			"cur_hp": 70
+		}
+	},
+	"S-Convex-2": {
+		"type": "Convex",
+		"args": {
+			"vertices_length": 5
+		},
+		"config": {
+			"size": "pt2px!36",
+			"max_hp": 100,
+			"cur_hp": 100
+		}
+	}
+}

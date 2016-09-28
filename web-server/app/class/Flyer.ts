@@ -11,6 +11,11 @@ import {
     _isNode,
 } from "../const";
 import TWEEN from "../../class/Tween";
+import * as flyerShip from "./flyerShip.json";
+// console.log(flyerShip);
+// console.log("__dirname",require("./flyerShip.json"));
+// const flyerShip =  require("./flyerShip.json");
+
 const Easing = TWEEN.Easing;
 
 export interface FlyerConfig {
@@ -24,9 +29,11 @@ export interface FlyerConfig {
     rotation?: number
     max_hp?: number
     cur_hp?: number
+    type?: string
 }
 
 export default class Flyer extends P2I {
+    static TYPES = flyerShip
     // static clooisionGroup = 1<<1;
     body: PIXI.Graphics = new PIXI.Graphics()
     config: FlyerConfig = {
@@ -40,6 +47,7 @@ export default class Flyer extends P2I {
         rotation: 0,
         max_hp: 50,
         cur_hp: 50,
+        type: "S-Box",
     }
     body_shape: p2.Shape
     constructor(new_config: FlyerConfig = {}) {
@@ -47,28 +55,78 @@ export default class Flyer extends P2I {
         const self = this;
         const config = self.config;
         mix_options(config, new_config);
+        const typeInfo = flyerShip[config.type];
+        if(!typeInfo) {
+            throw new TypeError("UNKONW Ship Type: " + config.type);
+        }
+        // 对配置文件中的数量进行基本的单位换算
+        for(let k in typeInfo.config){
+            let v = typeInfo.config[k];
+            if(typeof v === "string" && v.indexOf("pt2px!")===0){
+                typeInfo.config[k] = pt2px(v.substr(6));
+            }
+        }
+        for(let k in typeInfo.args){
+            let v = typeInfo.args[k];
+            if(typeof v === "string" && v.indexOf("pt2px!")===0){
+                typeInfo.args[k] = pt2px(typeInfo.args[k]);
+            }
+        }
+        // 覆盖配置
+        mix_options(config, typeInfo.config);
 
         const body = self.body;
-        body.lineStyle(0, 0x000000, 1);
+        body.lineStyle(pt2px(1), 0x000000, 1);
         body.beginFill(config.body_color);
-        body.drawCircle(config.size / 2, config.size / 2, config.size);
+        if(typeInfo.type === "Circle") {
+            // 绘制外观形状
+            body.drawCircle(config.size / 2, config.size / 2, config.size);
+            self.pivot.set(config.size / 2, config.size / 2);
+            // 绘制物理形状
+            self.body_shape = new p2.Circle({
+                radius: config.size,
+            });
+        }else if(typeInfo.type === "Box") {
+            // 绘制外观形状
+            body.drawRect(0, 0, config.size, config.size);
+            self.pivot.set(config.size / 2, config.size / 2);
+            // 绘制物理形状
+            self.body_shape = new p2.Box({
+                width: config.size,
+                height: config.size,
+            });
+        }else if(typeInfo.type === "Convex"){
+            var vertices = [];
+            for(let i=0, N=typeInfo.args.vertices_length; i<N; i++){
+                var a = 2*Math.PI / N * i;
+                var vertex = [config.size*0.5*Math.cos(a), config.size*0.5*Math.sin(a)]; // Note: vertices are added counter-clockwise
+                vertices.push(vertex);
+            }
+            // 绘制外观形状
+            let first_item = vertices[0];
+            body.moveTo(first_item[0],first_item[1]);
+            for(let i = 1,item ; item = vertices[i]; i+=1){
+                body.lineTo(item[0],item[1]);
+            }
+            body.lineTo(first_item[0],first_item[1]);
+            // 绘制物理形状
+            self.body_shape = new p2.Convex({ vertices: vertices });
+        }
+        // 收尾外观绘制
         body.endFill();
         self.addChild(body);
-        self.pivot.set(config.size / 2, config.size / 2);
         if(_isBorwser) {
             self.cacheAsBitmap = true;
         }
 
-        self.body_shape = new p2.Circle({
-            radius: config.size,
-        });
+        // 收尾物理设定
         self.body_shape.material = Flyer.material;
-
         self.p2_body.addShape(self.body_shape);
         self.p2_body.setDensity(config.density);
 
         self.p2_body.force = [config.x_speed, config.y_speed];
         self.p2_body.position = [config.x, config.y];
+        self.position.set(config.x, config.y);
 
 
         self.on("change-hp", function (dif_hp) {
@@ -110,7 +168,7 @@ export default class Flyer extends P2I {
                     ani_progress += delay;
                     var progress = Math.min(ani_progress / ani_time, 1);
                     var easing_progress = Easing.Quartic.Out(progress);
-                    self.scale.x = self.scale.y = _to.scaleXY * easing_progress;
+                    self.scale.x = self.scale.y = 1 + (_to.scaleXY - 1) * easing_progress;
                     self.alpha = 1 - _to.alpha * easing_progress;
 
                     _update.call(self, delay);
@@ -124,8 +182,8 @@ export default class Flyer extends P2I {
 
     update(delay) {
         super.update(delay);
-        this.rotation = this.config.rotation = this.p2_body.angle;
-        this.p2_body.force = [this.config.x_speed, this.config.y_speed];
+        this.rotation = this.config.rotation = this.p2_body.interpolatedAngle;
+        // this.p2_body.force = [this.config.x_speed, this.config.y_speed];
     }
     setConfig(new_config) {
         var config = this.config;

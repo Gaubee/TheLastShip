@@ -64,7 +64,7 @@ export default class Ship extends P2I {
         // 战斗相关的属性
         bullet_speed: 800000,
         bullet_damage: 5,
-        bullet_penetrate: 15,
+        bullet_penetrate: 0.5,
         overload_speed: 0.625,
 
         // 标志
@@ -113,6 +113,7 @@ export default class Ship extends P2I {
 
         self.p2_body.force = [config.x_speed, config.y_speed];
         self.p2_body.position = [config.x, config.y];
+        self.position.set(config.x, config.y);
 
         self.on("change-hp", function (dif_hp) {
             // console.log("change-hp-value:",dif_hp)

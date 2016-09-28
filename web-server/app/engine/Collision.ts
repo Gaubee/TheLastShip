@@ -54,6 +54,7 @@ export class P2I extends PIXI.Container {
             }
             self.on("update",_update);
             self.once("stop-flash",function () {
+                self.alpha = 1;
                 self.off("update", _update);
                 self.once("flash", _flash);
             });
@@ -62,8 +63,8 @@ export class P2I extends PIXI.Container {
     update(delay: number) {
         var p2_body = this.p2_body;
         var config = this.config;
-        this.x = config.x = p2_body.position[0]
-        this.y = config.y = p2_body.position[1]
+        this.x = config.x = p2_body.interpolatedPosition[0]
+        this.y = config.y = p2_body.interpolatedPosition[1]
 
         this.emit("update",delay);
     }

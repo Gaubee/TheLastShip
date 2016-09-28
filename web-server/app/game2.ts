@@ -86,37 +86,21 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     }
     current_stage.addChild(object_stage);
 
-    var flyer = new Flyer({
-        x: 260,
-        y: 250,
-        x_speed: 10 * 2 * (Math.random() - 0.5),
-        y_speed: 10 * 2 * (Math.random() - 0.5),
-        body_color: 0x0f00dd
-    });
-    object_stage.addChild(flyer);
-    engine.add(flyer);
-    var flyer = new Flyer({
-        x: 480,
-        y: 250,
-        x_speed: 10 * 2 * (Math.random() - 0.5),
-        y_speed: 10 * 2 * (Math.random() - 0.5),
-        body_color: 0x0fdd00
-    });
-    object_stage.addChild(flyer);
-    engine.add(flyer);
-    var flyer = new Flyer({
-        x: 600,
-        y: 250,
-        x_speed: 10 * 2 * (Math.random() - 0.5),
-        y_speed: 10 * 2 * (Math.random() - 0.5),
-        body_color: 0xdd000f
-    });
-    object_stage.addChild(flyer);
-    engine.add(flyer);
-
+    var flyerTypes = Object.keys(Flyer.TYPES);
+    for(let i = 0;i < flyerTypes.length*2;i+=1){
+        let flyer = new Flyer({
+            x: 50+Math.random()*(VIEW.WIDTH-100),
+            y: 50+Math.random()*(VIEW.HEIGHT-100),
+            x_speed: 10 * 2 * (Math.random() - 0.5),
+            y_speed: 10 * 2 * (Math.random() - 0.5),
+            body_color: 0xffffff * Math.random(),
+            type:flyerTypes[i%flyerTypes.length]
+        });
+        object_stage.addChild(flyer);
+        engine.add(flyer);
+    }
 
     // 四边限制
-
     var top_edge = new Wall({
         x: VIEW.CENTER.x, y: 0,
         width: VIEW.WIDTH,
@@ -174,7 +158,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     engine.add(my_ship);
 
     var other_ship = new Ship({
-        x: VIEW.CENTER.x-100,
+        x: VIEW.CENTER.x-200,
         y: VIEW.CENTER.y-100,
         body_color: 0x633645,
         team_tag: 12
@@ -187,7 +171,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
      */
     var pre_time
     ani_ticker.add(() => {
-        pre_time || (pre_time = performance.now());
+        pre_time || (pre_time = performance.now() - 1000/60);
         var cur_time = performance.now();
         var dif_time = cur_time - pre_time;
         pre_time = cur_time;

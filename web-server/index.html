@@ -51,8 +51,24 @@ var _isMobile = isMobile();
 <script src="js/lib/pixi.js-3.0.11/pixi.js"></script>
 <!--<script src="js/lib/pixi.js-4.0.1/pixi.min.js"></script>-->
 <!--<script src="js/lib/esl.nocache.js"></script>-->
-<script src="js/lib/esl.js"></script>
-<!-- <script src="jspm_packages/system.src.js"></script> -->
+<script src="js/lib/esl.full.js"></script>
+<script>
+define('json', [], function () {
+    var ready = false;
+    return {
+        load: function (resourceId, parentRequire, load) {
+        	var xhr = new XMLHttpRequest;
+        	xhr.open("GET",resourceId)
+            console.log("JSON",arguments);
+            xhr.send();
+            xhr.onload = function () {
+            	var data = JSON.parse(xhr.responseText);
+            	load(data);
+            }
+        }
+    };
+});
+</script>
 <style>
 	html,body,#body{
 		width: 100%;

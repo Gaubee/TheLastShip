@@ -56,6 +56,7 @@ define("app/engine/Collision", ["require", "exports"], function (require, export
                 }
                 self.on("update", _update);
                 self.once("stop-flash", function () {
+                    self.alpha = 1;
                     self.off("update", _update);
                     self.once("flash", _flash);
                 });
@@ -64,8 +65,8 @@ define("app/engine/Collision", ["require", "exports"], function (require, export
         P2I.prototype.update = function (delay) {
             var p2_body = this.p2_body;
             var config = this.config;
-            this.x = config.x = p2_body.position[0];
-            this.y = config.y = p2_body.position[1];
+            this.x = config.x = p2_body.interpolatedPosition[0];
+            this.y = config.y = p2_body.interpolatedPosition[1];
             this.emit("update", delay);
         };
         P2I.prototype.changeMass = function (mass) {
@@ -2140,8 +2141,11 @@ define("class/Tween", ["require", "exports"], function (require, exports) {
     exports.default = TWEEN;
     ;
 });
-define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/const", "class/Tween"], function (require, exports, Collision_1, const_1, Tween_1) {
+define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/const", "class/Tween", "./flyerShip.json"], function (require, exports, Collision_1, const_1, Tween_1, flyerShip) {
     "use strict";
+    // console.log(flyerShip);
+    // console.log("__dirname",require("./flyerShip.json"));
+    // const flyerShip =  require("./flyerShip.json");
     var Easing = Tween_1.default.Easing;
     var Flyer = (function (_super) {
         __extends(Flyer, _super);
@@ -2161,28 +2165,82 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
                 rotation: 0,
                 max_hp: 50,
                 cur_hp: 50,
+                type: "S-Box",
             };
             var self = this;
             var config = self.config;
             const_1.mix_options(config, new_config);
+            var typeInfo = flyerShip[config.type];
+            if (!typeInfo) {
+                throw new TypeError("UNKONW Ship Type: " + config.type);
+            }
+            // 对配置文件中的数量进行基本的单位换算
+            for (var k in typeInfo.config) {
+                var v = typeInfo.config[k];
+                if (typeof v === "string" && v.indexOf("pt2px!") === 0) {
+                    typeInfo.config[k] = const_1.pt2px(v.substr(6));
+                }
+            }
+            for (var k in typeInfo.args) {
+                var v = typeInfo.args[k];
+                if (typeof v === "string" && v.indexOf("pt2px!") === 0) {
+                    typeInfo.args[k] = const_1.pt2px(typeInfo.args[k]);
+                }
+            }
+            // 覆盖配置
+            const_1.mix_options(config, typeInfo.config);
             var body = self.body;
-            body.lineStyle(0, 0x000000, 1);
+            body.lineStyle(const_1.pt2px(1), 0x000000, 1);
             body.beginFill(config.body_color);
-            body.drawCircle(config.size / 2, config.size / 2, config.size);
+            if (typeInfo.type === "Circle") {
+                // 绘制外观形状
+                body.drawCircle(config.size / 2, config.size / 2, config.size);
+                self.pivot.set(config.size / 2, config.size / 2);
+                // 绘制物理形状
+                self.body_shape = new p2.Circle({
+                    radius: config.size,
+                });
+            }
+            else if (typeInfo.type === "Box") {
+                // 绘制外观形状
+                body.drawRect(0, 0, config.size, config.size);
+                self.pivot.set(config.size / 2, config.size / 2);
+                // 绘制物理形状
+                self.body_shape = new p2.Box({
+                    width: config.size,
+                    height: config.size,
+                });
+            }
+            else if (typeInfo.type === "Convex") {
+                var vertices = [];
+                for (var i = 0, N = typeInfo.args.vertices_length; i < N; i++) {
+                    var a = 2 * Math.PI / N * i;
+                    var vertex = [config.size * 0.5 * Math.cos(a), config.size * 0.5 * Math.sin(a)]; // Note: vertices are added counter-clockwise
+                    vertices.push(vertex);
+                }
+                // 绘制外观形状
+                var first_item = vertices[0];
+                body.moveTo(first_item[0], first_item[1]);
+                for (var i = 1, item = void 0; item = vertices[i]; i += 1) {
+                    body.lineTo(item[0], item[1]);
+                }
+                body.lineTo(first_item[0], first_item[1]);
+                // 绘制物理形状
+                self.body_shape = new p2.Convex({ vertices: vertices });
+            }
+            // 收尾外观绘制
             body.endFill();
             self.addChild(body);
-            self.pivot.set(config.size / 2, config.size / 2);
             if (const_1._isBorwser) {
                 self.cacheAsBitmap = true;
             }
-            self.body_shape = new p2.Circle({
-                radius: config.size,
-            });
+            // 收尾物理设定
             self.body_shape.material = Flyer.material;
             self.p2_body.addShape(self.body_shape);
             self.p2_body.setDensity(config.density);
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
+            self.position.set(config.x, config.y);
             self.on("change-hp", function (dif_hp) {
                 // console.log("change-hp-value:",dif_hp)
                 if (isFinite(dif_hp)) {
@@ -2222,7 +2280,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
                         ani_progress += delay;
                         var progress = Math.min(ani_progress / ani_time, 1);
                         var easing_progress = Easing.Quartic.Out(progress);
-                        self.scale.x = self.scale.y = _to.scaleXY * easing_progress;
+                        self.scale.x = self.scale.y = 1 + (_to.scaleXY - 1) * easing_progress;
                         self.alpha = 1 - _to.alpha * easing_progress;
                         _update.call(self, delay);
                         if (progress === 1) {
@@ -2234,8 +2292,8 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
         }
         Flyer.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
-            this.rotation = this.config.rotation = this.p2_body.angle;
-            this.p2_body.force = [this.config.x_speed, this.config.y_speed];
+            this.rotation = this.config.rotation = this.p2_body.interpolatedAngle;
+            // this.p2_body.force = [this.config.x_speed, this.config.y_speed];
         };
         Flyer.prototype.setConfig = function (new_config) {
             var config = this.config;
@@ -2245,6 +2303,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
             this.x = config.x;
             this.y = config.y;
         };
+        Flyer.TYPES = flyerShip;
         return Flyer;
     }(Collision_1.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -2294,6 +2353,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
             self.p2_body.addShape(self.body_shape);
             self.p2_body.setDensity(config.density);
             self.p2_body.position = [config.x, config.y];
+            self.position.set(config.x, config.y);
             self.rotation = config.rotation;
         }
         Wall.prototype.setConfig = function (new_config) {
@@ -2305,7 +2365,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
         };
         Wall.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
-            this.rotation = this.config.rotation = this.p2_body.angle;
+            this.rotation = this.config.rotation = this.p2_body.interpolatedAngle;
         };
         Wall.material = new p2.Material();
         return Wall;
@@ -2337,7 +2397,6 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 damage: 0,
                 scale: 1
             };
-            this.lift_time_ti = null;
             var self = this;
             var config = self.config;
             const_3.mix_options(config, new_config);
@@ -2362,11 +2421,15 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             self.p2_body.setDensity(config.density);
             self.p2_body.force = [config.start_x_speed, config.start_y_speed];
             self.p2_body.position = [config.x, config.y];
+            self.position.set(config.x, config.y);
             self.once("add-to-world", function () {
-                self.lift_time_ti = setTimeout(function () {
-                    self.lift_time_ti = null;
-                    self.emit("explode");
-                }, config.lift_time);
+                var acc_time = 0;
+                self.on("update", function (delay) {
+                    acc_time += delay;
+                    if (acc_time >= config.lift_time) {
+                        self.emit("explode");
+                    }
+                });
             });
             var source_damage = config.damage;
             self.on("penetrate", function (obj, change_damage) {
@@ -2407,7 +2470,6 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             });
             if (const_3._isNode) {
                 self.once("explode", function () {
-                    self.lift_time_ti && clearTimeout(self.lift_time_ti);
                     console.log("explode", self._id);
                     // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
                     self.update = function (delay) {
@@ -2417,7 +2479,6 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             }
             else {
                 self.once("explode", function () {
-                    self.lift_time_ti && clearTimeout(self.lift_time_ti);
                     var ani_time = const_3.B_ANI_TIME;
                     var ani_progress = 0;
                     var _to = {
@@ -2486,7 +2547,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 // 战斗相关的属性
                 bullet_speed: 800000,
                 bullet_damage: 5,
-                bullet_penetrate: 15,
+                bullet_penetrate: 0.5,
                 overload_speed: 0.625,
                 // 标志
                 team_tag: 10,
@@ -2525,6 +2586,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             self.p2_body.setDensity(config.density);
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
+            self.position.set(config.x, config.y);
             self.on("change-hp", function (dif_hp) {
                 // console.log("change-hp-value:",dif_hp)
                 if (isFinite(dif_hp)) {
@@ -2642,7 +2704,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
             this.show_ani = null;
             this.owner = owner;
             this.ani = ani;
-            this.source_width = owner.width || const_5.pt2px(40);
+            this.source_width = owner.config.size * 2 || owner.width || const_5.pt2px(40);
             var owner_config = owner.config;
             this.setHP(owner_config.cur_hp / owner_config.max_hp);
         }
@@ -5348,14 +5410,17 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
     "use strict";
     var worldStep = 1 / 60;
     var _ani_frame_num = 0;
+    function body_to_config(body) {
+        return {
+            x: body.position[0],
+            y: body.position[1],
+            angle: body.angle,
+            rotation: body["rotation"] || 0,
+        };
+    }
     var world = {
         addBody: function (body) {
-            p2is_config_cache_pre[body.id] = p2is_config_cache[body.id] = {
-                x: body.position[0],
-                y: body.position[1],
-                angle: body.angle,
-                rotation: body["rotation"] || 0,
-            };
+            p2is_config_cache_pre[body.id] = p2is_config_cache[body.id] = body_to_config(body);
         },
         removeBody: function (body) { },
         step: function (dt, timeSinceLastCalled, isNewDataFrame) {
@@ -5367,12 +5432,7 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
                     p2is_config_cache = {};
                     for (var i = 0, len = p2is.length; i < len; i += 1) {
                         var body = p2is[i].p2_body;
-                        p2is_config_cache[body.id] = {
-                            x: body.position[0],
-                            y: body.position[1],
-                            angle: body.angle,
-                            rotation: body["rotation"] || 0,
-                        };
+                        p2is_config_cache[body.id] = body_to_config(body);
                     }
                 }
                 return;
@@ -5389,23 +5449,13 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
             for (var i = 0, len = p2is.length; i < len; i += 1) {
                 var body = p2is[i].p2_body;
                 if (isNewDataFrame) {
-                    p2is_config_cache[body.id] = {
-                        x: body.position[0],
-                        y: body.position[1],
-                        angle: body.angle,
-                        rotation: body["rotation"] || 0,
-                    };
+                    p2is_config_cache[body.id] = body_to_config(body);
                 }
                 if (body["__changed"]) {
                     if (!isNewDataFrame) {
                         p2is_config_cache_pre[body.id] = p2is_config_cache[body.id];
                     }
-                    p2is_config_cache[body.id] = {
-                        x: body.position[0],
-                        y: body.position[1],
-                        angle: body.angle,
-                        rotation: body["rotation"] || 0,
-                    };
+                    p2is_config_cache[body.id] = body_to_config(body);
                     body["__changed"] = false;
                 }
                 var cache_config = p2is_config_cache[body.id];
@@ -5413,9 +5463,9 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
                 var dif_x = cache_config.x - pre_config.x;
                 var dif_y = cache_config.y - pre_config.y;
                 var dif_angle = cache_config.angle - pre_config.angle;
-                body.position[0] = pre_config.x + dif_x * ani_progress;
-                body.position[1] = pre_config.y + dif_y * ani_progress;
-                body.angle = pre_config.angle + dif_angle * ani_progress;
+                body.interpolatedPosition[0] = pre_config.x + dif_x * ani_progress;
+                body.interpolatedPosition[1] = pre_config.y + dif_y * ani_progress;
+                body.interpolatedAngle = pre_config.angle + dif_angle * ani_progress;
                 var cache_rotation = cache_config.rotation;
                 var pre_rotation = pre_config.rotation;
                 var dif_rotation = 0;
@@ -5569,7 +5619,7 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
                 });
             }
             else if (item instanceof Flyer_1.default) {
-                ["boom", "change-hp"].forEach(function (eventName) {
+                ["ember", "change-hp"].forEach(function (eventName) {
                     item.on(eventName, function () {
                         exports.engine.emit(eventName, this);
                     });
@@ -5595,7 +5645,7 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             return p2is;
         },
         update: function (delay) {
-            world.step(worldStep, delay / 100);
+            world.step(worldStep, delay / 100, 10);
             p2is.forEach(function (p2i) { return p2i.update(delay); });
         },
         newShip: function (ship_config) {
@@ -5643,22 +5693,22 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
         stiffness: 500,
         relaxation: 0.1
     }));
-    // 子弹与子弹、墙、通用物体，体现穿透性
+    // 子弹与子弹，体现穿透性
     world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Bullet_2.default.material, {
         restitution: 0.0,
         stiffness: 200,
         relaxation: 0.2
     }));
-    // 子弹与子弹、墙、通用物体，体现穿透性
+    // 子弹与墙，体现穿透性
     world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Wall_1.default.material, {
         restitution: 0.0,
         stiffness: 10,
         relaxation: 0.5
     }));
-    // 子弹与子弹、墙、通用物体，体现穿透性
+    // 子弹与通用物体，体现软弹性
     world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Collision_5.P2I.material, {
         restitution: 0.0,
-        stiffness: 200,
+        stiffness: 300,
         relaxation: 0.2
     }));
 });
@@ -6805,33 +6855,19 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             });
         };
         exports.current_stage.addChild(object_stage);
-        var flyer = new Flyer_3.default({
-            x: 260,
-            y: 250,
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0x0f00dd
-        });
-        object_stage.addChild(flyer);
-        world_1.engine.add(flyer);
-        var flyer = new Flyer_3.default({
-            x: 480,
-            y: 250,
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0x0fdd00
-        });
-        object_stage.addChild(flyer);
-        world_1.engine.add(flyer);
-        var flyer = new Flyer_3.default({
-            x: 600,
-            y: 250,
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0xdd000f
-        });
-        object_stage.addChild(flyer);
-        world_1.engine.add(flyer);
+        var flyerTypes = Object.keys(Flyer_3.default.TYPES);
+        for (var i_1 = 0; i_1 < flyerTypes.length * 2; i_1 += 1) {
+            var flyer = new Flyer_3.default({
+                x: 50 + Math.random() * (common_5.VIEW.WIDTH - 100),
+                y: 50 + Math.random() * (common_5.VIEW.HEIGHT - 100),
+                x_speed: 10 * 2 * (Math.random() - 0.5),
+                y_speed: 10 * 2 * (Math.random() - 0.5),
+                body_color: 0xffffff * Math.random(),
+                type: flyerTypes[i_1 % flyerTypes.length]
+            });
+            object_stage.addChild(flyer);
+            world_1.engine.add(flyer);
+        }
         // 四边限制
         var top_edge = new Wall_3.default({
             x: common_5.VIEW.CENTER.x, y: 0,
@@ -6887,7 +6923,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         object_stage.addChild(my_ship);
         world_1.engine.add(my_ship);
         var other_ship = new Ship_3.default({
-            x: common_5.VIEW.CENTER.x - 100,
+            x: common_5.VIEW.CENTER.x - 200,
             y: common_5.VIEW.CENTER.y - 100,
             body_color: 0x633645,
             team_tag: 12
@@ -6899,7 +6935,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
          */
         var pre_time;
         ani_ticker.add(function () {
-            pre_time || (pre_time = performance.now());
+            pre_time || (pre_time = performance.now() - 1000 / 60);
             var cur_time = performance.now();
             var dif_time = cur_time - pre_time;
             pre_time = cur_time;

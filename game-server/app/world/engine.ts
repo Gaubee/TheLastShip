@@ -150,7 +150,7 @@ export const engine = {
         return p2is;
     },
     update(delay: number) {
-        world.step(worldStep, delay / 100);
+        world.step(worldStep, delay / 100, 10);
         p2is.forEach(p2i => p2i.update(delay));
     },
     newShip(ship_config?: ShipConfig) {

@@ -116,7 +116,7 @@ export const engine = {
                 ship_id_md5_map.delete(ship_id)
             });
         }else if(item instanceof Flyer){
-            ["boom", "change-hp"].forEach(eventName=>{
+            ["ember", "change-hp"].forEach(eventName=>{
                 item.on(eventName,function () {
                     engine.emit(eventName, this);
                 });
@@ -143,7 +143,7 @@ export const engine = {
         return p2is;
     },
     update(delay: number) {
-        world.step(worldStep, delay / 100);
+        world.step(worldStep, delay / 100, 10);
         p2is.forEach(p2i => p2i.update(delay));
     },
     newShip(ship_config?: ShipConfig) {
@@ -191,21 +191,21 @@ world.addContactMaterial(new p2.ContactMaterial(P2I.material, P2I.material,{
     stiffness : 500,    // This makes the contact soft!
     relaxation : 0.1
 }));
-// 子弹与子弹、墙、通用物体，体现穿透性
+// 子弹与子弹，体现穿透性
 world.addContactMaterial(new p2.ContactMaterial(Bullet.material, Bullet.material,{
     restitution : 0.0,
     stiffness : 200,    // This makes the contact soft!
     relaxation : 0.2
 }));
-// 子弹与子弹、墙、通用物体，体现穿透性
+// 子弹与墙，体现穿透性
 world.addContactMaterial(new p2.ContactMaterial(Bullet.material, Wall.material,{
     restitution : 0.0,
     stiffness : 10,    // 对于子弹穿透，墙体现低折射率，但会削弱子弹上海
     relaxation : 0.5
 }));
-// 子弹与子弹、墙、通用物体，体现穿透性
+// 子弹与通用物体，体现软弹性
 world.addContactMaterial(new p2.ContactMaterial(Bullet.material, P2I.material,{
     restitution : 0.0,
-    stiffness : 200,    // This makes the contact soft!
+    stiffness : 300,    // This makes the contact soft!
     relaxation : 0.2
 }));

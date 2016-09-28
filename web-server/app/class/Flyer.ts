@@ -88,8 +88,8 @@ export default class Flyer extends P2I {
             });
         }else if(typeInfo.type === "Box") {
             // 绘制外观形状
-            body.drawRect(0, 0, config.size, config.size);
-            self.pivot.set(config.size / 2, config.size / 2);
+            body.drawRect(0, 0, config.size * 2, config.size * 2);
+            self.pivot.set(config.size , config.size );
             // 绘制物理形状
             self.body_shape = new p2.Box({
                 width: config.size,
@@ -99,7 +99,7 @@ export default class Flyer extends P2I {
             var vertices = [];
             for(let i=0, N=typeInfo.args.vertices_length; i<N; i++){
                 var a = 2*Math.PI / N * i;
-                var vertex = [config.size*0.5*Math.cos(a), config.size*0.5*Math.sin(a)]; // Note: vertices are added counter-clockwise
+                var vertex = [config.size*Math.cos(a), config.size*Math.sin(a)]; // Note: vertices are added counter-clockwise
                 vertices.push(vertex);
             }
             // 绘制外观形状

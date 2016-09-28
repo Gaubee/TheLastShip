@@ -6,6 +6,19 @@ export const square = (v) => v * v;// 平方
 export const pt2px = (pt) => pt * 2;//((window.devicePixelRatio) || 1);//px 转 pt
 
 const body = document.getElementById("body");
+// 禁用右键菜单
+document.oncontextmenu = function () {
+    return false;
+};
+// document.on"contextmenu"=RightMouseDown;
+// document.onmousedown = mouseDown; 
+
+// function mouseDown(e) {
+//     if (e.which==3) {//righClick
+//         alert("Disabled - do whatever you like here..");
+//     }
+// }
+// function RightMouseDown() { return false;}
 export function emitReisze(con: PIXI.Container) {
     con.children.forEach(item => {
         item.emit("resize");
@@ -94,6 +107,13 @@ export const on = (obj: PIXI.EventEmitter, eventName: string, handle) => {
                 console.log(e.target === obj);
                 if (e.target === this) {
                     handle(e);
+                }
+            });
+        } else if(en === "rightclick") {
+            document.body.addEventListener("mousedown",function (e) {
+                if (e.which==3) {//righClick
+                    // alert("Disabled - do whatever you like here..");
+                    handle(e)
                 }
             });
         } else if (en === "touchout") {

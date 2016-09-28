@@ -12,7 +12,7 @@
 		"type": "Box",
 		"args": {},
 		"config": {
-			"size": "pt2px!20",
+			"size": "pt2px!10",
 			"max_hp": 50,
 			"cur_hp": 50
 		}
@@ -23,7 +23,7 @@
 			"vertices_length": 3
 		},
 		"config": {
-			"size": "pt2px!24",
+			"size": "pt2px!12",
 			"max_hp": 70,
 			"cur_hp": 70
 		}
@@ -34,7 +34,7 @@
 			"vertices_length": 5
 		},
 		"config": {
-			"size": "pt2px!36",
+			"size": "pt2px!18",
 			"max_hp": 100,
 			"cur_hp": 100
 		}

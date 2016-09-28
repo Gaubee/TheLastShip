@@ -201,7 +201,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     };
     const effect_speed = {};
     on(current_stage_wrap, "keydown", function (e) {
-        if(speed_ux.hasOwnProperty(e.keyCode)){
+        if(speed_ux.hasOwnProperty(e.keyCode)&&my_ship){
+            move_target_point = null;
             var speed_info = speed_ux[e.keyCode];
             var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
             var _dir = speed_info.charAt(1) + "_speed";
@@ -211,8 +212,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
 
     on(current_stage_wrap, "keyup", function (e) {
-        
-        if(speed_ux.hasOwnProperty(e.keyCode)){
+        if(speed_ux.hasOwnProperty(e.keyCode)&&my_ship){
+            move_target_point = null;
             var speed_info = speed_ux[e.keyCode];
             var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
             var _dir = speed_info.charAt(1) + "_speed";
@@ -221,8 +222,30 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             }
         }
     });
+    // 将要去的目的点，在接近的时候改变飞船速度
+    var move_target_point:Victor;
     on(current_stage_wrap, "rightclick", function (e) {
-        var to_point = VIEW.rotateXY(e.data.global);
+        if(my_ship) {
+            move_target_point = new Victor(e.x-current_stage.x, e.y-current_stage.y);
+        }
+    });
+    var origin_vic = new Victor(0,0);
+    ani_ticker.add(() => {
+        if(move_target_point) {
+            var curren_point = Victor.fromArray(my_ship.p2_body.interpolatedPosition);
+            var current_to_target_dis = curren_point.distance(move_target_point);
+            // 动力、质量、以及空间摩擦力的比例
+            var force_mass_rate = my_ship.config.force/my_ship.p2_body.mass/my_ship.p2_body.damping;
+            var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate,0),1);
+            var force_vic = new Victor(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+            force_vic.norm();
+            force_vic.multiplyScalar(my_ship.config.force*force_rate);
+            if(force_vic.distanceSq(origin_vic) <= 100) {
+                console.log("基本到达，停止自动移动");
+                move_target_point = null;
+            }
+            my_ship.setConfig({ x_speed: force_vic.x, y_speed: force_vic.y });
+        }
     });
 
     on(current_stage_wrap, "click|tap", function () {

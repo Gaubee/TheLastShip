@@ -2203,8 +2203,8 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
             }
             else if (typeInfo.type === "Box") {
                 // 绘制外观形状
-                body.drawRect(0, 0, config.size, config.size);
-                self.pivot.set(config.size / 2, config.size / 2);
+                body.drawRect(0, 0, config.size * 2, config.size * 2);
+                self.pivot.set(config.size, config.size);
                 // 绘制物理形状
                 self.body_shape = new p2.Box({
                     width: config.size,
@@ -2215,7 +2215,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
                 var vertices = [];
                 for (var i = 0, N = typeInfo.args.vertices_length; i < N; i++) {
                     var a = 2 * Math.PI / N * i;
-                    var vertex = [config.size * 0.5 * Math.cos(a), config.size * 0.5 * Math.sin(a)]; // Note: vertices are added counter-clockwise
+                    var vertex = [config.size * Math.cos(a), config.size * Math.sin(a)]; // Note: vertices are added counter-clockwise
                     vertices.push(vertex);
                 }
                 // 绘制外观形状
@@ -3544,6 +3544,18 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
     // const devicePixelRatio = window["_isMobile"] ? 2 : 1;
     exports.pt2px = function (pt) { return pt * 2; }; //((window.devicePixelRatio) || 1);//px 转 pt
     var body = document.getElementById("body");
+    // 禁用右键菜单
+    document.oncontextmenu = function () {
+        return false;
+    };
+    // document.on"contextmenu"=RightMouseDown;
+    // document.onmousedown = mouseDown; 
+    // function mouseDown(e) {
+    //     if (e.which==3) {//righClick
+    //         alert("Disabled - do whatever you like here..");
+    //     }
+    // }
+    // function RightMouseDown() { return false;}
     function emitReisze(con) {
         con.children.forEach(function (item) {
             item.emit("resize");
@@ -3630,6 +3642,14 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
                 return obj.on("touchmove", function (e) {
                     console.log(e.target === obj);
                     if (e.target === _this) {
+                        handle(e);
+                    }
+                });
+            }
+            else if (en === "rightclick") {
+                document.body.addEventListener("mousedown", function (e) {
+                    if (e.which == 3) {
+                        // alert("Disabled - do whatever you like here..");
                         handle(e);
                     }
                 });
@@ -6531,6 +6551,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         var effect_speed = {};
         common_4.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
+                move_target_point = null;
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
                 var _dir = speed_info.charAt(1) + "_speed";
@@ -6551,6 +6572,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         });
         common_4.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
+                move_target_point = null;
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
                 var _dir = speed_info.charAt(1) + "_speed";
@@ -6567,6 +6589,36 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 }
             }
             var _a;
+        });
+        // 将要去的目的点，在接近的时候改变飞船速度
+        var move_target_point;
+        common_4.on(exports.current_stage_wrap, "rightclick", function (e) {
+            if (view_ship) {
+                move_target_point = new Victor_2.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+            }
+        });
+        var origin_vic = new Victor_2.default(0, 0);
+        ani_ticker.add(function () {
+            if (move_target_point) {
+                var curren_point = Victor_2.default.fromArray(view_ship.p2_body.interpolatedPosition);
+                var current_to_target_dis = curren_point.distance(move_target_point);
+                // 动力、质量、以及空间摩擦力的比例
+                var force_mass_rate = view_ship.config.force / view_ship.p2_body.mass / view_ship.p2_body.damping;
+                var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
+                var force_vic = new Victor_2.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
+                force_vic.norm();
+                force_vic.multiplyScalar(view_ship.config.force * force_rate);
+                if (force_vic.distanceSq(origin_vic) <= 100) {
+                    console.log("基本到达，停止自动移动");
+                    move_target_point = null;
+                }
+                var new_config = { x_speed: force_vic.x, y_speed: force_vic.y };
+                Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                    config: new_config
+                }, function (data) {
+                    // console.log("setConfig:stop-move", data);
+                });
+            }
         });
         // 转向
         common_4.on(exports.current_stage_wrap, "mousemove|click|tap", function (e) {
@@ -6960,7 +7012,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         };
         var effect_speed = {};
         common_5.on(exports.current_stage_wrap, "keydown", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode)) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
+                move_target_point = null;
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
                 var _dir = speed_info.charAt(1) + "_speed";
@@ -6970,7 +7023,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             var _a;
         });
         common_5.on(exports.current_stage_wrap, "keyup", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode)) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
+                move_target_point = null;
                 var speed_info = speed_ux[e.keyCode];
                 var _symbol = speed_info.charAt(0) === "-" ? -1 : 1;
                 var _dir = speed_info.charAt(1) + "_speed";
@@ -6980,8 +7034,30 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             }
             var _a;
         });
+        // 将要去的目的点，在接近的时候改变飞船速度
+        var move_target_point;
         common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
-            var to_point = common_5.VIEW.rotateXY(e.data.global);
+            if (my_ship) {
+                move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+            }
+        });
+        var origin_vic = new Victor_3.default(0, 0);
+        ani_ticker.add(function () {
+            if (move_target_point) {
+                var curren_point = Victor_3.default.fromArray(my_ship.p2_body.interpolatedPosition);
+                var current_to_target_dis = curren_point.distance(move_target_point);
+                // 动力、质量、以及空间摩擦力的比例
+                var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
+                var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
+                var force_vic = new Victor_3.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+                force_vic.norm();
+                force_vic.multiplyScalar(my_ship.config.force * force_rate);
+                if (force_vic.distanceSq(origin_vic) <= 100) {
+                    console.log("基本到达，停止自动移动");
+                    move_target_point = null;
+                }
+                my_ship.setConfig({ x_speed: force_vic.x, y_speed: force_vic.y });
+            }
         });
         common_5.on(exports.current_stage_wrap, "click|tap", function () {
             var bullet = my_ship.fire();

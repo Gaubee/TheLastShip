@@ -24,8 +24,12 @@ export default class HP extends PIXI.Graphics {
 		this.setHP(owner_config.cur_hp/owner_config.max_hp);
 	}
 	show_ani = null
-	setHP(percentage) {
+	setHP(percentage?) {
 		this.clear();
+		if(!isFinite(percentage)) {
+			var owner_config = this.owner.config;
+			percentage = owner_config.cur_hp/owner_config.max_hp
+		}
 		percentage = Math.min(Math.max(parseFloat(percentage), 0), 1);
 		const width = this.source_width;
 		const height = Math.min(width/8, pt2px(4));

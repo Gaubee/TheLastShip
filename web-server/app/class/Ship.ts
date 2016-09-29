@@ -92,7 +92,7 @@ export default class Ship extends P2I {
             throw new TypeError("UNKONW Ship Type: " + config.type);
         }
         // 覆盖配置
-        mix_options(config, typeInfo.config);
+        mix_options(config, typeInfo.body.config);
 
         // 绘制武器
         typeInfo.guns.forEach(function (gun_config) {

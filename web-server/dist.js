@@ -2600,7 +2600,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 throw new TypeError("UNKONW Ship Type: " + config.type);
             }
             // 覆盖配置
-            const_5.mix_options(config, typeInfo.config);
+            const_5.mix_options(config, typeInfo.body.config);
             // 绘制武器
             typeInfo.guns.forEach(function (gun_config) {
                 for (var k in gun_config) {
@@ -2994,6 +2994,10 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
         HP.prototype.setHP = function (percentage) {
             var _this = this;
             this.clear();
+            if (!isFinite(percentage)) {
+                var owner_config = this.owner.config;
+                percentage = owner_config.cur_hp / owner_config.max_hp;
+            }
             percentage = Math.min(Math.max(parseFloat(percentage), 0), 1);
             var width = this.source_width;
             var height = Math.min(width / 8, const_8.pt2px(4));
@@ -4443,7 +4447,7 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
         relaxation: 0.2
     }));
 });
-define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "./ediorStage.json", "app/common", "app/const"], function (require, exports, Tween_6, When_1, Flyer_2, Ship_2, Wall_2, Victor_3, world_1, ediorStage, common_2, const_9) {
+define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/Victor", "app/engine/world", "./ediorStage.json", "app/common", "app/const"], function (require, exports, Tween_6, When_1, Flyer_2, Ship_2, Wall_2, HP_1, Victor_3, world_1, ediorStage, common_2, const_9) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_6.default();
@@ -4490,6 +4494,14 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
             });
         };
         exports.current_stage.addChild(object_stage);
+        // 血量绘图层;
+        var hp_stage = new PIXI.Container();
+        exports.current_stage.addChild(hp_stage);
+        hp_stage["update"] = function (delay) {
+            this.children.forEach(function (hp) {
+                hp.update(delay);
+            });
+        };
         if (ediorStage["flyers"] instanceof Array) {
             ediorStage["flyers"].forEach(function (flyer_config) {
                 var flyer = new Flyer_2.default(const_9.assign({
@@ -4500,6 +4512,11 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                     body_color: 0xffffff * Math.random()
                 }, flyer_config));
                 object_stage.addChild(flyer);
+                var hp = new HP_1.default(flyer, ani_tween);
+                hp_stage.addChild(hp);
+                flyer.on("change-hp", function () {
+                    hp.setHP();
+                });
                 world_1.engine.add(flyer);
             });
         }
@@ -4569,6 +4586,11 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                     body_color: 0xffffff * Math.random()
                 }, ship_config));
                 object_stage.addChild(ship);
+                var hp = new HP_1.default(ship, ani_tween);
+                hp_stage.addChild(hp);
+                ship.on("change-hp", function () {
+                    hp.setHP();
+                });
                 world_1.engine.add(ship);
             });
         }
@@ -4789,7 +4811,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                 }
                 var touch_point = { x: touch.clientX, y: touch.clientY };
                 var direction = new Victor_3.default(touch_point.x - common_2.VIEW.CENTER.x, touch_point.y - common_2.VIEW.CENTER.y);
-                operateShip({ rotation: direction.angle() });
+                my_ship.operateShip({ rotation: direction.angle() });
             });
             // 发射
             common_2.on(exports.current_stage_wrap, "touchstart", function (e) {
@@ -4829,6 +4851,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         //     rule.close();
         // }, 3000)
         // 动画控制器
+        var pre_time;
         ani_ticker.add(function () {
             ani_tween.update();
             jump_tween.update();
@@ -4836,6 +4859,11 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                 exports.current_stage.x = common_2.VIEW.WIDTH / 2 - my_ship.x;
                 exports.current_stage.y = common_2.VIEW.HEIGHT / 2 - my_ship.y;
             }
+            pre_time || (pre_time = performance.now());
+            var cur_time = performance.now();
+            var dif_time = cur_time - pre_time;
+            pre_time = cur_time;
+            hp_stage["update"](dif_time);
         });
         /**帧率
          *
@@ -7106,7 +7134,7 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = FlowLayout;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_8, When_2, Flyer_3, Wall_3, Ship_3, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_4, Pomelo_1, common_5, const_10) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_8, When_2, Flyer_3, Wall_3, Ship_3, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_4, Pomelo_1, common_5, const_10) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_8.default();
@@ -7195,7 +7223,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     else {
                         object_stage.addChild(ins);
                         if (obj_info.type === "Ship" || obj_info.type === "Flyer") {
-                            var hp = HP_WEAKMAP[obj_info.id] = new HP_1.default(ins, ani_tween);
+                            var hp = HP_WEAKMAP[obj_info.id] = new HP_2.default(ins, ani_tween);
                             hp_stage.addChild(hp);
                         }
                     }

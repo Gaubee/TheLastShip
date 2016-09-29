@@ -54,34 +54,19 @@ var _isMobile = isMobile();
 <script src="js/lib/esl.full.js"></script>
 <script src="js/lib/es6-map-shim.js"></script>
 <script>
-define('json', ["app/const"], function (const_1) {
-    var ready = false;
-    return {
-        load: function (resourceId, parentRequire, load) {
-        	var xhr = new XMLHttpRequest;
-        	xhr.open("GET",resourceId)
-            console.log("JSON",arguments);
-            xhr.send();
-            xhr.onload = function () {
-            	var data = JSON.parse(xhr.responseText,function (key,value) {
-        			// 对配置文件中的数量进行基本的单位换算
-            		if (typeof value === "string") {
-            			if (value.indexOf("pt2px!")===0) {
-            				return const_1.pt2px(+value.substr(6));
-            			}
-            			if (value.indexOf("0x")===0) {
-            				return parseInt(value, 16);
-            			}
-            			if (value.indexOf("PI!")===0) {
-            				return Math.PI*value.substr(3);
-            			}
-            		}
-            		return value;
-            	});
-            	load(data);
-            }
-        }
-    };
+define('json', ["app/const"], function(const_1) {
+	var ready = false;
+	return {
+		load: function(resourceId, parentRequire, load) {
+			var xhr = new XMLHttpRequest;
+			xhr.open("GET", resourceId)
+			console.log("JSON", arguments);
+			xhr.send();
+			xhr.onload = function() {
+				load(const_1.transformJSON(xhr.responseText));
+			}
+		}
+	};
 });
 </script>
 <style>

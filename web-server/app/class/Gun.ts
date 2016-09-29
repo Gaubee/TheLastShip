@@ -18,8 +18,12 @@ import {
 	assign,
 	_isBorwser,
 	_isNode,
+	transformJSON,
 } from "../const";
 import * as gunShape from "./gunShape.json";
+if(_isNode) {
+    Object.assign(gunShape, transformJSON(JSON.stringify(gunShape)));
+}
 
 export interface GunConfig {
 	// 基本属性

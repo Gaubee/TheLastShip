@@ -15,8 +15,12 @@ import {
     mix_options,
     _isBorwser,
     _isNode,
+    transformJSON,
 } from "../const";
 import * as shipShape from "./shipShape.json";
+if(_isNode) {
+    Object.assign(shipShape, transformJSON(JSON.stringify(shipShape)));
+}
 
 export interface ShipConfig {
     x?: number

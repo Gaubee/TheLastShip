@@ -10,12 +10,13 @@ import {
     mix_options,
     _isBorwser,
     _isNode,
+    transformJSON,
 } from "../const";
 import TWEEN from "../../class/Tween";
 import * as flyerShape from "./flyerShape.json";
-// console.log(flyerShape);
-// console.log("__dirname",require("./flyerShape.json"));
-// const flyerShape =  require("./flyerShape.json");
+if(_isNode) {
+    Object.assign(flyerShape, transformJSON(JSON.stringify(flyerShape)));
+}
 
 const Easing = TWEEN.Easing;
 

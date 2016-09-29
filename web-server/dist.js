@@ -1477,6 +1477,24 @@ define("app/const", ["require", "exports"], function (require, exports) {
         return to_obj;
     }
     exports.assign = assign;
+    function transformJSON(JSON_str) {
+        return JSON.parse(JSON_str, function (key, value) {
+            // 对配置文件中的数量进行基本的单位换算
+            if (typeof value === "string") {
+                if (value.indexOf("pt2px!") === 0) {
+                    return exports.pt2px(+value.substr(6));
+                }
+                if (value.indexOf("0x") === 0) {
+                    return parseInt(value, 16);
+                }
+                if (value.indexOf("PI!") === 0) {
+                    return Math.PI * (+value.substr(3));
+                }
+            }
+            return value;
+        });
+    }
+    exports.transformJSON = transformJSON;
 });
 define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], function (require, exports, const_1) {
     "use strict";
@@ -2235,9 +2253,9 @@ define("class/Tween", ["require", "exports"], function (require, exports) {
 });
 define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/const", "class/Tween", "./flyerShape.json"], function (require, exports, Collision_1, ShapeDrawer_1, const_2, Tween_1, flyerShape) {
     "use strict";
-    // console.log(flyerShape);
-    // console.log("__dirname",require("./flyerShape.json"));
-    // const flyerShape =  require("./flyerShape.json");
+    if (const_2._isNode) {
+        Object.assign(flyerShape, const_2.transformJSON(JSON.stringify(flyerShape)));
+    }
     var Easing = Tween_1.default.Easing;
     var Flyer = (function (_super) {
         __extends(Flyer, _super);
@@ -2560,6 +2578,9 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
 define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/class/Gun", "class/Tween", "app/const", "./shipShape.json"], function (require, exports, Collision_4, ShapeDrawer_2, Gun_1, Tween_3, const_5, shipShape) {
     "use strict";
     var Easing = Tween_3.default.Easing;
+    if (const_5._isNode) {
+        Object.assign(shipShape, const_5.transformJSON(JSON.stringify(shipShape)));
+    }
     var Ship = (function (_super) {
         __extends(Ship, _super);
         function Ship(new_config) {
@@ -2735,6 +2756,9 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
 define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/class/Drawer/GunDrawer", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const", "./gunShape.json"], function (require, exports, Collision_5, GunDrawer_1, Victor_1, Bullet_1, Tween_4, const_6, gunShape) {
     "use strict";
     var Easing = Tween_4.default.Easing;
+    if (const_6._isNode) {
+        Object.assign(gunShape, const_6.transformJSON(JSON.stringify(gunShape)));
+    }
     var Gun = (function (_super) {
         __extends(Gun, _super);
         function Gun(new_config, owner) {

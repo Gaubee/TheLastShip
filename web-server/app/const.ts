@@ -1,8 +1,8 @@
-declare const process;
-export const _isNode = typeof process === "object"
+declare const process
+export const _isNode = typeof process === "object";
 export const _isBorwser = !_isNode;
 export const _isMobile = this._isMobile;
-const devicePixelRatio = typeof _isMobile === "boolean"&&_isMobile ? 1 : 1;
+const devicePixelRatio = typeof _isMobile === "boolean" && _isMobile ? 1 : 1;
 const __pt2px = devicePixelRatio * 2;
 export const pt2px = (pt) => pt * __pt2px;
 
@@ -25,13 +25,30 @@ export function mix_options(tmp_options, new_options) {
 export function assign(to_obj, from_obj) {
     for (var key in from_obj) {
         if (from_obj.hasOwnProperty(key)) {
-        	var value = from_obj[key];
+            var value = from_obj[key];
             if (from_obj[key] instanceof Object) {
-                assign(to_obj[key]||(to_obj[key] = new value.constructor()), value)
+                assign(to_obj[key] || (to_obj[key] = new value.constructor()), value)
             } else {
                 to_obj[key] = value
             }
         }
     }
     return to_obj
+}
+export function transformJSON(JSON_str) {
+    return JSON.parse(JSON_str, function(key, value) {
+        // 对配置文件中的数量进行基本的单位换算
+        if (typeof value === "string") {
+            if (value.indexOf("pt2px!") === 0) {
+                return pt2px(+value.substr(6));
+            }
+            if (value.indexOf("0x") === 0) {
+                return parseInt(value, 16);
+            }
+            if (value.indexOf("PI!") === 0) {
+                return Math.PI * (+value.substr(3));
+            }
+        }
+        return value;
+    });
 }

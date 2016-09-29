@@ -74,8 +74,8 @@ WorldRemote.prototype.setConfig = function(ship_id, new_ship_config, cb) {
 }
 WorldRemote.prototype.fire = function(ship_id, cb) {
 	try {
-		var bullet = this.world.fire(ship_id);
-		cb(null, bullet);
+		var bullets = this.world.fire(ship_id);
+		cb(null, bullets);
 	} catch (e) {
 		cb(e);
 	}

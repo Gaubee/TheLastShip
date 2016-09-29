@@ -223,44 +223,9 @@ export default class Ship extends P2I {
             this.rotation =  config.rotation;
         }
     }
-    // fire() {
-    //     var config = this.config;
-    //     if (config.is_firing) {
-    //         return
-    //     }
-    //     this.emit("fire_start");
-    //     var bullet_size = pt2px(5);
-    //     var bullet_force = new Victor(config.bullet_force, 0);
-    //     var bullet_start = new Victor(config.size + bullet_size/2, 0);
-    //     bullet_force.rotate(config.rotation);
-    //     bullet_start.rotate(config.rotation);
-    //     var bullet = new Bullet({
-    //         team_tag: config.team_tag,
-    //         x: config.x + bullet_start.x,
-    //         y: config.y + bullet_start.y,
-    //         x_force: bullet_force.x,
-    //         y_force: bullet_force.y,
-    //         size: bullet_size,
-    //         damage: config.bullet_damage,
-    //         penetrate: config.bullet_penetrate,
-    //     });
+    levelUp(add_proto:"HP"|"SPEED"){
 
-    //     bullet.p2_body.velocity = this.p2_body.velocity.slice();
-
-    //     // 一旦发射，飞船受到后座力
-    //     bullet.once("add-to-world", () => {
-    //         var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
-    //         // 飞船自身提供给子弹大量的初始推动力
-    //         var init_x_force = bullet_force.x*20;
-    //         var init_y_force = bullet_force.y*20;
-    //         bullet.p2_body.force = [init_x_force,init_y_force];
-
-    //         this.p2_body.force[0] -= init_x_force*mass_rate;
-    //         this.p2_body.force[1] -= init_y_force*mass_rate;
-    //     });
-    //     return bullet;
-    //     // config.firing
-    // }
+    }
     fire(){
         var res_bullets = this.guns.map(gun=>gun.fire());
         return res_bullets.filter(bullet=>bullet);

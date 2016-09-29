@@ -1,0 +1,33 @@
+{
+	"S-1": {
+		"body": {
+			"type": "Circle",
+			"args": {
+				"lineStyle": ["pt2px!1.5", "0x000000", 1]
+			},
+			"config": {
+				"size": "pt2px!15",
+				"max_hp": 50,
+				"cur_hp": 50
+			}
+		},
+		"guns": [{
+			"type": "long",
+			"overload_speed": "mix@1"
+		},{
+			"type": "long",
+			"overload_speed": "mix@2",
+			"rotation": "PI!0.333333",
+			"args": {
+				"fill" : "0x992233"
+			}
+		},{
+			"type": "long",
+			"overload_speed": "mix@3",
+			"rotation": "PI!0.666666",
+			"args": {
+				"fill" : "0x229933"
+			}
+		}]
+	}
+}

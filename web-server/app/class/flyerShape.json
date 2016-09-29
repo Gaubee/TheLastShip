@@ -1,7 +1,9 @@
 {
 	"S-Circle": {
 		"type": "Circle",
-		"args": {},
+		"args": {
+			"lineStyle": ["pt2px!2", "0x000000", 1]
+		},
 		"config": {
 			"size": "pt2px!10",
 			"max_hp": 30,
@@ -10,7 +12,8 @@
 	},
 	"S-Box": {
 		"type": "Box",
-		"args": {},
+		"args": {
+		},
 		"config": {
 			"size": "pt2px!10",
 			"max_hp": 50,

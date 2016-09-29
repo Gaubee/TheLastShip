@@ -1462,6 +1462,87 @@ define("app/const", ["require", "exports"], function (require, exports) {
         }
     }
     exports.mix_options = mix_options;
+    function assign(to_obj, from_obj) {
+        for (var key in from_obj) {
+            if (from_obj.hasOwnProperty(key)) {
+                var value = from_obj[key];
+                if (from_obj[key] instanceof Object) {
+                    assign(to_obj[key] || (to_obj[key] = new value.constructor()), value);
+                }
+                else {
+                    to_obj[key] = value;
+                }
+            }
+        }
+        return to_obj;
+    }
+    exports.assign = assign;
+});
+define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], function (require, exports, const_1) {
+    "use strict";
+    function ShapeDrawer(self, config, typeInfo) {
+        var body = self.body;
+        var typeInfoArgs = typeInfo.args || {};
+        if (typeInfoArgs.lineStyle instanceof Array) {
+            body.lineStyle.apply(body, typeInfoArgs.lineStyle);
+        }
+        else {
+            body.lineStyle(const_1.pt2px(1.5), 0x000000, 1);
+        }
+        if (isFinite(typeInfoArgs.fill)) {
+            body.beginFill(+typeInfoArgs.fill);
+        }
+        else {
+            body.beginFill(config.body_color);
+        }
+        if (typeInfo.type === "Circle") {
+            // 绘制外观形状
+            body.drawCircle(config.size, config.size, config.size);
+            self.pivot.set(config.size, config.size);
+            // 绘制物理形状
+            self.body_shape = new p2.Circle({
+                radius: config.size,
+            });
+        }
+        else if (typeInfo.type === "Box") {
+            // 绘制外观形状
+            body.drawRect(0, 0, config.size * 2, config.size * 2);
+            self.pivot.set(config.size, config.size);
+            // 绘制物理形状
+            self.body_shape = new p2.Box({
+                width: config.size * 2,
+                height: config.size * 2,
+            });
+        }
+        else if (typeInfo.type === "Convex") {
+            var vertices = [];
+            for (var i = 0, N = typeInfoArgs.vertices_length; i < N; i++) {
+                var a = 2 * Math.PI / N * i;
+                var vertex = [config.size * Math.cos(a), config.size * Math.sin(a)]; // Note: vertices are added counter-clockwise
+                vertices.push(vertex);
+            }
+            // 绘制外观形状
+            var first_item = vertices[0];
+            body.moveTo(first_item[0], first_item[1]);
+            for (var i = 1, item = void 0; item = vertices[i]; i += 1) {
+                body.lineTo(item[0], item[1]);
+            }
+            body.lineTo(first_item[0], first_item[1]);
+            // 绘制物理形状
+            self.body_shape = new p2.Convex({
+                vertices: vertices
+            });
+        }
+        // 收尾外观绘制
+        body.endFill();
+        self.addChild(body);
+        // 收尾物理设定
+        self.body_shape.material = self.constructor.material;
+        self.p2_body.addShape(self.body_shape);
+        self.p2_body.setDensity(config.density);
+    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = ShapeDrawer;
 });
 /**
  * Tween.js - Licensed under the MIT license
@@ -2152,11 +2233,11 @@ define("class/Tween", ["require", "exports"], function (require, exports) {
     exports.default = TWEEN;
     ;
 });
-define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/const", "class/Tween", "./flyerShip.json"], function (require, exports, Collision_1, const_1, Tween_1, flyerShip) {
+define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/const", "class/Tween", "./flyerShape.json"], function (require, exports, Collision_1, ShapeDrawer_1, const_2, Tween_1, flyerShape) {
     "use strict";
-    // console.log(flyerShip);
-    // console.log("__dirname",require("./flyerShip.json"));
-    // const flyerShip =  require("./flyerShip.json");
+    // console.log(flyerShape);
+    // console.log("__dirname",require("./flyerShape.json"));
+    // const flyerShape =  require("./flyerShape.json");
     var Easing = Tween_1.default.Easing;
     var Flyer = (function (_super) {
         __extends(Flyer, _super);
@@ -2170,7 +2251,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
                 y: 0,
                 y_speed: 5,
                 x_speed: 0,
-                size: const_1.pt2px(10),
+                size: const_2.pt2px(10),
                 body_color: 0x2255ff,
                 density: 1,
                 rotation: 0,
@@ -2180,75 +2261,17 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
             };
             var self = this;
             var config = self.config;
-            const_1.mix_options(config, new_config);
-            var typeInfo = flyerShip[config.type];
+            const_2.mix_options(config, new_config);
+            var typeInfo = flyerShape[config.type];
             if (!typeInfo) {
                 throw new TypeError("UNKONW Ship Type: " + config.type);
             }
-            // 对配置文件中的数量进行基本的单位换算
-            for (var k in typeInfo.config) {
-                var v = typeInfo.config[k];
-                if (typeof v === "string" && v.indexOf("pt2px!") === 0) {
-                    typeInfo.config[k] = const_1.pt2px(v.substr(6));
-                }
-            }
-            for (var k in typeInfo.args) {
-                var v = typeInfo.args[k];
-                if (typeof v === "string" && v.indexOf("pt2px!") === 0) {
-                    typeInfo.args[k] = const_1.pt2px(typeInfo.args[k]);
-                }
-            }
             // 覆盖配置
-            const_1.mix_options(config, typeInfo.config);
-            var body = self.body;
-            body.lineStyle(const_1.pt2px(1.5), 0x000000, 1);
-            body.beginFill(config.body_color);
-            if (typeInfo.type === "Circle") {
-                // 绘制外观形状
-                body.drawCircle(config.size / 2, config.size / 2, config.size);
-                self.pivot.set(config.size / 2, config.size / 2);
-                // 绘制物理形状
-                self.body_shape = new p2.Circle({
-                    radius: config.size,
-                });
-            }
-            else if (typeInfo.type === "Box") {
-                // 绘制外观形状
-                body.drawRect(0, 0, config.size * 2, config.size * 2);
-                self.pivot.set(config.size, config.size);
-                // 绘制物理形状
-                self.body_shape = new p2.Box({
-                    width: config.size * 2,
-                    height: config.size * 2,
-                });
-            }
-            else if (typeInfo.type === "Convex") {
-                var vertices = [];
-                for (var i = 0, N = typeInfo.args.vertices_length; i < N; i++) {
-                    var a = 2 * Math.PI / N * i;
-                    var vertex = [config.size * Math.cos(a), config.size * Math.sin(a)]; // Note: vertices are added counter-clockwise
-                    vertices.push(vertex);
-                }
-                // 绘制外观形状
-                var first_item = vertices[0];
-                body.moveTo(first_item[0], first_item[1]);
-                for (var i = 1, item = void 0; item = vertices[i]; i += 1) {
-                    body.lineTo(item[0], item[1]);
-                }
-                body.lineTo(first_item[0], first_item[1]);
-                // 绘制物理形状
-                self.body_shape = new p2.Convex({ vertices: vertices });
-            }
-            // 收尾外观绘制
-            body.endFill();
-            self.addChild(body);
-            if (const_1._isBorwser) {
+            const_2.mix_options(config, typeInfo.config);
+            ShapeDrawer_1.default(self, config, typeInfo);
+            if (const_2._isBorwser) {
                 self.cacheAsBitmap = true;
             }
-            // 收尾物理设定
-            self.body_shape.material = Flyer.material;
-            self.p2_body.addShape(self.body_shape);
-            self.p2_body.setDensity(config.density);
             self.p2_body.angularVelocity = Math.PI * Math.random();
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
@@ -2258,7 +2281,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
                 if (isFinite(dif_hp)) {
                     var config_1 = self.config;
                     config_1.cur_hp += dif_hp;
-                    if (dif_hp < 0 && const_1._isBorwser) {
+                    if (dif_hp < 0 && const_2._isBorwser) {
                         self.emit("flash");
                     }
                     if (config_1.cur_hp > config_1.max_hp) {
@@ -2269,14 +2292,14 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
                     }
                 }
             });
-            if (const_1._isNode) {
+            if (const_2._isNode) {
                 self.once("ember", function () {
                     self.emit("destroy");
                 });
             }
             else {
                 self.once("ember", function () {
-                    var ani_time = const_1.B_ANI_TIME;
+                    var ani_time = const_2.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
                     var _to = {
@@ -2309,19 +2332,19 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/co
         };
         Flyer.prototype.setConfig = function (new_config) {
             var config = this.config;
-            const_1.mix_options(config, new_config);
+            const_2.mix_options(config, new_config);
             this.rotation = this.p2_body.angle = config.rotation;
             this.p2_body.position = [config.x, config.y];
             this.x = config.x;
             this.y = config.y;
         };
-        Flyer.TYPES = flyerShip;
+        Flyer.TYPES = flyerShape;
         return Flyer;
     }(Collision_1.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Flyer;
 });
-define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_2, const_2) {
+define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_2, const_3) {
     "use strict";
     var Wall = (function (_super) {
         __extends(Wall, _super);
@@ -2347,14 +2370,14 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
             this.body = new PIXI.Graphics();
             var self = this;
             var config = self.config;
-            const_2.mix_options(config, new_config);
+            const_3.mix_options(config, new_config);
             var body = self.body;
             body.beginFill(config.color);
             body.drawRect(0, 0, config.width, config.height);
             body.endFill();
             self.addChild(body);
             self.pivot.set(config.width / 2, config.height / 2);
-            if (const_2._isBorwser) {
+            if (const_3._isBorwser) {
                 self.cacheAsBitmap = true;
             }
             self.body_shape = new p2.Box({
@@ -2370,7 +2393,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
         }
         Wall.prototype.setConfig = function (new_config) {
             var config = this.config;
-            const_2.mix_options(config, new_config);
+            const_3.mix_options(config, new_config);
             this.p2_body.position = [config.x, config.y];
             this.x = config.x;
             this.y = config.y;
@@ -2385,7 +2408,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Wall;
 });
-define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class/Tween", "app/const"], function (require, exports, Collision_3, Tween_2, const_3) {
+define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class/Tween", "app/const"], function (require, exports, Collision_3, Tween_2, const_4) {
     "use strict";
     var Easing = Tween_2.default.Easing;
     var Bullet = (function (_super) {
@@ -2400,7 +2423,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 y: 0,
                 x_force: 0,
                 y_force: 0,
-                size: const_3.pt2px(5),
+                size: const_4.pt2px(5),
                 body_color: 0x2255ff,
                 lift_time: 3500,
                 density: 2,
@@ -2411,7 +2434,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             };
             var self = this;
             var config = self.config;
-            const_3.mix_options(config, new_config);
+            const_4.mix_options(config, new_config);
             var body = self.body;
             body.lineStyle(0, 0x000000, 1);
             body.beginFill(config.body_color);
@@ -2419,7 +2442,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             body.endFill();
             self.addChild(body);
             self.pivot.set(config.size / 2, config.size / 2);
-            if (const_3._isBorwser) {
+            if (const_4._isBorwser) {
                 self.cacheAsBitmap = true;
             }
             self.body_shape = new p2.Circle({
@@ -2482,7 +2505,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                     self.off("update", _update);
                 }
             });
-            if (const_3._isNode) {
+            if (const_4._isNode) {
                 self.once("explode", function () {
                     console.log("explode", self._id);
                     // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
@@ -2493,7 +2516,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             }
             else {
                 self.once("explode", function () {
-                    var ani_time = const_3.B_ANI_TIME;
+                    var ani_time = const_4.B_ANI_TIME;
                     var ani_progress = 0;
                     var _to = {
                         scaleXY: 2,
@@ -2515,7 +2538,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
         Bullet.prototype.setConfig = function (new_config) {
             _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
-            const_3.mix_options(config, new_config);
+            const_4.mix_options(config, new_config);
             this.scale.set(config.scale, config.scale);
             var old_radius = this.body_shape.radius;
             var new_radius = config.scale * config.size;
@@ -2534,7 +2557,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Bullet;
 });
-define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const"], function (require, exports, Collision_4, Victor_1, Bullet_1, Tween_3, const_4) {
+define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/class/Gun", "class/Tween", "app/const", "./shipShape.json"], function (require, exports, Collision_4, ShapeDrawer_2, Gun_1, Tween_3, const_5, shipShape) {
     "use strict";
     var Easing = Tween_3.default.Easing;
     var Ship = (function (_super) {
@@ -2542,6 +2565,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
         function Ship(new_config) {
             if (new_config === void 0) { new_config = {}; }
             _super.call(this);
+            this.guns = [];
             this.gun = new PIXI.Graphics();
             this.body = new PIXI.Graphics();
             this.config = {
@@ -2550,7 +2574,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 y_speed: 0,
                 x_speed: 0,
                 force: 100000,
-                size: const_4.pt2px(15),
+                size: const_5.pt2px(15),
                 body_color: 0x2255ff,
                 rotation: 0,
                 max_hp: 100,
@@ -2566,38 +2590,33 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 overload_speed: 1,
                 // 标志
                 team_tag: 10,
+                type: "S-1"
             };
             var self = this;
             var config = self.config;
-            const_4.mix_options(config, new_config);
-            var body = self.body;
-            var body_size = config.size;
-            body.clear();
-            body.lineStyle(const_4.pt2px(1.5), 0x000000, 1);
-            body.beginFill(config.body_color);
-            body.drawCircle(body_size / 2, body_size / 2, body_size);
-            body.endFill();
-            var gun = self.gun;
-            var gun_height = body_size * 2 / 3;
-            var gun_width = body_size;
-            gun.lineStyle(const_4.pt2px(1.5), 0x000000, 1);
-            gun.beginFill(0x666666);
-            gun.drawRect(body_size / 2 + body_size * 0.8, body_size / 2 - gun_height / 2, gun_width, gun_height);
-            gun.endFill();
-            self.addChild(gun);
-            self.addChild(body);
-            self.pivot.set(body_size / 2, body_size / 2);
-            if (const_4._isBorwser) {
-                self.cacheAsBitmap = true;
+            const_5.mix_options(config, new_config);
+            var typeInfo = shipShape[config.type];
+            if (!typeInfo) {
+                throw new TypeError("UNKONW Ship Type: " + config.type);
             }
-            self.body_shape = new p2.Circle({
-                radius: config.size,
+            // 覆盖配置
+            const_5.mix_options(config, typeInfo.config);
+            // 绘制武器
+            typeInfo.guns.forEach(function (gun_config) {
+                for (var k in gun_config) {
+                    var v = gun_config[k];
+                    if (typeof v === "string" && v.indexOf("mix@") === 0) {
+                        gun_config[k] = config[k] + (+v.substr(4));
+                    }
+                }
+                new Gun_1.default(gun_config, self);
             });
-            self.body_shape.material = Ship.material;
-            // self.body_shape.sensor = true;
+            // 绘制船体
+            ShapeDrawer_2.default(self, config, typeInfo.body);
+            if (const_5._isBorwser) {
+                self.body.cacheAsBitmap = true;
+            }
             self.body_shape["ship_team_tag"] = config.team_tag;
-            self.p2_body.addShape(self.body_shape);
-            self.p2_body.setDensity(config.density);
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
             self.position.set(config.x, config.y);
@@ -2606,7 +2625,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 if (isFinite(dif_hp)) {
                     var config_2 = self.config;
                     config_2.cur_hp += dif_hp;
-                    if (dif_hp < 0 && const_4._isBorwser) {
+                    if (dif_hp < 0 && const_5._isBorwser) {
                         self.emit("flash");
                     }
                     if (config_2.cur_hp > config_2.max_hp) {
@@ -2617,74 +2636,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                     }
                 }
             });
-            // 攻速限制
-            (function () {
-                var before_the_attack_roll_ani = 0.5; // 攻击前腰在整个动画时间的占比
-                var acc_overload_time = 0;
-                self.once("fire_start", function _fire_start() {
-                    config.is_firing = true;
-                    config.ison_BTAR = true;
-                    // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
-                    // 射击钱摇枪管不可转向。 = true;
-                    var overload_ani = 1000 / config.overload_speed;
-                    var _update = function (delay) {
-                        acc_overload_time += delay;
-                        if (acc_overload_time >= overload_ani * before_the_attack_roll_ani) {
-                            config.ison_BTAR = false;
-                            if (acc_overload_time >= overload_ani) {
-                                self.emit("fire_end");
-                                acc_overload_time -= overload_ani;
-                            }
-                        }
-                    };
-                    self.on("update", _update);
-                    self.once("fire_end", function () {
-                        config.is_firing = false;
-                        self.off("update", _update);
-                        self.once("fire_start", _fire_start);
-                    });
-                    // 浏览器端要加动画
-                    if (const_4._isBorwser) {
-                        self.emit("fire_ani");
-                    }
-                });
-                // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
-                // 射击钱摇枪管不可转向。
-                self.on("fire_ani", function _fire_ani() {
-                    self.emit("cancel_fire_ani");
-                    var acc_fire_time = 0;
-                    self.cacheAsBitmap = false;
-                    var overload_ani = 1000 / config.overload_speed;
-                    var from_gun_x = self.gun.x;
-                    var to_gun_x = from_gun_x - self.gun.width / 2;
-                    var dif_gun_x = to_gun_x - from_gun_x;
-                    var _update = function (delay) {
-                        acc_fire_time += delay;
-                        var _progress = acc_fire_time / overload_ani;
-                        var ani_progress = Math.min(Math.max(_progress, 0), 1);
-                        // 动画分两段
-                        if (ani_progress <= before_the_attack_roll_ani) {
-                            ani_progress /= before_the_attack_roll_ani;
-                            self.gun.x = from_gun_x + dif_gun_x * Easing.Elastic.Out(ani_progress);
-                        }
-                        else {
-                            ani_progress = (ani_progress - before_the_attack_roll_ani) / (1 - before_the_attack_roll_ani);
-                            self.gun.x = to_gun_x - dif_gun_x * Easing.Sinusoidal.Out(ani_progress);
-                        }
-                        if (_progress >= 1) {
-                            self.emit("cancel_fire_ani");
-                        }
-                    };
-                    self.on("update", _update);
-                    self.once("cancel_fire_ani", function () {
-                        self.gun.x = from_gun_x;
-                        self.cacheAsBitmap = true;
-                        self.once("fire_ani", _fire_ani);
-                        self.off("update", _update);
-                    });
-                });
-            }());
-            if (const_4._isNode) {
+            if (const_5._isNode) {
                 self.once("die", function () {
                     self.emit("destroy");
                 });
@@ -2705,7 +2657,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             }
             else {
                 self.once("die", function () {
-                    var ani_time = const_4.B_ANI_TIME;
+                    var ani_time = const_5.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
                     var _to = {
@@ -2735,6 +2687,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
             _super.prototype.update.call(this, delay);
             this.rotation = this.p2_body["rotation"];
             this.p2_body.force = [this.config.x_speed, this.config.y_speed];
+            this.guns.forEach(function (gun) { return gun.update(delay); });
         };
         // 操控飞船
         Ship.prototype.operateShip = function (new_config) {
@@ -2745,7 +2698,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 x_speed: config.x_speed,
                 rotation: config.rotation,
             };
-            const_4.mix_options(limit_config, new_config);
+            const_5.mix_options(limit_config, new_config);
             if (limit_config.x_speed * limit_config.x_speed +
                 limit_config.y_speed * limit_config.y_speed >
                 config.force * config.force + 1 // JS小数问题，确保全速前进不会出现问题
@@ -2757,7 +2710,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
         };
         Ship.prototype.setConfig = function (new_config) {
             var config = this.config;
-            const_4.mix_options(config, new_config);
+            const_5.mix_options(config, new_config);
             this.p2_body.position[0] = config.x;
             this.p2_body.position[1] = config.y;
             this.x = config.x;
@@ -2767,48 +2720,265 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/eng
                 this.rotation = config.rotation;
             }
         };
+        // fire() {
+        //     var config = this.config;
+        //     if (config.is_firing) {
+        //         return
+        //     }
+        //     this.emit("fire_start");
+        //     var bullet_size = pt2px(5);
+        //     var bullet_force = new Victor(config.bullet_force, 0);
+        //     var bullet_start = new Victor(config.size + bullet_size/2, 0);
+        //     bullet_force.rotate(config.rotation);
+        //     bullet_start.rotate(config.rotation);
+        //     var bullet = new Bullet({
+        //         team_tag: config.team_tag,
+        //         x: config.x + bullet_start.x,
+        //         y: config.y + bullet_start.y,
+        //         x_force: bullet_force.x,
+        //         y_force: bullet_force.y,
+        //         size: bullet_size,
+        //         damage: config.bullet_damage,
+        //         penetrate: config.bullet_penetrate,
+        //     });
+        //     bullet.p2_body.velocity = this.p2_body.velocity.slice();
+        //     // 一旦发射，飞船受到后座力
+        //     bullet.once("add-to-world", () => {
+        //         var mass_rate = bullet.p2_body.mass/this.p2_body.mass;
+        //         // 飞船自身提供给子弹大量的初始推动力
+        //         var init_x_force = bullet_force.x*20;
+        //         var init_y_force = bullet_force.y*20;
+        //         bullet.p2_body.force = [init_x_force,init_y_force];
+        //         this.p2_body.force[0] -= init_x_force*mass_rate;
+        //         this.p2_body.force[1] -= init_y_force*mass_rate;
+        //     });
+        //     return bullet;
+        //     // config.firing
+        // }
         Ship.prototype.fire = function () {
-            var _this = this;
+            var res_bullets = this.guns.map(function (gun) { return gun.fire(); });
+            return res_bullets.filter(function (bullet) { return bullet; });
+        };
+        Ship.TYPES = shipShape;
+        return Ship;
+    }(Collision_4.P2I));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = Ship;
+});
+define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/class/Drawer/GunDrawer", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const", "./gunShape.json"], function (require, exports, Collision_5, GunDrawer_1, Victor_1, Bullet_1, Tween_4, const_6, gunShape) {
+    "use strict";
+    var Easing = Tween_4.default.Easing;
+    var Gun = (function (_super) {
+        __extends(Gun, _super);
+        function Gun(new_config, owner) {
+            if (new_config === void 0) { new_config = {}; }
+            _super.call(this);
+            this.owner = null;
+            this.gun = new PIXI.Graphics();
+            this.config = {
+                size: const_6.pt2px(5),
+                rotation: 0,
+                //战斗相关的状态
+                is_firing: false,
+                ison_BTAR: false,
+                // 战斗相关的属性
+                bullet_force: 1,
+                bullet_damage: 1,
+                bullet_penetrate: 1,
+                overload_speed: 1,
+                // 枪基本形状
+                type: "NONE"
+            };
+            var self = this;
+            self.owner = owner;
+            var config = self.config;
+            const_6.mix_options(config, new_config);
+            var typeInfo = gunShape[config.type];
+            if (!typeInfo) {
+                throw new TypeError("UNKONW Gun Type: " + config.type);
+            }
+            if (new_config["args"]) {
+                typeInfo = const_6.assign(const_6.assign({}, typeInfo), { args: new_config["args"] });
+            }
+            // 绘制枪体
+            GunDrawer_1.default(self, config, typeInfo);
+            if (owner) {
+                owner.guns.push(self);
+                owner.addChild(self);
+            }
+            // if (_isBorwser) {
+            // 	self.gun.cacheAsBitmap = true;
+            // }
+            // 攻速限制
+            (function () {
+                var before_the_attack_roll_ani = 0.5; // 攻击前腰在整个动画时间的占比
+                var acc_overload_time = 0;
+                self.once("fire_start", function _fire_start() {
+                    config.is_firing = true;
+                    config.ison_BTAR = true;
+                    // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
+                    // 射击钱摇枪管不可转向。 = true;
+                    var overload_ani = 1000 / config.overload_speed;
+                    var _update = function (delay) {
+                        acc_overload_time += delay;
+                        if (acc_overload_time >= overload_ani * before_the_attack_roll_ani) {
+                            config.ison_BTAR = false;
+                            if (acc_overload_time >= overload_ani) {
+                                self.emit("fire_end");
+                                acc_overload_time -= overload_ani;
+                            }
+                        }
+                    };
+                    self.on("update", _update);
+                    self.once("fire_end", function () {
+                        config.is_firing = false;
+                        self.off("update", _update);
+                        self.once("fire_start", _fire_start);
+                    });
+                    // 浏览器端要加动画
+                    if (const_6._isBorwser) {
+                        self.emit("fire_ani");
+                    }
+                });
+                // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
+                // 射击钱摇枪管不可转向。
+                self.on("fire_ani", function _fire_ani() {
+                    self.emit("cancel_fire_ani");
+                    var acc_fire_time = 0;
+                    var overload_ani = 1000 / config.overload_speed;
+                    var from_gun_x = self.x;
+                    var from_gun_y = self.y;
+                    var dif_gun_x = -self.width / 2;
+                    var dif_gun_y = 0;
+                    if (config.rotation) {
+                        var dir_vic = new Victor_1.default(dif_gun_x, dif_gun_y);
+                        dir_vic.rotate(config.rotation);
+                        dif_gun_x = dir_vic.x;
+                        dif_gun_y = dir_vic.y;
+                    }
+                    var to_gun_x = from_gun_x + dif_gun_x;
+                    var to_gun_y = from_gun_y + dif_gun_y;
+                    var _update = function (delay) {
+                        acc_fire_time += delay;
+                        var _progress = acc_fire_time / overload_ani;
+                        var ani_progress = Math.min(Math.max(_progress, 0), 1);
+                        // 动画分两段
+                        if (ani_progress <= before_the_attack_roll_ani) {
+                            ani_progress /= before_the_attack_roll_ani;
+                            ani_progress = Easing.Elastic.Out(ani_progress);
+                            self.x = from_gun_x + dif_gun_x * ani_progress;
+                            self.y = from_gun_y + dif_gun_y * ani_progress;
+                        }
+                        else {
+                            ani_progress = (ani_progress - before_the_attack_roll_ani) / (1 - before_the_attack_roll_ani);
+                            ani_progress = Easing.Sinusoidal.Out(ani_progress);
+                            self.x = to_gun_x - dif_gun_x * ani_progress;
+                            self.y = to_gun_y - dif_gun_y * ani_progress;
+                        }
+                        if (_progress >= 1) {
+                            self.emit("cancel_fire_ani");
+                        }
+                    };
+                    self.on("update", _update);
+                    self.once("cancel_fire_ani", function () {
+                        self.x = from_gun_x;
+                        self.once("fire_ani", _fire_ani);
+                        self.off("update", _update);
+                    });
+                });
+            }());
+        }
+        Gun.prototype.update = function (delay) {
+            this.emit("update", delay);
+        };
+        Gun.prototype.fire = function () {
+            var ship = this.owner;
+            var ship_config = ship.config;
             var config = this.config;
             if (config.is_firing) {
                 return;
             }
             this.emit("fire_start");
-            var bullet_size = const_4.pt2px(5);
-            var bullet_force = new Victor_1.default(config.bullet_force, 0);
-            var bullet_start = new Victor_1.default(config.size + bullet_size / 2, 0);
-            bullet_force.rotate(config.rotation);
-            bullet_start.rotate(config.rotation);
+            var bullet_size = config.size;
+            var bullet_force = new Victor_1.default(ship_config.bullet_force, 0);
+            var bullet_start = new Victor_1.default(ship_config.size + bullet_size / 2, 0);
+            var bullet_dir = ship_config.rotation + config.rotation;
+            bullet_force.rotate(bullet_dir);
+            bullet_start.rotate(bullet_dir);
             var bullet = new Bullet_1.default({
-                team_tag: config.team_tag,
-                x: config.x + bullet_start.x,
-                y: config.y + bullet_start.y,
+                team_tag: ship_config.team_tag,
+                x: ship_config.x + bullet_start.x,
+                y: ship_config.y + bullet_start.y,
                 x_force: bullet_force.x,
                 y_force: bullet_force.y,
                 size: bullet_size,
                 damage: config.bullet_damage,
                 penetrate: config.bullet_penetrate,
             });
-            bullet.p2_body.velocity = this.p2_body.velocity.slice();
+            bullet.p2_body.velocity = ship.p2_body.velocity.slice();
             // 一旦发射，飞船受到后座力
             bullet.once("add-to-world", function () {
-                var mass_rate = bullet.p2_body.mass / _this.p2_body.mass;
+                var mass_rate = bullet.p2_body.mass / ship.p2_body.mass;
                 // 飞船自身提供给子弹大量的初始推动力
                 var init_x_force = bullet_force.x * 20;
                 var init_y_force = bullet_force.y * 20;
                 bullet.p2_body.force = [init_x_force, init_y_force];
-                _this.p2_body.force[0] -= init_x_force * mass_rate;
-                _this.p2_body.force[1] -= init_y_force * mass_rate;
+                ship.p2_body.force[0] -= init_x_force * mass_rate;
+                ship.p2_body.force[1] -= init_y_force * mass_rate;
             });
             return bullet;
             // config.firing
         };
-        return Ship;
-    }(Collision_4.P2I));
+        Gun.TYPES = gunShape;
+        return Gun;
+    }(Collision_5.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Ship;
+    exports.default = Gun;
 });
-define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], function (require, exports, Tween_4, const_5) {
+define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/engine/Victor"], function (require, exports, const_7, Victor_2) {
+    "use strict";
+    function GunDrawer(self, config, typeInfo) {
+        var ship = self.owner;
+        var body = self.gun;
+        var typeInfoArgs = typeInfo.args || {};
+        if (typeInfoArgs.lineStyle instanceof Array) {
+            body.lineStyle.apply(body, typeInfoArgs.lineStyle);
+        }
+        else {
+            body.lineStyle(const_7.pt2px(1.5), 0x000000, 1);
+        }
+        if (isFinite(typeInfoArgs.fill)) {
+            body.beginFill(+typeInfoArgs.fill);
+        }
+        else {
+            body.beginFill(0x666666);
+        }
+        if (typeInfo.type === "rect") {
+            // 绘制外观形状
+            var gun_height = typeInfoArgs.height;
+            var gun_width = typeInfoArgs.width;
+            body.drawRect(0, 0, gun_width, gun_height);
+            var dir = new Victor_2.default(ship.config.size, 0);
+            var offset = new Victor_2.default(isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0, isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
+            // self.x = ship.config.size * 2 + (isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0);
+            // self.y = ship.config.size * 1 - gun_height / 2 + (isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
+            // self.pivot.set(-gun_width / 2, gun_height / 2);
+            // self.rotation = config.rotation;
+            self.pivot.set(0, gun_height / 2);
+            self.rotation = config.rotation;
+            dir.rotate(config.rotation);
+            offset.rotate(config.rotation);
+            self.x = dir.x + offset.x + ship.config.size;
+            self.y = dir.y + offset.y + ship.config.size;
+        }
+        // 收尾外观绘制
+        body.endFill();
+        self.addChild(body);
+    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = GunDrawer;
+});
+define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], function (require, exports, Tween_5, const_8) {
     "use strict";
     var HP = (function (_super) {
         __extends(HP, _super);
@@ -2817,7 +2987,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
             this.show_ani = null;
             this.owner = owner;
             this.ani = ani;
-            this.source_width = owner.config.size * 2 || owner.width || const_5.pt2px(40);
+            this.source_width = owner.config.size * 2 || owner.width || const_8.pt2px(40);
             var owner_config = owner.config;
             this.setHP(owner_config.cur_hp / owner_config.max_hp);
         }
@@ -2826,7 +2996,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
             this.clear();
             percentage = Math.min(Math.max(parseFloat(percentage), 0), 1);
             var width = this.source_width;
-            var height = Math.min(width / 8, const_5.pt2px(4));
+            var height = Math.min(width / 8, const_8.pt2px(4));
             var borderWidth = height / 5;
             this.lineStyle(borderWidth, 0x000000, 1);
             this.beginFill(0xEEEEEE);
@@ -2840,8 +3010,8 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
                 this.ani.Tween(this)
                     .to({
                     alpha: 1
-                }, const_5.B_ANI_TIME)
-                    .easing(Tween_4.default.Easing.Quartic.Out)
+                }, const_8.B_ANI_TIME)
+                    .easing(Tween_5.default.Easing.Quartic.Out)
                     .start();
             }
             clearTimeout(this.show_ani);
@@ -2849,8 +3019,8 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
                 _this.ani.Tween(_this)
                     .to({
                     alpha: 0
-                }, const_5.L_ANI_TIME)
-                    .easing(Tween_4.default.Easing.Quartic.In)
+                }, const_8.L_ANI_TIME)
+                    .easing(Tween_5.default.Easing.Quartic.In)
                     .start();
             }, 5000);
         };
@@ -5648,7 +5818,7 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
         },
     };
 });
-define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/class/Wall", "app/class/Bullet", "app/class/Flyer", "app/class/Ship", "app/common"], function (require, exports, Collision_5, Wall_1, Bullet_2, Flyer_1, Ship_1, common_1) {
+define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/class/Wall", "app/class/Bullet", "app/class/Flyer", "app/class/Ship", "app/common"], function (require, exports, Collision_6, Wall_1, Bullet_2, Flyer_1, Ship_1, common_1) {
     "use strict";
     var world = new p2.World({
         gravity: [0, 0]
@@ -5833,7 +6003,7 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
     };
     // 材质信息
     // 通用物体与通用物体
-    world.addContactMaterial(new p2.ContactMaterial(Collision_5.P2I.material, Collision_5.P2I.material, {
+    world.addContactMaterial(new p2.ContactMaterial(Collision_6.P2I.material, Collision_6.P2I.material, {
         restitution: 0.0,
         stiffness: 500,
         relaxation: 0.1
@@ -5851,7 +6021,7 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
         relaxation: 0.5
     }));
     // 子弹与通用物体，体现软弹性
-    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Collision_5.P2I.material, {
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Collision_6.P2I.material, {
         restitution: 0.0,
         stiffness: 300,
         relaxation: 0.2
@@ -6018,7 +6188,7 @@ define("class/BackgroundGaussianBlur", ["require", "exports"], function (require
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = BackgroundGaussianBlur;
 });
-define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_2, Tween_5, SVGGraphics_1, BackgroundGaussianBlur_1) {
+define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_2, Tween_6, SVGGraphics_1, BackgroundGaussianBlur_1) {
     "use strict";
     var Dialog = (function (_super) {
         __extends(Dialog, _super);
@@ -6152,7 +6322,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: this.x + common_2.VIEW.CENTER.x,
                 y: this.y + common_2.VIEW.CENTER.y
             })
-                .easing(Tween_5.default.Easing.Quintic.Out)
+                .easing(Tween_6.default.Easing.Quintic.Out)
                 .start();
             this.ani.Tween(this.scale)
                 .set({
@@ -6163,7 +6333,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: 1,
                 y: 1
             }, common_2.B_ANI_TIME)
-                .easing(Tween_5.default.Easing.Quintic.Out)
+                .easing(Tween_6.default.Easing.Quintic.Out)
                 .start()
                 .onComplete(function () {
                 _this._is_anining = false;
@@ -6204,7 +6374,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: 0,
                 y: 0
             }, common_2.B_ANI_TIME)
-                .easing(Tween_5.default.Easing.Quintic.In)
+                .easing(Tween_6.default.Easing.Quintic.In)
                 .start();
             var cur_x = this.x;
             var cur_y = this.y;
@@ -6213,7 +6383,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: this.x + common_2.VIEW.CENTER.x,
                 y: this.y + common_2.VIEW.CENTER.y
             }, common_2.B_ANI_TIME)
-                .easing(Tween_5.default.Easing.Quintic.In)
+                .easing(Tween_6.default.Easing.Quintic.In)
                 .start()
                 .onComplete(function () {
                 _this.position.set(cur_x, cur_y);
@@ -6506,11 +6676,11 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = FlowLayout;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_6, When_1, Flyer_2, Wall_2, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_2, Pomelo_1, common_4, const_6) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_7, When_1, Flyer_2, Wall_2, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_3, Pomelo_1, common_4, const_9) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_6.default();
-    var jump_tween = new Tween_6.default();
+    var ani_tween = new Tween_7.default();
+    var jump_tween = new Tween_7.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -6521,7 +6691,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: const_6.pt2px(25) + "px 微软雅黑",
+        font: const_9.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
@@ -6675,7 +6845,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         };
         var effect_speed_keys = []; // 记录按下的按钮
         function generate_speed(force) {
-            var effect_speed = new Victor_2.default(0, 0);
+            var effect_speed = new Victor_3.default(0, 0);
             if (effect_speed_keys.length) {
                 for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
                     var speed_info = speed_ux[keyCode];
@@ -6721,7 +6891,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 });
             }
         });
-        if (const_6._isMobile) {
+        if (const_9._isMobile) {
             var mobile_operator_1 = new PIXI.Graphics();
             (function () {
                 var _size;
@@ -6751,7 +6921,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 exports.current_stage_wrap.addChild(handle);
                 // 交互
                 mobile_operator_1.interactive = true;
-                var handle_dir = new Victor_2.default(0, 0);
+                var handle_dir = new Victor_3.default(0, 0);
                 var current_touch_id = null;
                 common_4.on(mobile_operator_1, "touchstart|touchmove", function (e) {
                     var touch_list = e.data.originalEvent.touches;
@@ -6761,7 +6931,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                         var touch_point = { x: touch.clientX, y: touch.clientY };
                     }
                     else {
-                        var _touch_com = new Victor_2.default(0, 0);
+                        var _touch_com = new Victor_3.default(0, 0);
                         var _control_able_size = _size + _border * 2; // 可控制的空间范围
                         for (var i = 0, touch; touch = touch_list[i]; i += 1) {
                             _touch_com.x = touch.clientX - mobile_operator_1.x;
@@ -6818,30 +6988,30 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             // 将要去的目的点，在接近的时候改变飞船速度
             var move_target_point;
             var target_anchor = new PIXI.Graphics();
-            target_anchor.lineStyle(const_6.pt2px(2), 0xff2244, 0.8);
-            target_anchor.drawCircle(0, 0, const_6.pt2px(10));
+            target_anchor.lineStyle(const_9.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_9.pt2px(10));
             target_anchor.cacheAsBitmap = true;
             target_anchor.scale.set(0);
             exports.current_stage.addChild(target_anchor);
             common_4.on(exports.current_stage_wrap, "rightclick", function (e) {
                 if (view_ship) {
-                    move_target_point = new Victor_2.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                    move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
                     target_anchor.position.set(move_target_point.x, move_target_point.y);
                     ani_tween.Tween(target_anchor.scale)
                         .set({ x: 1, y: 1 })
-                        .to({ x: 0, y: 0 }, const_6.B_ANI_TIME)
+                        .to({ x: 0, y: 0 }, const_9.B_ANI_TIME)
                         .start();
                 }
             });
-            var origin_vic = new Victor_2.default(0, 0);
+            var origin_vic = new Victor_3.default(0, 0);
             ani_ticker.add(function () {
                 if (move_target_point) {
-                    var curren_point = Victor_2.default.fromArray(view_ship.p2_body.interpolatedPosition);
+                    var curren_point = Victor_3.default.fromArray(view_ship.p2_body.interpolatedPosition);
                     var current_to_target_dis = curren_point.distance(move_target_point);
                     // 动力、质量、以及空间摩擦力的比例
                     var force_mass_rate = view_ship.config.force / view_ship.p2_body.mass / view_ship.p2_body.damping;
                     var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
-                    var force_vic = new Victor_2.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
+                    var force_vic = new Victor_3.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
                     force_vic.setLength(view_ship.config.force * force_rate);
                     if (force_vic.distanceSq(origin_vic) <= 100) {
                         console.log("基本到达，停止自动移动");
@@ -6856,7 +7026,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 }
             });
         }
-        if (const_6._isMobile) {
+        if (const_9._isMobile) {
             // 旋转角度
             common_4.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
                 if (view_ship) {
@@ -6866,7 +7036,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                         return;
                     }
                     var touch_point = { x: touch.clientX, y: touch.clientY };
-                    var direction = new Victor_2.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
+                    var direction = new Victor_3.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
                     var angle_value = direction.angle();
                     if (angle_value < 0) {
                         angle_value += PIXI.PI_2;
@@ -6896,7 +7066,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             common_4.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
                 if (view_ship) {
                     var touch_point = e.data.global;
-                    var direction = new Victor_2.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
+                    var direction = new Victor_3.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
                     var angle_value = direction.angle();
                     if (angle_value < 0) {
                         angle_value += PIXI.PI_2;
@@ -6973,24 +7143,24 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var title = new PIXI.Container();
             var restart_button = new Button_1.default({
                 value: "重新开始",
-                fontSize: const_6.pt2px(14),
-                paddingTop: const_6.pt2px(4),
-                paddingBottom: const_6.pt2px(4),
-                paddingLeft: const_6.pt2px(4),
-                paddingRight: const_6.pt2px(4),
+                fontSize: const_9.pt2px(14),
+                paddingTop: const_9.pt2px(4),
+                paddingBottom: const_9.pt2px(4),
+                paddingLeft: const_9.pt2px(4),
+                paddingRight: const_9.pt2px(4),
                 color: 0xffffff,
                 fontFamily: "微软雅黑"
             });
             var content = new FlowLayout_1.default([
                 new TextBuilder_1.default("被击杀！", {
-                    fontSize: const_6.pt2px(16),
+                    fontSize: const_9.pt2px(16),
                     fontFamily: "微软雅黑"
                 }),
                 restart_button
             ], {
                 float: "center"
             });
-            content.max_width = const_6.pt2px(60);
+            content.max_width = const_9.pt2px(60);
             content.reDrawFlow();
             common_4.on(restart_button, "click|tap", function (e) {
                 exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
@@ -7136,11 +7306,11 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_7, When_2, Flyer_3, Ship_3, Wall_3, Victor_3, world_1, common_5, const_7) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_8, When_2, Flyer_3, Ship_3, Wall_3, Victor_4, world_1, common_5, const_10) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_7.default();
-    var jump_tween = new Tween_7.default();
+    var ani_tween = new Tween_8.default();
+    var jump_tween = new Tween_8.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -7150,7 +7320,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: const_7.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_10.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     function renderInit(loader, resource) {
@@ -7289,7 +7459,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         };
         var effect_speed_keys = []; // 记录按下的按钮
         function generate_speed(force) {
-            var effect_speed = new Victor_3.default(0, 0);
+            var effect_speed = new Victor_4.default(0, 0);
             if (effect_speed_keys.length) {
                 for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
                     var speed_info = speed_ux[keyCode];
@@ -7323,7 +7493,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 });
             }
         });
-        if (const_7._isMobile) {
+        if (const_10._isMobile) {
             var mobile_operator_2 = new PIXI.Graphics();
             (function () {
                 var _size;
@@ -7353,7 +7523,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 exports.current_stage_wrap.addChild(handle);
                 // 交互
                 mobile_operator_2.interactive = true;
-                var handle_dir = new Victor_3.default(0, 0);
+                var handle_dir = new Victor_4.default(0, 0);
                 var current_touch_id = null;
                 common_5.on(mobile_operator_2, "touchstart|touchmove", function (e) {
                     var touch_list = e.data.originalEvent.touches;
@@ -7363,7 +7533,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                         var touch_point = { x: touch.clientX, y: touch.clientY };
                     }
                     else {
-                        var _touch_com = new Victor_3.default(0, 0);
+                        var _touch_com = new Victor_4.default(0, 0);
                         var _control_able_size = _size + _border * 2; // 可控制的空间范围
                         for (var i = 0, touch; touch = touch_list[i]; i += 1) {
                             _touch_com.x = touch.clientX - mobile_operator_2.x;
@@ -7416,29 +7586,29 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             // 将要去的目的点，在接近的时候改变飞船速度
             var move_target_point;
             var target_anchor = new PIXI.Graphics();
-            target_anchor.lineStyle(const_7.pt2px(2), 0xff2244, 0.8);
-            target_anchor.drawCircle(0, 0, const_7.pt2px(10));
+            target_anchor.lineStyle(const_10.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_10.pt2px(10));
             target_anchor.cacheAsBitmap = true;
             target_anchor.scale.set(0);
             exports.current_stage.addChild(target_anchor);
             common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
                 if (my_ship) {
-                    move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                    move_target_point = new Victor_4.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
                     target_anchor.position.set(move_target_point.x, move_target_point.y);
                     ani_tween.Tween(target_anchor.scale)
                         .set({ x: 1, y: 1 })
-                        .to({ x: 0, y: 0 }, const_7.B_ANI_TIME)
+                        .to({ x: 0, y: 0 }, const_10.B_ANI_TIME)
                         .start();
                 }
             });
             ani_ticker.add(function () {
                 if (move_target_point) {
-                    var curren_point = Victor_3.default.fromArray(my_ship.p2_body.interpolatedPosition);
+                    var curren_point = Victor_4.default.fromArray(my_ship.p2_body.interpolatedPosition);
                     var current_to_target_dis = curren_point.distance(move_target_point);
                     // 动力、质量、以及空间摩擦力的比例
                     var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
                     var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
-                    var force_vic = new Victor_3.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+                    var force_vic = new Victor_4.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
                     force_vic.setLength(my_ship.config.force * force_rate);
                     if (force_vic.lengthSq() <= 100) {
                         console.log("基本到达，停止自动移动");
@@ -7448,7 +7618,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 }
             });
         }
-        if (const_7._isMobile) {
+        if (const_10._isMobile) {
             // 旋转角度
             common_5.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
                 var touch_list = e.data.originalEvent.touches;
@@ -7457,7 +7627,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     return;
                 }
                 var touch_point = { x: touch.clientX, y: touch.clientY };
-                var direction = new Victor_3.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
+                var direction = new Victor_4.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
                 my_ship.operateShip({ rotation: direction.angle() });
             });
             // 发射
@@ -7467,10 +7637,12 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 if (!touch) {
                     return;
                 }
-                var bullet = my_ship.fire();
-                if (bullet) {
-                    bullet_stage.addChild(bullet);
-                    world_1.engine.add(bullet);
+                var bullets = my_ship.fire();
+                if (bullets.length) {
+                    bullets.forEach(function (bullet) {
+                        bullet_stage.addChild(bullet);
+                        world_1.engine.add(bullet);
+                    });
                 }
             });
         }
@@ -7478,15 +7650,17 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             // 旋转角度
             common_5.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
                 var touch_point = e.data.global;
-                var direction = new Victor_3.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
+                var direction = new Victor_4.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
                 my_ship.operateShip({ rotation: direction.angle() });
             });
             // 发射
             common_5.on(exports.current_stage_wrap, "mousedown", function (e) {
-                var bullet = my_ship.fire();
-                if (bullet) {
-                    bullet_stage.addChild(bullet);
-                    world_1.engine.add(bullet);
+                var bullets = my_ship.fire();
+                if (bullets.length) {
+                    bullets.forEach(function (bullet) {
+                        bullet_stage.addChild(bullet);
+                        world_1.engine.add(bullet);
+                    });
                 }
             });
         }
@@ -7535,11 +7709,11 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     }
     exports.initStage = initStage;
 });
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_8, When_3, Dialog_2, common_6) {
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_9, When_3, Dialog_2, common_6) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_8.default();
-    var jump_tween = new Tween_8.default();
+    var ani_tween = new Tween_9.default();
+    var jump_tween = new Tween_9.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Container();
@@ -7904,7 +8078,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_9, SVGGraphics_2, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_10, SVGGraphics_2, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -7929,7 +8103,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_9.default();
+            this._tween = new Tween_10.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -8205,7 +8379,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_9.default.Easing.Quartic.Out)
+                        .easing(Tween_10.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -8216,7 +8390,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_9.default.Easing.Quartic.Out)
+                    .easing(Tween_10.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -8231,7 +8405,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_9.default.Easing.Quartic.Out)
+                        .easing(Tween_10.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -8241,7 +8415,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_9.default.Easing.Quartic.Out)
+                        .easing(Tween_10.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -8267,7 +8441,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_9.default.Easing.Quartic.Out)
+                .easing(Tween_10.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -8443,7 +8617,7 @@ define("class/pixelCollision", ["require", "exports"], function (require, export
     }
     exports.isCollisionWithRect = isCollisionWithRect;
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_10) {
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_11) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -8458,7 +8632,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_10.default();
+            this.ANI = new Tween_11.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -8492,7 +8666,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_10.default.Easing.Quartic.Out)
+                .easing(Tween_11.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -8603,7 +8777,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_10.default.Easing.Quartic.Out)
+                        .easing(Tween_11.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

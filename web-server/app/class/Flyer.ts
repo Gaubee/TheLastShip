@@ -1,4 +1,5 @@
 import {P2I} from "../engine/Collision";
+import ShapeDrawer from "./Drawer/ShapeDrawer";
 
 import {
     L_ANI_TIME,
@@ -11,10 +12,10 @@ import {
     _isNode,
 } from "../const";
 import TWEEN from "../../class/Tween";
-import * as flyerShip from "./flyerShip.json";
-// console.log(flyerShip);
-// console.log("__dirname",require("./flyerShip.json"));
-// const flyerShip =  require("./flyerShip.json");
+import * as flyerShape from "./flyerShape.json";
+// console.log(flyerShape);
+// console.log("__dirname",require("./flyerShape.json"));
+// const flyerShape =  require("./flyerShape.json");
 
 const Easing = TWEEN.Easing;
 
@@ -33,7 +34,7 @@ export interface FlyerConfig {
 }
 
 export default class Flyer extends P2I {
-    static TYPES = flyerShip
+    static TYPES = flyerShape
     // static clooisionGroup = 1<<1;
     body: PIXI.Graphics = new PIXI.Graphics()
     config: FlyerConfig = {
@@ -55,74 +56,18 @@ export default class Flyer extends P2I {
         const self = this;
         const config = self.config;
         mix_options(config, new_config);
-        const typeInfo = flyerShip[config.type];
+        const typeInfo = flyerShape[config.type];
         if(!typeInfo) {
             throw new TypeError("UNKONW Ship Type: " + config.type);
-        }
-        // 对配置文件中的数量进行基本的单位换算
-        for(let k in typeInfo.config){
-            let v = typeInfo.config[k];
-            if(typeof v === "string" && v.indexOf("pt2px!")===0){
-                typeInfo.config[k] = pt2px(v.substr(6));
-            }
-        }
-        for(let k in typeInfo.args){
-            let v = typeInfo.args[k];
-            if(typeof v === "string" && v.indexOf("pt2px!")===0){
-                typeInfo.args[k] = pt2px(typeInfo.args[k]);
-            }
         }
         // 覆盖配置
         mix_options(config, typeInfo.config);
 
-        const body = self.body;
-        body.lineStyle(pt2px(1.5), 0x000000, 1);
-        body.beginFill(config.body_color);
-        if(typeInfo.type === "Circle") {
-            // 绘制外观形状
-            body.drawCircle(config.size / 2, config.size / 2, config.size);
-            self.pivot.set(config.size / 2, config.size / 2);
-            // 绘制物理形状
-            self.body_shape = new p2.Circle({
-                radius: config.size,
-            });
-        }else if(typeInfo.type === "Box") {
-            // 绘制外观形状
-            body.drawRect(0, 0, config.size * 2, config.size * 2);
-            self.pivot.set(config.size , config.size );
-            // 绘制物理形状
-            self.body_shape = new p2.Box({
-                width: config.size*2,
-                height: config.size*2,
-            });
-        }else if(typeInfo.type === "Convex"){
-            var vertices = [];
-            for(let i=0, N=typeInfo.args.vertices_length; i<N; i++){
-                var a = 2*Math.PI / N * i;
-                var vertex = [config.size*Math.cos(a), config.size*Math.sin(a)]; // Note: vertices are added counter-clockwise
-                vertices.push(vertex);
-            }
-            // 绘制外观形状
-            let first_item = vertices[0];
-            body.moveTo(first_item[0],first_item[1]);
-            for(let i = 1,item ; item = vertices[i]; i+=1){
-                body.lineTo(item[0],item[1]);
-            }
-            body.lineTo(first_item[0],first_item[1]);
-            // 绘制物理形状
-            self.body_shape = new p2.Convex({ vertices: vertices });
-        }
-        // 收尾外观绘制
-        body.endFill();
-        self.addChild(body);
+        ShapeDrawer(self,config,typeInfo);
+
         if(_isBorwser) {
             self.cacheAsBitmap = true;
         }
-
-        // 收尾物理设定
-        self.body_shape.material = Flyer.material;
-        self.p2_body.addShape(self.body_shape);
-        self.p2_body.setDensity(config.density);
 
         self.p2_body.angularVelocity = Math.PI*Math.random();
         self.p2_body.force = [config.x_speed, config.y_speed];

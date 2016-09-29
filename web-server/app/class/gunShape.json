@@ -1,0 +1,17 @@
+{
+	"long": {
+		"type": "rect",
+		"args": {
+			"width": "pt2px!25",
+			"height": "pt2px!10",
+			"lineStyle": ["pt2px!1.5", "0x000000", 1],
+			"x": "pt2px!-2"
+		},
+		"config": {
+			"bullet_force": 30000,
+			"bullet_damage": 5,
+			"bullet_penetrate": 0.5,
+			"overload_speed": 1
+		}
+	}
+}

@@ -22,3 +22,16 @@ export function mix_options(tmp_options, new_options) {
         }
     }
 }
+export function assign(to_obj, from_obj) {
+    for (var key in from_obj) {
+        if (from_obj.hasOwnProperty(key)) {
+        	var value = from_obj[key];
+            if (from_obj[key] instanceof Object) {
+                assign(to_obj[key]||(to_obj[key] = new value.constructor()), value)
+            } else {
+                to_obj[key] = value
+            }
+        }
+    }
+    return to_obj
+}

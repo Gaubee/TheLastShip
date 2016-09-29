@@ -395,10 +395,12 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             if(!touch) {
                 return
             }
-            var bullet = my_ship.fire();
-            if(bullet) {
-                bullet_stage.addChild(bullet);
-                engine.add(bullet);
+            var bullets = my_ship.fire();
+            if(bullets.length) {
+                bullets.forEach(bullet=>{
+                    bullet_stage.addChild(bullet);
+                    engine.add(bullet);
+                });
             }
         });
     }else{
@@ -410,10 +412,12 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         });
         // 发射
         on(current_stage_wrap, "mousedown", function (e) {
-            var bullet = my_ship.fire();
-            if(bullet) {
-                bullet_stage.addChild(bullet);
-                engine.add(bullet);
+            var bullets = my_ship.fire();
+            if(bullets.length) {
+                bullets.forEach(bullet=>{
+                    bullet_stage.addChild(bullet);
+                    engine.add(bullet);
+                });
             }
         });
     }

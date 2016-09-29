@@ -1,0 +1,262 @@
+<head>
+	<title>全城热跑</title>
+<meta charset="utf-8"/>
+<!-- 	<link rel="icon" href="/favicon.ico">
+<link rel="icon" type="image/png" href="/favicon.png" />
+<link rel="icon" type="image/webp" href="/favicon.webp" /> -->
+<meta content="width=device-width, initial-scale=0.5, maximum-scale=0.5, user-scalable=no" name="viewport" /> 
+<meta content="yes" name="apple-mobile-web-app-capable" />
+<meta content="black" name="apple-mobile-web-app-status-bar-style" />
+<meta content="telephone=yes" name="format-detection" />
+<!-- 禁止百度自动转码 -->
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+<meta name="keywords" content="全城热跑" />
+<meta name="description" content="东风日产 全民运动惠 热跑福州 赢大奖" />
+<meta name="author" content="Gaubee,gaubeebangeel@gmail.com">
+<meta name="theme-color" content="#bc0b0b">
+<!-- IOS 是否启用 WebApp 全屏模式 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<!-- Chrome 是否启用 WebApp 全屏模式 -->
+<meta name="mobile-web-app-capable" content="yes">
+<!-- UC强制全屏 -->
+<meta name="full-screen" content="yes">
+<!-- QQ强制全屏 -->
+<meta name="x5-fullscreen" content="true">
+<!-- UC应用模式 -->
+<meta name="browsermode" content="application">
+<!-- UC应用模式 -->
+<meta name="browsermode" content="application">
+<!-- <a href="http://webscan.360.cn/index/checkwebsite/url/www.youdob.com"><img border="0" src="http://img.webscan.360.cn/status/pai/hash/191b922c2cea78d2260dcfd0f829df77"/></a> -->
+<!-- QQ应用模式 -->
+<meta name="x5-page-mode" content="app">
+<!-- windows phone 点击无高光 -->
+<meta name="msapplication-tap-highlight" content="no">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<script>
+var isMobile = function(_mobileAgent) {
+	var mobileAgent = _mobileAgent || ["nokia", "iphone", "android", "motorola", "^mot-", "softbank", "foma", "docomo", "kddi", "up.browser", "up.link", "htc", "dopod", "blazer", "netfront", "helio", "hosin", "huawei", "novarra", "CoolPad", "webos", "techfaith", "palmsource", "blackberry", "alcatel", "amoi", "ktouch", "nexian", "samsung", "^sam-", "s[cg]h", "^lge", "ericsson", "philips", "sagem", "wellcom", "bunjalloo", "maui", "symbian", "smartphone", "midp", "wap", "phone", "windows ce", "iemobile", "^spice", "^bird", "^zte-", "longcos", "pantech", "gionee", "^sie-", "portalmmm", "jigs browser", "hiptop", "^benq", "haier", "^lct", "operas*mobi", "opera*mini", "mobile", "blackberry", "IEMobile", "Windows Phone", "webos", "incognito", "webmate", "bada", "nokia", "lg", "ucweb", "skyfire", "ucbrowser"];
+    var browser = navigator.userAgent.toLowerCase();
+    var isMobile = false;
+    for (var i = 0; i < mobileAgent.length; i++) {
+        if (browser.indexOf(mobileAgent[i]) != -1) {
+            isMobile = true;
+            break;
+        }
+    }
+    return isMobile;
+};
+var _isMobile = isMobile();
+</script>
+<script src="js/lib/p2.min.js"></script>
+<script src="js/lib/pixi.js-3.0.11/pixi.js"></script>
+<!-- <script src="js/lib/ace/ace.js"></script> -->
+<!--<script src="js/lib/esl.nocache.js"></script>-->
+<script src="js/lib/esl.full.js"></script>
+<script src="js/lib/es6-map-shim.js"></script>
+<script>
+define('json', ["app/const"], function (const_1) {
+	var ready = false;
+	return {
+		load: function(resourceId, parentRequire, load) {
+			var cache_content = localStorage.getItem(resourceId);
+			if (cache_content) {
+				parser(cache_content);
+			} else {
+				var xhr = new XMLHttpRequest;
+				xhr.open("GET", resourceId)
+				console.log("JSON", arguments);
+				xhr.send();
+				xhr.onload = function() {
+					localStorage.setItem(resourceId, xhr.responseText);
+					parser(xhr.responseText);
+				}
+			}
+			function parser(JSON_str) {
+				var data = JSON.parse(JSON_str, function(key, value) {
+					// 对配置文件中的数量进行基本的单位换算
+					if (typeof value === "string") {
+						if (value.indexOf("pt2px!") === 0) {
+							return const_1.pt2px(+value.substr(6));
+						}
+						if (value.indexOf("0x") === 0) {
+							return parseInt(value, 16);
+						}
+						if (value.indexOf("PI!") === 0) {
+							return Math.PI * value.substr(3);
+						}
+					}
+					return value;
+				});
+				load(data);
+			}
+		}
+	};
+});
+</script>
+<style>
+	html,body,#body{
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		box-sizing: border-box;
+	}
+	#body{
+		/*overflow-y: scroll;*/
+		/*background-color: gray;*/
+
+		-webkit-touch-callout: none;
+		-webkit-overflow-scrolling: touch;
+
+		-webkit-transform: translateZ(0);
+		transform: translateZ(0);
+
+		-webkit-user-select: none;
+		user-select: none;
+
+		-webkit-text-size-adjust: none;
+		text-size-adjust: none;
+	}
+	#frame_res{
+		width: 50%;
+		height: 100%;
+		padding-left: 50%;
+	}
+	.uploader-wrap{
+		position: fixed;
+		width: 50%;
+		height: 100%;
+		box-sizing: border-box;
+		background-color: rgba(0,55,0,0.2);
+		overflow-y: auto;
+		z-index: 2;
+	}
+	.uploader-wrap h2{
+		text-shadow: 0 0 2px #FFF;
+	}
+	.config-uploader{
+		/*background-color: rgba(255,255,255,0.2);*/
+		font-size: 14px!important;
+		/*text-shadow: 0 0 2px #FFF;*/
+		width: 100%;
+		/*position: absolute;*/
+        min-width: 200px;
+        height: 400px;
+	}
+	#mark{
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: 10000000;
+		width: 0;
+		height: 0;
+	}
+	#mark>.wrap{
+		position: fixed;
+		left: 50%;
+		width: 50%;
+		height: 100%;
+		box-sizing: border-box;
+		background-color: rgba(0,0,0,0.5);
+/*		
+		pointer-events: none;*/
+	}
+</style>
+</head>
+<script src="./dist.js"></script>
+<body>
+	<div id="mark">
+		<div id="mark_wrap" class="wrap">
+		</div>
+	</div>
+	<div id="body">
+		<div class="uploader-wrap">
+			<div data-path="app/ediorStage.json">
+				<h2>场景配置
+					<button class="reset-button">重置</button>
+					<button class="upload-button">校验并上传</button>
+				</h2>
+				<div class="config-uploader">初始化中……</div>
+			</div>
+			<div data-path="app/class/shipShape.json">
+				<h2>飞船配置
+					<button class="reset-button">重置</button>
+					<button class="upload-button">校验并上传</button>
+				</h2>
+				<div class="config-uploader">初始化中……</div>
+			</div>
+			<div data-path="app/class/gunShape.json">
+				<h2>枪支配置
+					<button class="reset-button">重置</button>
+					<button class="upload-button">校验并上传</button>
+				</h2>
+				<div class="config-uploader">初始化中……</div>
+			</div>
+			<div data-path="app/class/flyerShape.json">
+				<h2>物体配置
+					<button class="reset-button">重置</button>
+					<button class="upload-button">校验并上传</button>
+				</h2>
+				<div class="config-uploader">初始化中……</div>
+			</div>
+		</div>
+		<iframe id="frame_res" src="./editor-inner.html" frameborder="0"></iframe>
+	</div>
+	<script>
+var resetButtons = [].slice.call(document.getElementsByClassName("reset-button"));
+var uploadButtons = [].slice.call(document.getElementsByClassName("upload-button"));
+
+define("init_ace",["js/lib/ace/ace","js/lib/ace/theme/monokai","js/lib/ace/mode/json"],function (ace) {
+	var editorNodes = [].slice.call(document.getElementsByClassName("config-uploader"));
+	editorNodes.forEach(function (editorNode,i) {
+		var path = editorNode.parentElement.dataset.path;
+		var editor = ace.edit(editorNode);
+		editor.setTheme("js/lib/ace/theme/monokai");
+		var JsonMode = ace.require("js/lib/ace/mode/json").Mode;
+		editor.session.setMode(new JsonMode());
+		editor.setValue(localStorage.getItem(path));
+		uploadButtons[i].addEventListener("click",function () {
+			// 校验
+			var json_value = editor.getValue();
+			try{
+				var res = eval("("+json_value+")");
+				json_value = JSON.stringify(res,null,4);
+				localStorage.setItem(path, json_value);
+				frame_res.contentWindow.location.reload();
+				editor.setValue(json_value);
+			}catch(e){
+				console.log(e);
+				alert("解析出错！自己检查再问Gaubee");
+			}
+		});
+		resetButtons[i].addEventListener("click",function () {
+			localStorage.removeItem(path);
+			frame_res.contentWindow.location.reload();
+			editor.setValue("已请求重置，请稍等……");
+			
+			frame_res.addEventListener('load',function _reset(){
+				require(["json!"+path],function (res) {
+					editor.setValue(JSON.stringify(res,null,4));
+				});
+				frame_res.removeEventListener("load",_reset);
+			});
+		});
+	});
+});
+frame_res.onload = function () {
+	frame_res.onload = null;
+	require(["init_ace"])
+}
+mark_wrap.onclick =function () {
+	frame_res.focus();
+	mark_wrap.style.pointerEvents = "none";
+	mark_wrap.style.backgroundColor = "rgba(0,0,0,0.01)";
+}
+frame_res.onblur = function () {
+	console.log("blur frame");
+	mark_wrap.style.pointerEvents = "all";
+	mark_wrap.style.backgroundColor = "rgba(0,0,0,0.5)";
+}
+	</script>
+</body>

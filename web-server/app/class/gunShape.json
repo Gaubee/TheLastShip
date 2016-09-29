@@ -2,7 +2,7 @@
 	"long": {
 		"type": "rect",
 		"args": {
-			"width": "pt2px!25",
+			"width": "pt2px!20",
 			"height": "pt2px!10",
 			"lineStyle": ["pt2px!1.5", "0x000000", 1],
 			"x": "pt2px!-2"

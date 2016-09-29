@@ -29,7 +29,7 @@ export default class Wall extends P2I {
         width: 100,
         height: 100,
         rotation: 0,
-        color: 0x0ff0f0,
+        color: 0x0222222,
         density: 10,
         bulletproof: 0.9
     }

@@ -374,11 +374,13 @@ var esl;
         // depRs: 实际依赖的资源集合
         // ------------------------------------
         if (!modModules[id]) {
-            for(var _i = 0,_dep;_dep = dependencies[_i];_i+=1){
-                // 内置JSON加载器，确保和Nodejs行为一致，而不使用AMD插件
-                if(_dep.substr(-5) === ".json" && _dep.substr(5) !== "json!"){
-                    _dep = "json!" + _dep;
-                    dependencies[_i] = _dep;
+            if (dependencies) {
+                for(var _i = 0,_dep;_dep = dependencies[_i];_i+=1){
+                    // 内置JSON加载器，确保和Nodejs行为一致，而不使用AMD插件
+                    if(_dep.substr(-5) === ".json" && _dep.substr(5) !== "json!"){
+                        _dep = "json!" + _dep;
+                        dependencies[_i] = _dep;
+                    }
                 }
             }
             modModules[id] = {

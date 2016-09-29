@@ -2357,7 +2357,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
                 width: 100,
                 height: 100,
                 rotation: 0,
-                color: 0x0ff0f0,
+                color: 0x0222222,
                 density: 10,
                 bulletproof: 0.9
             };
@@ -4070,6 +4070,806 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
         return res;
     }
     exports.copy = copy;
+});
+define("class/BackgroundGaussianBlur", ["require", "exports"], function (require, exports) {
+    "use strict";
+    var BackgroundGaussianBlur = (function (_super) {
+        __extends(BackgroundGaussianBlur, _super);
+        function BackgroundGaussianBlur(sprite, blur, quality, highlight) {
+            if (blur === void 0) { blur = 20; }
+            if (quality === void 0) { quality = 16; }
+            if (highlight === void 0) { highlight = 1; }
+            var maskMatrix = new PIXI.Matrix();
+            /*
+             * 顶点作色器
+             */
+            var vert = "attribute vec2 aVertexPosition;\nattribute vec2 aTextureCoord;\nattribute vec4 aColor;\n\nuniform vec2 delta;\nuniform mat3 projectionMatrix;\nuniform mat3 otherMatrix;\n\nvarying vec2 vMapCoord;\nvarying vec2 vTextureCoord;\nvarying vec4 vColor;\nvarying vec2 vDelta;\nvarying mat3 vOtherMatrix;\n\nvoid main(void)\n{\n\tgl_Position = vec4((projectionMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);\n\tvTextureCoord = aTextureCoord;\n\n\tvDelta = delta;\n    vOtherMatrix = otherMatrix;\n    \n    vMapCoord = ( otherMatrix * vec3( aTextureCoord, 1.0)  ).xy;\n\n\tvColor = vec4(aColor.rgb * aColor.a, aColor.a);\n}";
+            /*
+             * 片元作色器
+             */
+            var frag = "precision mediump float;\n\nvarying vec2 vMapCoord;\nvarying vec2 vTextureCoord;\nvarying vec2 vDelta;\nvarying vec4 vColor;\nvarying mat3 vOtherMatrix;\n\nuniform sampler2D uSampler;\nuniform sampler2D mapSampler;\n\nfloat random(vec3 scale, float seed) {\n    /* use the fragment position for a different seed per-pixel */\n    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);\n}\n\nvoid main() {\n    vec4 map = texture2D(mapSampler, vMapCoord) ;\n    if( map.a==0.0){\n        gl_FragColor = texture2D(uSampler, vTextureCoord) * vColor ;\n    }else{\n        vec4 color = vec4(0.0);\n        float total = 0.0;\n        \n        /* randomize the lookup values to hide the fixed number of samples */\n        float offset = random(vec3(12.9898, 78.233, 151.7182), 0.0);\n        \n        for (float t = -" + quality + ".0; t <= " + quality + ".0; t++) {\n            float percent = (t + offset - 0.5) / " + quality + ".0;\n            float weight = 1.0 - abs(percent);\n            vec4 sample = texture2D(uSampler, vTextureCoord + vDelta * percent);\n            vec4 edge = texture2D(mapSampler, vMapCoord + vDelta * percent);\n            \n            if (edge.a > 0.0) {\n                /* switch to pre-multiplied alpha to correctly blur transparent images */\n                sample.rgb *= sample.a;\n\n                sample.rgb *= float(" + highlight + ");\n                \n                color += sample * weight;\n                total += weight;\n            }\n        }\n        \n        gl_FragColor = color / total;\n        \n        /* switch back from pre-multiplied alpha */\n        gl_FragColor.rgb /= gl_FragColor.a + 0.00001;\n    }\n}";
+            _super.call(this, vert, frag, {
+                delta: {
+                    type: 'v2',
+                    value: { x: 0, y: 0 },
+                },
+                mapSampler: {
+                    type: 'sampler2D',
+                    value: sprite.texture
+                },
+                otherMatrix: {
+                    type: 'mat3',
+                    value: maskMatrix.toArray(true)
+                },
+            });
+            this._delta = blur;
+            // console.log(sprite.texture);
+            this.maskSprite = sprite;
+            this.maskMatrix = maskMatrix;
+        }
+        BackgroundGaussianBlur.Wrap = function (child) {
+            var res = new PIXI.Container();
+            // 创建一个有透明边缘的容器老包裹贴图对象，来规避贴图贴边引起的问题。
+            child.parent && child.addChild(res);
+            res.addChild(child);
+            child.x = 1;
+            child.y = 1;
+            res.width = child.width + 2;
+            res.height = child.height + 2;
+            return res;
+        };
+        BackgroundGaussianBlur.ContainerToSprite = function (con, renderer, resolution, scaleMode) {
+            var _old_cacheAsBitmap = con.cacheAsBitmap;
+            con.cacheAsBitmap = true;
+            var sprite = new PIXI.Sprite(con.generateTexture(renderer, resolution, scaleMode));
+            con.cacheAsBitmap = _old_cacheAsBitmap;
+            return sprite;
+        };
+        BackgroundGaussianBlur.prototype.applyFilter = function (renderer, input, output, clear) {
+            var filterManager = renderer.filterManager;
+            var shader = this.getShader(renderer);
+            var _delta_width = this._delta / input.size.width;
+            var _delta_height = this._delta / input.size.height;
+            filterManager.calculateMappedMatrix(input.frame, this.maskSprite, this.maskMatrix);
+            this.uniforms.otherMatrix.value = this.maskMatrix.toArray(true);
+            var renderTarget = filterManager.getRenderTarget(true);
+            this.uniforms.delta.value = {
+                x: _delta_width,
+                y: 0,
+            };
+            filterManager.applyFilter(shader, input, renderTarget, clear);
+            this.uniforms.delta.value = {
+                x: 0,
+                y: _delta_height,
+            };
+            filterManager.applyFilter(shader, renderTarget, output, clear);
+            // 很重要，不加的话会引发内存泄漏
+            filterManager.returnRenderTarget(renderTarget);
+        };
+        Object.defineProperty(BackgroundGaussianBlur.prototype, "blur", {
+            // applyFilter(renderer, input, output, clear) {
+            //     var filterManager = renderer.filterManager;
+            //     var shader = this.getShader(renderer);
+            //     // var renderTarget = filterManager.getRenderTarget(true);
+            //     // filterManager.applyFilter(shader, input, renderTarget, clear);
+            //     // this.blurFilter.applyFilter(renderer, renderTarget, output, clear);
+            //     // filterManager.returnRenderTarget(renderTarget);
+            //     // 把前面的渲染的渲染结果映射到遮罩矩阵中
+            //     filterManager.calculateMappedMatrix(input.frame, this.maskSprite, this.maskMatrix);
+            //     debugger
+            //     this.uniforms.otherMatrix.value = this.maskMatrix.toArray(true);
+            //     this.uniforms.scale.value.x = this.scale.x * (1 / input.frame.width);
+            //     this.uniforms.scale.value.y = this.scale.y * (1 / input.frame.height);
+            //     filterManager.applyFilter(shader, input, output);
+            // }
+            get: function () {
+                return this._delta;
+            },
+            set: function (value) {
+                this._delta = value;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        return BackgroundGaussianBlur;
+    }(PIXI.AbstractFilter));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = BackgroundGaussianBlur;
+});
+define("class/When", ["require", "exports"], function (require, exports) {
+    "use strict";
+    function noop() { }
+    var When = (function () {
+        function When(task_num, complete_cb) {
+            this.task_num = null;
+            this.complete_cb = null;
+            this.complete_args = null;
+            //创建一个密集数组
+            this.task_num = Array.apply(null, { length: task_num });
+            //所有子任务完成后的回调
+            this.complete_cb = complete_cb instanceof Function ? complete_cb : noop;
+            this.complete_args = [];
+        }
+        ;
+        When.prototype.ok = function (task_id, arg) {
+            delete this.task_num[task_id];
+            this.complete_args[task_id] = arg;
+            if (this.is_complete()) {
+                this.complete_cb(this.complete_args);
+            }
+        };
+        ;
+        When.prototype.is_complete = function () {
+            var _is_complete = true;
+            //使用洗漱数组无法被遍历的特性，如果所有任务都被delete了，说明整个任务数组就是一个洗漱数组，some是无法遍历到任何对象的
+            this.task_num.some(function () {
+                _is_complete = false; //如果还有元素对象，则还没结束
+                return true; //只执行一次
+            });
+            return _is_complete;
+        };
+        ;
+        When.prototype.then = function (cb) {
+            if (this.is_complete()) {
+                cb(this.complete_args);
+            }
+            else {
+                if (this.complete_cb === noop) {
+                    this.complete_cb = cb;
+                }
+                else {
+                    var before = this.complete_cb;
+                    this.complete_cb = function () {
+                        before.apply(this, arguments);
+                        cb.apply(this, arguments);
+                    };
+                }
+            }
+        };
+        ;
+        return When;
+    }());
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = When;
+});
+define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/class/Wall", "app/class/Bullet", "app/class/Flyer", "app/class/Ship", "app/common"], function (require, exports, Collision_6, Wall_1, Bullet_2, Flyer_1, Ship_1, common_1) {
+    "use strict";
+    var world = new p2.World({
+        gravity: [0, 0]
+    });
+    var worldStep = 1 / 60;
+    var _runNarrowphase = world.runNarrowphase;
+    world.runNarrowphase = function (np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen) {
+        // 如果si是飞船，无视同组的 普通子弹
+        if (si["ship_team_tag"] &&
+            si["ship_team_tag"] === sj["bullet_team_tag"]) {
+            return;
+        }
+        // 同理sj
+        if (sj["ship_team_tag"] &&
+            sj["ship_team_tag"] === si["bullet_team_tag"]) {
+            return;
+        }
+        // // 如果si、sj有其中一个是子弹，无视碰撞，使用穿透算法
+        // if (si["bullet_team_tag"] && sj["bullet_team_tag"]) {
+        //     return;
+        // }
+        return _runNarrowphase.call(this, np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen);
+    };
+    // 计算穿透
+    function emit_penetrate(bullet, obj) {
+        if (obj.config.team_tag === bullet.config.team_tag) {
+        }
+        else {
+            if (obj instanceof Wall_1.default) {
+                bullet.emit("penetrate", obj, bullet.config.damage * obj.config.bulletproof);
+                bullet.emit("in-wall", obj);
+            }
+            else {
+                bullet.emit("penetrate", obj);
+            }
+        }
+    }
+    ;
+    // world.on("impact", function(evt) {
+    // });
+    world.on("beginContact", function (evt) {
+        var p2i_A = All_body_weakmap.get(evt.bodyA);
+        var p2i_B = All_body_weakmap.get(evt.bodyB);
+        if (!(p2i_A && p2i_B)) {
+            return;
+        }
+        // console.log("beginContact",p2i_A,p2i_B);
+        if (p2i_A instanceof Bullet_2.default) {
+            var impact_bullet = p2i_A;
+            emit_penetrate(p2i_A, p2i_B);
+            var impact_obj = p2i_B;
+        }
+        if (p2i_B instanceof Bullet_2.default) {
+            var impact_bullet = p2i_B;
+            emit_penetrate(p2i_B, p2i_A);
+            var impact_obj = p2i_A;
+        }
+        if (impact_obj) {
+            impact_obj.emit("change-hp", -impact_bullet.config.damage);
+        }
+    });
+    world.on("endContact", function (evt) {
+        var p2i_A = All_body_weakmap.get(evt.bodyA);
+        var p2i_B = All_body_weakmap.get(evt.bodyB);
+        if (!(p2i_A && p2i_B)) {
+            return;
+        }
+        if (p2i_A instanceof Bullet_2.default && p2i_B instanceof Wall_1.default) {
+            p2i_A.emit("out-wall");
+        }
+        if (p2i_B instanceof Bullet_2.default && p2i_A instanceof Wall_1.default) {
+            p2i_B.emit("out-wall");
+        }
+    });
+    var All_body_weakmap = new WeakMap();
+    var All_id_map = new Map();
+    // TODO 使用数据库？
+    var ship_md5_id_map = new Map();
+    var ship_id_md5_map = new Map();
+    var p2is = [];
+    exports.engine = {
+        world: world,
+        listener: null,
+        emit: function (eventName) {
+            var args = [];
+            for (var _i = 1; _i < arguments.length; _i++) {
+                args[_i - 1] = arguments[_i];
+            }
+            exports.engine.listener && (_a = exports.engine.listener).emit.apply(_a, [eventName].concat(args));
+            var _a;
+        },
+        add: function (item) {
+            if (item instanceof Bullet_2.default) {
+                ["explode"].forEach(function (eventName) {
+                    item.on(eventName, function () {
+                        exports.engine.emit(eventName, this);
+                    });
+                });
+            }
+            else if (item instanceof Ship_1.default) {
+                ["die", "change-hp"].forEach(function (eventName) {
+                    item.on(eventName, function () {
+                        exports.engine.emit(eventName, this);
+                    });
+                });
+                item.on("destroy", function () {
+                    var ship_id = this._id;
+                    var ship_md5_id = ship_id_md5_map.get(ship_id);
+                    ship_md5_id_map.delete(ship_md5_id);
+                    ship_id_md5_map.delete(ship_id);
+                });
+            }
+            else if (item instanceof Flyer_1.default) {
+                ["ember", "change-hp"].forEach(function (eventName) {
+                    item.on(eventName, function () {
+                        exports.engine.emit(eventName, this);
+                    });
+                });
+            }
+            p2is.push(item);
+            All_body_weakmap.set(item.p2_body, item);
+            All_id_map.set(item._id, item);
+            item.emit("add-to-world", world);
+            item.on("destroy", function () {
+                console.log("destroy!!and remove!!", p2is.indexOf(this));
+                p2is.splice(p2is.indexOf(this), 1);
+                All_body_weakmap.delete(this.p2_body);
+                All_id_map.delete(this._id);
+            });
+        },
+        getGameBaseInfo: function () {
+            return {
+                rank: [],
+            };
+        },
+        getRectangleObjects: function (x, y, width, height) {
+            return p2is;
+        },
+        update: function (delay) {
+            world.step(worldStep, delay / 100, 10);
+            p2is.forEach(function (p2i) { return p2i.update(delay); });
+        },
+        newShip: function (ship_config) {
+            var default_ship_config = {
+                x: common_1.VIEW.WIDTH * Math.random(),
+                y: common_1.VIEW.HEIGHT * Math.random(),
+                body_color: 0x777777 * Math.random(),
+                team_tag: Math.random()
+            };
+            ship_config = ship_config ? Object.assign(ship_config, default_ship_config) : default_ship_config;
+            var new_ship = new Ship_1.default(ship_config);
+            exports.engine.add(new_ship);
+            if (ship_config["ship_md5_id"]) {
+                ship_md5_id_map.set(ship_config["ship_md5_id"], new_ship._id);
+                ship_id_md5_map.set(new_ship._id, ship_config["ship_md5_id"]);
+            }
+            return new_ship;
+        },
+        getShip: function (ship_md5_id) {
+            var ship_id = ship_md5_id_map.get(ship_md5_id);
+            return ship_id && All_id_map.get(ship_id);
+        },
+        setConfig: function (ship_id, new_ship_config) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!current_ship) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            current_ship.setConfig(new_ship_config);
+            return current_ship;
+        },
+        fire: function (ship_id) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!current_ship && !(current_ship instanceof Ship_1.default)) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            var bullets = current_ship.fire();
+            if (bullets.length) {
+                bullets.forEach(function (bullet) {
+                    exports.engine.add(bullet);
+                    return bullet;
+                });
+            }
+        }
+    };
+    // 材质信息
+    // 通用物体与通用物体
+    world.addContactMaterial(new p2.ContactMaterial(Collision_6.P2I.material, Collision_6.P2I.material, {
+        restitution: 0.0,
+        stiffness: 500,
+        relaxation: 0.1
+    }));
+    // 子弹与子弹，体现穿透性
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Bullet_2.default.material, {
+        restitution: 0.0,
+        stiffness: 200,
+        relaxation: 0.2
+    }));
+    // 子弹与墙，体现穿透性
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Wall_1.default.material, {
+        restitution: 0.0,
+        stiffness: 10,
+        relaxation: 0.5
+    }));
+    // 子弹与通用物体，体现软弹性
+    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Collision_6.P2I.material, {
+        restitution: 0.0,
+        stiffness: 300,
+        relaxation: 0.2
+    }));
+});
+define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "./ediorStage.json", "app/common", "app/const"], function (require, exports, Tween_6, When_1, Flyer_2, Ship_2, Wall_2, Victor_3, world_1, ediorStage, common_2, const_9) {
+    "use strict";
+    var ani_ticker = new PIXI.ticker.Ticker();
+    var ani_tween = new Tween_6.default();
+    var jump_tween = new Tween_6.default();
+    var FPS_ticker = new PIXI.ticker.Ticker();
+    exports.current_stage_wrap = new PIXI.Graphics();
+    exports.current_stage = new PIXI.Container();
+    exports.current_stage_wrap.addChild(exports.current_stage);
+    // current_stage_wrap["keep_direction"] = "horizontal";
+    //加载图片资源
+    exports.loader = new PIXI.loaders.Loader();
+    exports.loader.add("button", "./res/game_res.png");
+    exports.loader.load();
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_9.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    exports.current_stage.addChild(loading_text);
+    function renderInit(loader, resource) {
+        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
+            exports.current_stage.removeChildAt(0);
+        }
+        /**素材加载
+         * 初始化场景
+         */
+        function drawPlan() {
+            exports.current_stage_wrap.clear();
+            exports.current_stage_wrap.beginFill(0x999999, 1);
+            exports.current_stage_wrap.drawRect(0, 0, common_2.VIEW.WIDTH, common_2.VIEW.HEIGHT);
+            exports.current_stage_wrap.endFill();
+        }
+        exports.current_stage_wrap.on("resize", drawPlan);
+        drawPlan();
+        // 子弹绘图层
+        var bullet_stage = new PIXI.Container();
+        bullet_stage["update"] = function (delay) {
+            this.children.forEach(function (bullet) {
+                bullet.update(delay);
+            });
+        };
+        exports.current_stage.addChild(bullet_stage);
+        // 物体绘图层：墙、飞船等等
+        var object_stage = new PIXI.Container();
+        object_stage["update"] = function (delay) {
+            this.children.forEach(function (obj) {
+                obj.update(delay);
+            });
+        };
+        exports.current_stage.addChild(object_stage);
+        if (ediorStage["flyers"] instanceof Array) {
+            ediorStage["flyers"].forEach(function (flyer_config) {
+                var flyer = new Flyer_2.default(const_9.assign({
+                    x: 50 + Math.random() * (common_2.VIEW.WIDTH - 100),
+                    y: 50 + Math.random() * (common_2.VIEW.HEIGHT - 100),
+                    x_speed: 10 * 2 * (Math.random() - 0.5),
+                    y_speed: 10 * 2 * (Math.random() - 0.5),
+                    body_color: 0xffffff * Math.random()
+                }, flyer_config));
+                object_stage.addChild(flyer);
+                world_1.engine.add(flyer);
+            });
+        }
+        var EDGE_WIDTH = common_2.VIEW.WIDTH * 2;
+        var EDGE_HEIGHT = common_2.VIEW.HEIGHT * 2;
+        // 四边限制
+        var top_edge = new Wall_2.default({
+            x: EDGE_WIDTH / 2, y: 0,
+            width: EDGE_WIDTH,
+            height: 10
+        });
+        object_stage.addChild(top_edge);
+        world_1.engine.add(top_edge);
+        var bottom_edge = new Wall_2.default({
+            x: EDGE_WIDTH / 2, y: EDGE_HEIGHT - 5,
+            width: EDGE_WIDTH,
+            height: 10
+        });
+        object_stage.addChild(bottom_edge);
+        world_1.engine.add(bottom_edge);
+        var left_edge = new Wall_2.default({
+            x: 5, y: EDGE_HEIGHT / 2,
+            width: 10,
+            height: EDGE_HEIGHT
+        });
+        object_stage.addChild(left_edge);
+        world_1.engine.add(left_edge);
+        var right_edge = new Wall_2.default({
+            x: EDGE_WIDTH - 5, y: EDGE_HEIGHT / 2,
+            width: 10,
+            height: EDGE_HEIGHT
+        });
+        object_stage.addChild(right_edge);
+        world_1.engine.add(right_edge);
+        (function () {
+            var x_len = 6;
+            var y_len = 6;
+            var x_unit = EDGE_WIDTH / (x_len + 1);
+            var y_unit = EDGE_HEIGHT / (y_len + 1);
+            var width = 40;
+            for (var _x = 1; _x <= x_len; _x += 1) {
+                for (var _y = 1; _y <= y_len; _y += 1) {
+                    var mid_edge = new Wall_2.default({
+                        x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
+                        width: width,
+                        height: width
+                    });
+                    object_stage.addChild(mid_edge);
+                    world_1.engine.add(mid_edge);
+                }
+            }
+        })();
+        if (ediorStage["myship"]) {
+            var my_ship = new Ship_2.default(const_9.assign({
+                x: common_2.VIEW.CENTER.x,
+                y: common_2.VIEW.CENTER.y,
+                body_color: 0x366345
+            }, ediorStage["myship"]));
+            object_stage.addChild(my_ship);
+            world_1.engine.add(my_ship);
+        }
+        if (ediorStage["ships"] instanceof Array) {
+            ediorStage["ships"].forEach(function (ship_config) {
+                var ship = new Ship_2.default(const_9.assign({
+                    x: 100 + (EDGE_WIDTH - 200) * Math.random(),
+                    y: 100 + (EDGE_HEIGHT - 200) * Math.random(),
+                    body_color: 0xffffff * Math.random()
+                }, ship_config));
+                object_stage.addChild(ship);
+                world_1.engine.add(ship);
+            });
+        }
+        // 辅助线
+        (function () {
+            var lines = new PIXI.Graphics();
+            var x_unit = const_9.pt2px(10);
+            var y_unit = const_9.pt2px(10);
+            var x_len = (EDGE_WIDTH / x_unit) | 0;
+            var y_len = (EDGE_HEIGHT / y_unit) | 0;
+            lines.lineStyle(1, 0x333333, 0.8);
+            for (var _x = 1; _x <= x_len; _x += 1) {
+                lines.moveTo(_x * x_unit, 0);
+                lines.lineTo(_x * x_unit, EDGE_HEIGHT);
+            }
+            for (var _y = 1; _y <= y_len; _y += 1) {
+                lines.moveTo(0, _y * y_unit);
+                lines.lineTo(EDGE_WIDTH, _y * y_unit);
+            }
+            exports.current_stage.addChildAt(lines, 0);
+        })();
+        /**初始化动画
+         *
+         */
+        var pre_time;
+        ani_ticker.add(function () {
+            pre_time || (pre_time = performance.now() - 1000 / 60);
+            var cur_time = performance.now();
+            var dif_time = cur_time - pre_time;
+            pre_time = cur_time;
+            // 物理引擎运作
+            world_1.engine.update(dif_time);
+        });
+        /**按钮事件
+         *
+         */
+        /**交互动画
+         *
+         */
+        var speed_ux = {
+            37: "-x",
+            65: "-x",
+            38: "-y",
+            87: "-y",
+            39: "+x",
+            68: "+x",
+            40: "+y",
+            83: "+y",
+        };
+        var effect_speed_keys = []; // 记录按下的按钮
+        function generate_speed(force) {
+            var effect_speed = new Victor_3.default(0, 0);
+            if (effect_speed_keys.length) {
+                for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
+                    var speed_info = speed_ux[keyCode];
+                    effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
+                }
+                effect_speed.setLength(force);
+            }
+            return effect_speed;
+        }
+        common_2.on(exports.current_stage_wrap, "keydown", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
+                move_target_point = null;
+                if (effect_speed_keys.indexOf(e.keyCode) === -1) {
+                    effect_speed_keys.push(e.keyCode);
+                }
+                var effect_speed = generate_speed(my_ship.config.force);
+                my_ship.operateShip({
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                });
+            }
+        });
+        common_2.on(exports.current_stage_wrap, "keyup", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
+                move_target_point = null;
+                effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode), 1);
+                var effect_speed = generate_speed(my_ship.config.force);
+                my_ship.operateShip({
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                });
+            }
+        });
+        if (const_9._isMobile) {
+            var mobile_operator_1 = new PIXI.Graphics();
+            (function () {
+                var _size;
+                var _border;
+                mobile_operator_1.on("resize", function () {
+                    mobile_operator_1.clear();
+                    _size = Math.min(common_2.VIEW.HEIGHT, common_2.VIEW.WIDTH) / 6;
+                    _border = _size / 6;
+                    mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
+                    mobile_operator_1.beginFill(0xFFFFFF, 0.3);
+                    mobile_operator_1.drawCircle(0, 0, _size);
+                    mobile_operator_1.endFill();
+                    mobile_operator_1.x = _border * 2 + _size;
+                    mobile_operator_1.y = common_2.VIEW.HEIGHT - _size - _border * 2;
+                    // handle resize
+                    handle.clear();
+                    var _h_size;
+                    _h_size = _size / 3;
+                    handle.beginFill(0xFFFFFF, 0.6);
+                    handle.drawCircle(0, 0, _h_size);
+                    handle.endFill();
+                    handle.cacheAsBitmap = true;
+                    handle.x = mobile_operator_1.x; // + _size;
+                    handle.y = mobile_operator_1.y; // - _size;
+                });
+                var handle = new PIXI.Graphics();
+                exports.current_stage_wrap.addChild(handle);
+                // 交互
+                mobile_operator_1.interactive = true;
+                var handle_dir = new Victor_3.default(0, 0);
+                var current_touch_id = null;
+                common_2.on(mobile_operator_1, "touchstart|touchmove", function (e) {
+                    var touch_list = e.data.originalEvent.touches;
+                    // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
+                    if (current_touch_id !== null) {
+                        var touch = common_2.touchManager.getById(touch_list, current_touch_id);
+                        var touch_point = { x: touch.clientX, y: touch.clientY };
+                    }
+                    else {
+                        var _touch_com = new Victor_3.default(0, 0);
+                        var _control_able_size = _size + _border * 2; // 可控制的空间范围
+                        for (var i = 0, touch; touch = touch_list[i]; i += 1) {
+                            _touch_com.x = touch.clientX - mobile_operator_1.x;
+                            _touch_com.y = touch.clientY - mobile_operator_1.y;
+                            if (_touch_com.length() <= _control_able_size) {
+                                var touch_point = { x: touch.clientX, y: touch.clientY };
+                                current_touch_id = common_2.touchManager.register(touch);
+                                break;
+                            }
+                        }
+                    }
+                    if (!touch_point) {
+                        current_touch_id = null;
+                        return;
+                    }
+                    handle_dir.x = touch_point.x - mobile_operator_1.x;
+                    handle_dir.y = touch_point.y - mobile_operator_1.y;
+                    var _length = Math.min(handle_dir.length(), _size);
+                    var force_rate = _length / _size;
+                    handle_dir.setLength(force_rate * my_ship.config.force);
+                    my_ship.operateShip({
+                        x_speed: handle_dir.x,
+                        y_speed: handle_dir.y,
+                    });
+                    // 移动handle控制球
+                    handle_dir.setLength(force_rate * _size);
+                    handle.x = mobile_operator_1.x + handle_dir.x;
+                    handle.y = mobile_operator_1.y + handle_dir.y;
+                });
+                common_2.on(mobile_operator_1, "touchend|touchendoutside", function _cancel_force(e) {
+                    if (current_touch_id === null) {
+                        return;
+                    }
+                    requestAnimationFrame(function () {
+                        common_2.touchManager.free(current_touch_id);
+                        current_touch_id = null;
+                    });
+                    my_ship.operateShip({
+                        x_speed: 0,
+                        y_speed: 0,
+                    });
+                    handle.x = mobile_operator_1.x;
+                    handle.y = mobile_operator_1.y;
+                });
+            }());
+            // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
+            exports.current_stage_wrap.addChild(mobile_operator_1);
+        }
+        else {
+            // 将要去的目的点，在接近的时候改变飞船速度
+            var move_target_point;
+            var target_anchor = new PIXI.Graphics();
+            target_anchor.lineStyle(const_9.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_9.pt2px(10));
+            target_anchor.cacheAsBitmap = true;
+            target_anchor.scale.set(0);
+            exports.current_stage.addChild(target_anchor);
+            common_2.on(exports.current_stage_wrap, "rightclick", function (e) {
+                if (my_ship) {
+                    move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                    target_anchor.position.set(move_target_point.x, move_target_point.y);
+                    ani_tween.Tween(target_anchor.scale)
+                        .set({ x: 1, y: 1 })
+                        .to({ x: 0, y: 0 }, const_9.B_ANI_TIME)
+                        .start();
+                }
+            });
+            ani_ticker.add(function () {
+                if (move_target_point) {
+                    var curren_point = Victor_3.default.fromArray(my_ship.p2_body.interpolatedPosition);
+                    var current_to_target_dis = curren_point.distance(move_target_point);
+                    // 动力、质量、以及空间摩擦力的比例
+                    var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
+                    var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
+                    var force_vic = new Victor_3.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+                    force_vic.setLength(my_ship.config.force * force_rate);
+                    if (force_vic.lengthSq() <= 100) {
+                        console.log("基本到达，停止自动移动");
+                        move_target_point = null;
+                    }
+                    my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
+                }
+            });
+        }
+        if (const_9._isMobile) {
+            // 旋转角度
+            common_2.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
+                var touch_list = e.data.originalEvent.touches;
+                var touch = common_2.touchManager.getFreeOne(touch_list);
+                if (!touch) {
+                    return;
+                }
+                var touch_point = { x: touch.clientX, y: touch.clientY };
+                var direction = new Victor_3.default(touch_point.x - common_2.VIEW.CENTER.x, touch_point.y - common_2.VIEW.CENTER.y);
+                operateShip({ rotation: direction.angle() });
+            });
+            // 发射
+            common_2.on(exports.current_stage_wrap, "touchstart", function (e) {
+                var touch_list = e.data.originalEvent.touches;
+                var touch = common_2.touchManager.getFreeOne(touch_list);
+                if (!touch) {
+                    return;
+                }
+                var bullets = my_ship.fire();
+                if (bullets.length) {
+                    bullets.forEach(function (bullet) {
+                        bullet_stage.addChild(bullet);
+                        world_1.engine.add(bullet);
+                    });
+                }
+            });
+        }
+        else {
+            // 旋转角度
+            common_2.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
+                var touch_point = e.data.global;
+                var direction = new Victor_3.default(touch_point.x - common_2.VIEW.CENTER.x, touch_point.y - common_2.VIEW.CENTER.y);
+                my_ship.operateShip({ rotation: direction.angle() });
+            });
+            // 发射
+            common_2.on(exports.current_stage_wrap, "mousedown", function (e) {
+                var bullets = my_ship.fire();
+                if (bullets.length) {
+                    bullets.forEach(function (bullet) {
+                        bullet_stage.addChild(bullet);
+                        world_1.engine.add(bullet);
+                    });
+                }
+            });
+        }
+        // setTimeout(function () {
+        //     rule.close();
+        // }, 3000)
+        // 动画控制器
+        ani_ticker.add(function () {
+            ani_tween.update();
+            jump_tween.update();
+            if (my_ship) {
+                exports.current_stage.x = common_2.VIEW.WIDTH / 2 - my_ship.x;
+                exports.current_stage.y = common_2.VIEW.HEIGHT / 2 - my_ship.y;
+            }
+        });
+        /**帧率
+         *
+         */
+        var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
+        exports.current_stage_wrap.addChild(FPS_Text);
+        FPS_ticker.add(function () {
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_2.VIEW.WIDTH + " H:" + common_2.VIEW.HEIGHT;
+        });
+        // 触发布局计算
+        common_2.emitReisze(exports.current_stage_wrap);
+        ani_tween.start();
+        jump_tween.start();
+        ani_ticker.start();
+        FPS_ticker.start();
+    }
+    exports.loader.once("complete", function () {
+        init_w.ok(2, []);
+    });
+    exports.current_stage_wrap.on("init", function () {
+        init_w.ok(1, []);
+    });
+    exports.current_stage_wrap.on("active", function () {
+        init_w.ok(0, []);
+    });
+    exports.current_stage_wrap["_has_custom_resize"] = true;
+    exports.current_stage_wrap.on("resize", function () {
+        jump_tween.clear();
+        ani_tween.clear();
+        common_2.emitReisze(this);
+    });
+    var init_w = new When_1.default(3, function () {
+        renderInit(exports.loader, exports.loader.resources);
+    });
 });
 /**
  * Initialize a new `Emitter`.
@@ -5818,377 +6618,7 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
         },
     };
 });
-define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/class/Wall", "app/class/Bullet", "app/class/Flyer", "app/class/Ship", "app/common"], function (require, exports, Collision_6, Wall_1, Bullet_2, Flyer_1, Ship_1, common_1) {
-    "use strict";
-    var world = new p2.World({
-        gravity: [0, 0]
-    });
-    var worldStep = 1 / 60;
-    var _runNarrowphase = world.runNarrowphase;
-    world.runNarrowphase = function (np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen) {
-        // 如果si是飞船，无视同组的 普通子弹
-        if (si["ship_team_tag"] &&
-            si["ship_team_tag"] === sj["bullet_team_tag"]) {
-            return;
-        }
-        // 同理sj
-        if (sj["ship_team_tag"] &&
-            sj["ship_team_tag"] === si["bullet_team_tag"]) {
-            return;
-        }
-        // // 如果si、sj有其中一个是子弹，无视碰撞，使用穿透算法
-        // if (si["bullet_team_tag"] && sj["bullet_team_tag"]) {
-        //     return;
-        // }
-        return _runNarrowphase.call(this, np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen);
-    };
-    // 计算穿透
-    function emit_penetrate(bullet, obj) {
-        if (obj.config.team_tag === bullet.config.team_tag) {
-        }
-        else {
-            if (obj instanceof Wall_1.default) {
-                bullet.emit("penetrate", obj, bullet.config.damage * obj.config.bulletproof);
-                bullet.emit("in-wall", obj);
-            }
-            else {
-                bullet.emit("penetrate", obj);
-            }
-        }
-    }
-    ;
-    // world.on("impact", function(evt) {
-    // });
-    world.on("beginContact", function (evt) {
-        var p2i_A = All_body_weakmap.get(evt.bodyA);
-        var p2i_B = All_body_weakmap.get(evt.bodyB);
-        if (!(p2i_A && p2i_B)) {
-            return;
-        }
-        // console.log("beginContact",p2i_A,p2i_B);
-        if (p2i_A instanceof Bullet_2.default) {
-            var impact_bullet = p2i_A;
-            emit_penetrate(p2i_A, p2i_B);
-            var impact_obj = p2i_B;
-        }
-        if (p2i_B instanceof Bullet_2.default) {
-            var impact_bullet = p2i_B;
-            emit_penetrate(p2i_B, p2i_A);
-            var impact_obj = p2i_A;
-        }
-        if (impact_obj) {
-            impact_obj.emit("change-hp", -impact_bullet.config.damage);
-        }
-    });
-    world.on("endContact", function (evt) {
-        var p2i_A = All_body_weakmap.get(evt.bodyA);
-        var p2i_B = All_body_weakmap.get(evt.bodyB);
-        if (!(p2i_A && p2i_B)) {
-            return;
-        }
-        if (p2i_A instanceof Bullet_2.default && p2i_B instanceof Wall_1.default) {
-            p2i_A.emit("out-wall");
-        }
-        if (p2i_B instanceof Bullet_2.default && p2i_A instanceof Wall_1.default) {
-            p2i_B.emit("out-wall");
-        }
-    });
-    var All_body_weakmap = new WeakMap();
-    var All_id_map = new Map();
-    // TODO 使用数据库？
-    var ship_md5_id_map = new Map();
-    var ship_id_md5_map = new Map();
-    var p2is = [];
-    exports.engine = {
-        world: world,
-        listener: null,
-        emit: function (eventName) {
-            var args = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                args[_i - 1] = arguments[_i];
-            }
-            exports.engine.listener && (_a = exports.engine.listener).emit.apply(_a, [eventName].concat(args));
-            var _a;
-        },
-        add: function (item) {
-            if (item instanceof Bullet_2.default) {
-                ["explode"].forEach(function (eventName) {
-                    item.on(eventName, function () {
-                        exports.engine.emit(eventName, this);
-                    });
-                });
-            }
-            else if (item instanceof Ship_1.default) {
-                ["die", "change-hp"].forEach(function (eventName) {
-                    item.on(eventName, function () {
-                        exports.engine.emit(eventName, this);
-                    });
-                });
-                item.on("destroy", function () {
-                    var ship_id = this._id;
-                    var ship_md5_id = ship_id_md5_map.get(ship_id);
-                    ship_md5_id_map.delete(ship_md5_id);
-                    ship_id_md5_map.delete(ship_id);
-                });
-            }
-            else if (item instanceof Flyer_1.default) {
-                ["ember", "change-hp"].forEach(function (eventName) {
-                    item.on(eventName, function () {
-                        exports.engine.emit(eventName, this);
-                    });
-                });
-            }
-            p2is.push(item);
-            All_body_weakmap.set(item.p2_body, item);
-            All_id_map.set(item._id, item);
-            item.emit("add-to-world", world);
-            item.on("destroy", function () {
-                console.log("destroy!!and remove!!", p2is.indexOf(this));
-                p2is.splice(p2is.indexOf(this), 1);
-                All_body_weakmap.delete(this.p2_body);
-                All_id_map.delete(this._id);
-            });
-        },
-        getGameBaseInfo: function () {
-            return {
-                rank: [],
-            };
-        },
-        getRectangleObjects: function (x, y, width, height) {
-            return p2is;
-        },
-        update: function (delay) {
-            world.step(worldStep, delay / 100, 10);
-            p2is.forEach(function (p2i) { return p2i.update(delay); });
-        },
-        newShip: function (ship_config) {
-            var default_ship_config = {
-                x: common_1.VIEW.WIDTH * Math.random(),
-                y: common_1.VIEW.HEIGHT * Math.random(),
-                body_color: 0x777777 * Math.random(),
-                team_tag: Math.random()
-            };
-            ship_config = ship_config ? Object.assign(ship_config, default_ship_config) : default_ship_config;
-            var new_ship = new Ship_1.default(ship_config);
-            exports.engine.add(new_ship);
-            if (ship_config["ship_md5_id"]) {
-                ship_md5_id_map.set(ship_config["ship_md5_id"], new_ship._id);
-                ship_id_md5_map.set(new_ship._id, ship_config["ship_md5_id"]);
-            }
-            return new_ship;
-        },
-        getShip: function (ship_md5_id) {
-            var ship_id = ship_md5_id_map.get(ship_md5_id);
-            return ship_id && All_id_map.get(ship_id);
-        },
-        setConfig: function (ship_id, new_ship_config) {
-            var current_ship = All_id_map.get(ship_id);
-            if (!current_ship) {
-                throw "SHIP ID NO REF INSTANCE:" + ship_id;
-            }
-            current_ship.setConfig(new_ship_config);
-            return current_ship;
-        },
-        fire: function (ship_id) {
-            var current_ship = All_id_map.get(ship_id);
-            if (!current_ship && !(current_ship instanceof Ship_1.default)) {
-                throw "SHIP ID NO REF INSTANCE:" + ship_id;
-            }
-            var bullet = current_ship.fire();
-            if (bullet) {
-                exports.engine.add(bullet);
-                return bullet;
-            }
-        }
-    };
-    // 材质信息
-    // 通用物体与通用物体
-    world.addContactMaterial(new p2.ContactMaterial(Collision_6.P2I.material, Collision_6.P2I.material, {
-        restitution: 0.0,
-        stiffness: 500,
-        relaxation: 0.1
-    }));
-    // 子弹与子弹，体现穿透性
-    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Bullet_2.default.material, {
-        restitution: 0.0,
-        stiffness: 200,
-        relaxation: 0.2
-    }));
-    // 子弹与墙，体现穿透性
-    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Wall_1.default.material, {
-        restitution: 0.0,
-        stiffness: 10,
-        relaxation: 0.5
-    }));
-    // 子弹与通用物体，体现软弹性
-    world.addContactMaterial(new p2.ContactMaterial(Bullet_2.default.material, Collision_6.P2I.material, {
-        restitution: 0.0,
-        stiffness: 300,
-        relaxation: 0.2
-    }));
-});
-define("class/When", ["require", "exports"], function (require, exports) {
-    "use strict";
-    function noop() { }
-    var When = (function () {
-        function When(task_num, complete_cb) {
-            this.task_num = null;
-            this.complete_cb = null;
-            this.complete_args = null;
-            //创建一个密集数组
-            this.task_num = Array.apply(null, { length: task_num });
-            //所有子任务完成后的回调
-            this.complete_cb = complete_cb instanceof Function ? complete_cb : noop;
-            this.complete_args = [];
-        }
-        ;
-        When.prototype.ok = function (task_id, arg) {
-            delete this.task_num[task_id];
-            this.complete_args[task_id] = arg;
-            if (this.is_complete()) {
-                this.complete_cb(this.complete_args);
-            }
-        };
-        ;
-        When.prototype.is_complete = function () {
-            var _is_complete = true;
-            //使用洗漱数组无法被遍历的特性，如果所有任务都被delete了，说明整个任务数组就是一个洗漱数组，some是无法遍历到任何对象的
-            this.task_num.some(function () {
-                _is_complete = false; //如果还有元素对象，则还没结束
-                return true; //只执行一次
-            });
-            return _is_complete;
-        };
-        ;
-        When.prototype.then = function (cb) {
-            if (this.is_complete()) {
-                cb(this.complete_args);
-            }
-            else {
-                if (this.complete_cb === noop) {
-                    this.complete_cb = cb;
-                }
-                else {
-                    var before = this.complete_cb;
-                    this.complete_cb = function () {
-                        before.apply(this, arguments);
-                        cb.apply(this, arguments);
-                    };
-                }
-            }
-        };
-        ;
-        return When;
-    }());
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = When;
-});
-define("class/BackgroundGaussianBlur", ["require", "exports"], function (require, exports) {
-    "use strict";
-    var BackgroundGaussianBlur = (function (_super) {
-        __extends(BackgroundGaussianBlur, _super);
-        function BackgroundGaussianBlur(sprite, blur, quality, highlight) {
-            if (blur === void 0) { blur = 20; }
-            if (quality === void 0) { quality = 16; }
-            if (highlight === void 0) { highlight = 1; }
-            var maskMatrix = new PIXI.Matrix();
-            /*
-             * 顶点作色器
-             */
-            var vert = "attribute vec2 aVertexPosition;\nattribute vec2 aTextureCoord;\nattribute vec4 aColor;\n\nuniform vec2 delta;\nuniform mat3 projectionMatrix;\nuniform mat3 otherMatrix;\n\nvarying vec2 vMapCoord;\nvarying vec2 vTextureCoord;\nvarying vec4 vColor;\nvarying vec2 vDelta;\nvarying mat3 vOtherMatrix;\n\nvoid main(void)\n{\n\tgl_Position = vec4((projectionMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);\n\tvTextureCoord = aTextureCoord;\n\n\tvDelta = delta;\n    vOtherMatrix = otherMatrix;\n    \n    vMapCoord = ( otherMatrix * vec3( aTextureCoord, 1.0)  ).xy;\n\n\tvColor = vec4(aColor.rgb * aColor.a, aColor.a);\n}";
-            /*
-             * 片元作色器
-             */
-            var frag = "precision mediump float;\n\nvarying vec2 vMapCoord;\nvarying vec2 vTextureCoord;\nvarying vec2 vDelta;\nvarying vec4 vColor;\nvarying mat3 vOtherMatrix;\n\nuniform sampler2D uSampler;\nuniform sampler2D mapSampler;\n\nfloat random(vec3 scale, float seed) {\n    /* use the fragment position for a different seed per-pixel */\n    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);\n}\n\nvoid main() {\n    vec4 map = texture2D(mapSampler, vMapCoord) ;\n    if( map.a==0.0){\n        gl_FragColor = texture2D(uSampler, vTextureCoord) * vColor ;\n    }else{\n        vec4 color = vec4(0.0);\n        float total = 0.0;\n        \n        /* randomize the lookup values to hide the fixed number of samples */\n        float offset = random(vec3(12.9898, 78.233, 151.7182), 0.0);\n        \n        for (float t = -" + quality + ".0; t <= " + quality + ".0; t++) {\n            float percent = (t + offset - 0.5) / " + quality + ".0;\n            float weight = 1.0 - abs(percent);\n            vec4 sample = texture2D(uSampler, vTextureCoord + vDelta * percent);\n            vec4 edge = texture2D(mapSampler, vMapCoord + vDelta * percent);\n            \n            if (edge.a > 0.0) {\n                /* switch to pre-multiplied alpha to correctly blur transparent images */\n                sample.rgb *= sample.a;\n\n                sample.rgb *= float(" + highlight + ");\n                \n                color += sample * weight;\n                total += weight;\n            }\n        }\n        \n        gl_FragColor = color / total;\n        \n        /* switch back from pre-multiplied alpha */\n        gl_FragColor.rgb /= gl_FragColor.a + 0.00001;\n    }\n}";
-            _super.call(this, vert, frag, {
-                delta: {
-                    type: 'v2',
-                    value: { x: 0, y: 0 },
-                },
-                mapSampler: {
-                    type: 'sampler2D',
-                    value: sprite.texture
-                },
-                otherMatrix: {
-                    type: 'mat3',
-                    value: maskMatrix.toArray(true)
-                },
-            });
-            this._delta = blur;
-            // console.log(sprite.texture);
-            this.maskSprite = sprite;
-            this.maskMatrix = maskMatrix;
-        }
-        BackgroundGaussianBlur.Wrap = function (child) {
-            var res = new PIXI.Container();
-            // 创建一个有透明边缘的容器老包裹贴图对象，来规避贴图贴边引起的问题。
-            child.parent && child.addChild(res);
-            res.addChild(child);
-            child.x = 1;
-            child.y = 1;
-            res.width = child.width + 2;
-            res.height = child.height + 2;
-            return res;
-        };
-        BackgroundGaussianBlur.ContainerToSprite = function (con, renderer, resolution, scaleMode) {
-            var _old_cacheAsBitmap = con.cacheAsBitmap;
-            con.cacheAsBitmap = true;
-            var sprite = new PIXI.Sprite(con.generateTexture(renderer, resolution, scaleMode));
-            con.cacheAsBitmap = _old_cacheAsBitmap;
-            return sprite;
-        };
-        BackgroundGaussianBlur.prototype.applyFilter = function (renderer, input, output, clear) {
-            var filterManager = renderer.filterManager;
-            var shader = this.getShader(renderer);
-            var _delta_width = this._delta / input.size.width;
-            var _delta_height = this._delta / input.size.height;
-            filterManager.calculateMappedMatrix(input.frame, this.maskSprite, this.maskMatrix);
-            this.uniforms.otherMatrix.value = this.maskMatrix.toArray(true);
-            var renderTarget = filterManager.getRenderTarget(true);
-            this.uniforms.delta.value = {
-                x: _delta_width,
-                y: 0,
-            };
-            filterManager.applyFilter(shader, input, renderTarget, clear);
-            this.uniforms.delta.value = {
-                x: 0,
-                y: _delta_height,
-            };
-            filterManager.applyFilter(shader, renderTarget, output, clear);
-            // 很重要，不加的话会引发内存泄漏
-            filterManager.returnRenderTarget(renderTarget);
-        };
-        Object.defineProperty(BackgroundGaussianBlur.prototype, "blur", {
-            // applyFilter(renderer, input, output, clear) {
-            //     var filterManager = renderer.filterManager;
-            //     var shader = this.getShader(renderer);
-            //     // var renderTarget = filterManager.getRenderTarget(true);
-            //     // filterManager.applyFilter(shader, input, renderTarget, clear);
-            //     // this.blurFilter.applyFilter(renderer, renderTarget, output, clear);
-            //     // filterManager.returnRenderTarget(renderTarget);
-            //     // 把前面的渲染的渲染结果映射到遮罩矩阵中
-            //     filterManager.calculateMappedMatrix(input.frame, this.maskSprite, this.maskMatrix);
-            //     debugger
-            //     this.uniforms.otherMatrix.value = this.maskMatrix.toArray(true);
-            //     this.uniforms.scale.value.x = this.scale.x * (1 / input.frame.width);
-            //     this.uniforms.scale.value.y = this.scale.y * (1 / input.frame.height);
-            //     filterManager.applyFilter(shader, input, output);
-            // }
-            get: function () {
-                return this._delta;
-            },
-            set: function (value) {
-                this._delta = value;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        return BackgroundGaussianBlur;
-    }(PIXI.AbstractFilter));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = BackgroundGaussianBlur;
-});
-define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_2, Tween_6, SVGGraphics_1, BackgroundGaussianBlur_1) {
+define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_3, Tween_7, SVGGraphics_1, BackgroundGaussianBlur_1) {
     "use strict";
     var Dialog = (function (_super) {
         __extends(Dialog, _super);
@@ -6204,19 +6634,19 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 bg: {
                     color: 0xeedddd,
                     alpha: 0.4,
-                    paddingLR: common_2.pt2px(40),
-                    paddingTB: common_2.pt2px(76),
-                    radius: common_2.pt2px(10)
+                    paddingLR: common_3.pt2px(40),
+                    paddingTB: common_3.pt2px(76),
+                    radius: common_3.pt2px(10)
                 },
                 closeButton: {
                     show: true,
-                    size: common_2.pt2px(18),
-                    bold: common_2.pt2px(1),
+                    size: common_3.pt2px(18),
+                    bold: common_3.pt2px(1),
                     top: 0,
                     left: 0
                 },
                 title: {
-                    padding: common_2.pt2px(20)
+                    padding: common_3.pt2px(20)
                 }
             };
             this._is_anining = false;
@@ -6224,7 +6654,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
             this.ani = ani_control;
             options || (options = {});
             var style = this.style;
-            common_2.mix_options(style, options);
+            common_3.mix_options(style, options);
             // 焦点层: 0
             // 背景层:1
             var bg = this.bg = new PIXI.Graphics();
@@ -6273,8 +6703,8 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
             var bg = this.bg;
             var bg_width = Math.max(this.content.width, this.title.width + style.title.padding) + style.bg.paddingLR; //14.10 / 16.94 * VIEW.WIDTH;
             var bg_height = this.content.height + style.bg.paddingTB;
-            var bg_x = (common_2.VIEW.WIDTH - bg_width) / 2;
-            var bg_y = (common_2.VIEW.HEIGHT - bg_height) / 2;
+            var bg_x = (common_3.VIEW.WIDTH - bg_width) / 2;
+            var bg_y = (common_3.VIEW.HEIGHT - bg_height) / 2;
             bg.clear();
             bg.lineStyle(0);
             bg.beginFill(0, 0);
@@ -6317,12 +6747,12 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 .to({
                 x: this.x,
                 y: this.y
-            }, common_2.B_ANI_TIME)
+            }, common_3.B_ANI_TIME)
                 .set({
-                x: this.x + common_2.VIEW.CENTER.x,
-                y: this.y + common_2.VIEW.CENTER.y
+                x: this.x + common_3.VIEW.CENTER.x,
+                y: this.y + common_3.VIEW.CENTER.y
             })
-                .easing(Tween_6.default.Easing.Quintic.Out)
+                .easing(Tween_7.default.Easing.Quintic.Out)
                 .start();
             this.ani.Tween(this.scale)
                 .set({
@@ -6332,8 +6762,8 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 .to({
                 x: 1,
                 y: 1
-            }, common_2.B_ANI_TIME)
-                .easing(Tween_6.default.Easing.Quintic.Out)
+            }, common_3.B_ANI_TIME)
+                .easing(Tween_7.default.Easing.Quintic.Out)
                 .start()
                 .onComplete(function () {
                 _this._is_anining = false;
@@ -6352,7 +6782,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                     _this.ani.Tween(_this._bg_bulr_filter)
                         .to({
                         blur: _this.style.blur.blur
-                    }, common_2.B_ANI_TIME)
+                    }, common_3.B_ANI_TIME)
                         .start();
                 }
             });
@@ -6373,17 +6803,17 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 .to({
                 x: 0,
                 y: 0
-            }, common_2.B_ANI_TIME)
-                .easing(Tween_6.default.Easing.Quintic.In)
+            }, common_3.B_ANI_TIME)
+                .easing(Tween_7.default.Easing.Quintic.In)
                 .start();
             var cur_x = this.x;
             var cur_y = this.y;
             this.ani.Tween(this)
                 .to({
-                x: this.x + common_2.VIEW.CENTER.x,
-                y: this.y + common_2.VIEW.CENTER.y
-            }, common_2.B_ANI_TIME)
-                .easing(Tween_6.default.Easing.Quintic.In)
+                x: this.x + common_3.VIEW.CENTER.x,
+                y: this.y + common_3.VIEW.CENTER.y
+            }, common_3.B_ANI_TIME)
+                .easing(Tween_7.default.Easing.Quintic.In)
                 .start()
                 .onComplete(function () {
                 _this.position.set(cur_x, cur_y);
@@ -6404,7 +6834,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Dialog;
 });
-define("app/ui/Button", ["require", "exports", "app/common"], function (require, exports, common_3) {
+define("app/ui/Button", ["require", "exports", "app/common"], function (require, exports, common_4) {
     "use strict";
     var Button = (function (_super) {
         __extends(Button, _super);
@@ -6426,9 +6856,9 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
                     borderColor: 0x333333,
                     borderAlpha: 1,
                     borderWidth: 0,
-                    fontSize: common_3.pt2px(10),
+                    fontSize: common_4.pt2px(10),
                     fontFamily: "微软雅黑",
-                    radius: common_3.pt2px(2)
+                    radius: common_4.pt2px(2)
                 };
                 return baseStyle;
             })();
@@ -6438,29 +6868,29 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
                 style.value = text_or_proto;
             }
             else if (typeof text_or_proto === "object") {
-                common_3.mix_options(style, text_or_proto);
+                common_4.mix_options(style, text_or_proto);
             }
             this.addChild(this.text);
             this.redraw();
             this.interactive = true;
-            common_3.on(this, "mouseover", function () {
+            common_4.on(this, "mouseover", function () {
                 var baseStyle = _this.style;
-                var hoverStyle = common_3.copy(baseStyle);
+                var hoverStyle = common_4.copy(baseStyle);
                 baseStyle.hoverStyle = hoverStyle;
                 hoverStyle.backgrounColor = (hoverStyle.backgrounColor * 0.8) | 0;
                 hoverStyle && _this.redraw(hoverStyle);
             });
-            common_3.on(this, "mouseout", function () {
+            common_4.on(this, "mouseout", function () {
                 _this.redraw(_this.style);
             });
-            common_3.on(this, "touchstart|mousedown", function () {
+            common_4.on(this, "touchstart|mousedown", function () {
                 var baseStyle = _this.style;
-                var activeStyle = common_3.copy(baseStyle);
+                var activeStyle = common_4.copy(baseStyle);
                 baseStyle.activeStyle = activeStyle;
                 activeStyle.backgrounColor = Math.min((activeStyle.backgrounColor * 1.1) | 0, 0xffffff);
                 _this.redraw(activeStyle);
             });
-            common_3.on(this, "touchend|mouseup", function () {
+            common_4.on(this, "touchend|mouseup", function () {
                 _this.redraw(_this.style);
             });
         }
@@ -6676,11 +7106,11 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = FlowLayout;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_7, When_1, Flyer_2, Wall_2, Ship_2, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_3, Pomelo_1, common_4, const_9) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Victor", "app/engine/Pomelo", "app/common", "app/const"], function (require, exports, Tween_8, When_2, Flyer_3, Wall_3, Ship_3, Bullet_3, HP_1, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Victor_4, Pomelo_1, common_5, const_10) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_7.default();
-    var jump_tween = new Tween_7.default();
+    var ani_tween = new Tween_8.default();
+    var jump_tween = new Tween_8.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -6691,7 +7121,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: const_9.pt2px(25) + "px 微软雅黑",
+        font: const_10.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
@@ -6706,14 +7136,14 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         function drawPlan() {
             exports.current_stage_wrap.clear();
             exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
-            exports.current_stage_wrap.drawRect(0, 0, common_4.VIEW.WIDTH, common_4.VIEW.HEIGHT);
+            exports.current_stage_wrap.drawRect(0, 0, common_5.VIEW.WIDTH, common_5.VIEW.HEIGHT);
             exports.current_stage_wrap.endFill();
         }
         exports.current_stage_wrap.on("resize", drawPlan);
         var ObjectMap = {
-            "Flyer": Flyer_2.default,
-            "Wall": Wall_2.default,
-            "Ship": Ship_2.default,
+            "Flyer": Flyer_3.default,
+            "Wall": Wall_3.default,
+            "Ship": Ship_3.default,
             "Bullet": Bullet_3.default,
         };
         var instanceMap = {};
@@ -6800,8 +7230,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
                     x: 0,
                     y: 0,
-                    width: common_4.VIEW.WIDTH,
-                    height: common_4.VIEW.HEIGHT
+                    width: common_5.VIEW.WIDTH,
+                    height: common_5.VIEW.HEIGHT
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;
@@ -6845,7 +7275,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         };
         var effect_speed_keys = []; // 记录按下的按钮
         function generate_speed(force) {
-            var effect_speed = new Victor_3.default(0, 0);
+            var effect_speed = new Victor_4.default(0, 0);
             if (effect_speed_keys.length) {
                 for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
                     var speed_info = speed_ux[keyCode];
@@ -6855,7 +7285,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             }
             return effect_speed;
         }
-        common_4.on(exports.current_stage_wrap, "keydown", function (e) {
+        common_5.on(exports.current_stage_wrap, "keydown", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
                 move_target_point = null;
                 if (effect_speed_keys.indexOf(e.keyCode) === -1) {
@@ -6875,7 +7305,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 });
             }
         });
-        common_4.on(exports.current_stage_wrap, "keyup", function (e) {
+        common_5.on(exports.current_stage_wrap, "keyup", function (e) {
             if (speed_ux.hasOwnProperty(e.keyCode) && exports.current_stage_wrap.parent && view_ship) {
                 move_target_point = null;
                 effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode), 1);
@@ -6888,608 +7318,6 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     config: new_config
                 }, function (data) {
                     // console.log("setConfig:stop-move", data);
-                });
-            }
-        });
-        if (const_9._isMobile) {
-            var mobile_operator_1 = new PIXI.Graphics();
-            (function () {
-                var _size;
-                var _border;
-                mobile_operator_1.on("resize", function () {
-                    mobile_operator_1.clear();
-                    _size = Math.min(common_4.VIEW.HEIGHT, common_4.VIEW.WIDTH) / 6;
-                    _border = _size / 6;
-                    mobile_operator_1.lineStyle(_border, 0xFFFFFF, 0.5);
-                    mobile_operator_1.beginFill(0xFFFFFF, 0.3);
-                    mobile_operator_1.drawCircle(0, 0, _size);
-                    mobile_operator_1.endFill();
-                    mobile_operator_1.x = _border * 2 + _size;
-                    mobile_operator_1.y = common_4.VIEW.HEIGHT - _size - _border * 2;
-                    // handle resize
-                    handle.clear();
-                    var _h_size;
-                    _h_size = _size / 3;
-                    handle.beginFill(0xFFFFFF, 0.6);
-                    handle.drawCircle(0, 0, _h_size);
-                    handle.endFill();
-                    handle.cacheAsBitmap = true;
-                    handle.x = mobile_operator_1.x; // + _size;
-                    handle.y = mobile_operator_1.y; // - _size;
-                });
-                var handle = new PIXI.Graphics();
-                exports.current_stage_wrap.addChild(handle);
-                // 交互
-                mobile_operator_1.interactive = true;
-                var handle_dir = new Victor_3.default(0, 0);
-                var current_touch_id = null;
-                common_4.on(mobile_operator_1, "touchstart|touchmove", function (e) {
-                    var touch_list = e.data.originalEvent.touches;
-                    // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
-                    if (current_touch_id !== null) {
-                        var touch = common_4.touchManager.getById(touch_list, current_touch_id);
-                        var touch_point = { x: touch.clientX, y: touch.clientY };
-                    }
-                    else {
-                        var _touch_com = new Victor_3.default(0, 0);
-                        var _control_able_size = _size + _border * 2; // 可控制的空间范围
-                        for (var i = 0, touch; touch = touch_list[i]; i += 1) {
-                            _touch_com.x = touch.clientX - mobile_operator_1.x;
-                            _touch_com.y = touch.clientY - mobile_operator_1.y;
-                            if (_touch_com.length() <= _control_able_size) {
-                                var touch_point = { x: touch.clientX, y: touch.clientY };
-                                current_touch_id = common_4.touchManager.register(touch);
-                                break;
-                            }
-                        }
-                    }
-                    if (!touch_point) {
-                        current_touch_id = null;
-                        return;
-                    }
-                    handle_dir.x = touch_point.x - mobile_operator_1.x;
-                    handle_dir.y = touch_point.y - mobile_operator_1.y;
-                    var _length = Math.min(handle_dir.length(), _size);
-                    var force_rate = _length / _size;
-                    handle_dir.setLength(force_rate * view_ship.config.force);
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: {
-                            x_speed: handle_dir.x,
-                            y_speed: handle_dir.y,
-                        }
-                    }, function (data) { });
-                    // 移动handle控制球
-                    handle_dir.setLength(force_rate * _size);
-                    handle.x = mobile_operator_1.x + handle_dir.x;
-                    handle.y = mobile_operator_1.y + handle_dir.y;
-                });
-                common_4.on(mobile_operator_1, "touchend|touchendoutside", function _cancel_force(e) {
-                    if (current_touch_id === null) {
-                        return;
-                    }
-                    requestAnimationFrame(function () {
-                        common_4.touchManager.free(current_touch_id);
-                        current_touch_id = null;
-                    });
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: {
-                            x_speed: 0,
-                            y_speed: 0,
-                        }
-                    }, function (data) { });
-                    handle.x = mobile_operator_1.x;
-                    handle.y = mobile_operator_1.y;
-                });
-            }());
-            // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
-            exports.current_stage_wrap.addChild(mobile_operator_1);
-        }
-        else {
-            // 将要去的目的点，在接近的时候改变飞船速度
-            var move_target_point;
-            var target_anchor = new PIXI.Graphics();
-            target_anchor.lineStyle(const_9.pt2px(2), 0xff2244, 0.8);
-            target_anchor.drawCircle(0, 0, const_9.pt2px(10));
-            target_anchor.cacheAsBitmap = true;
-            target_anchor.scale.set(0);
-            exports.current_stage.addChild(target_anchor);
-            common_4.on(exports.current_stage_wrap, "rightclick", function (e) {
-                if (view_ship) {
-                    move_target_point = new Victor_3.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
-                    target_anchor.position.set(move_target_point.x, move_target_point.y);
-                    ani_tween.Tween(target_anchor.scale)
-                        .set({ x: 1, y: 1 })
-                        .to({ x: 0, y: 0 }, const_9.B_ANI_TIME)
-                        .start();
-                }
-            });
-            var origin_vic = new Victor_3.default(0, 0);
-            ani_ticker.add(function () {
-                if (move_target_point) {
-                    var curren_point = Victor_3.default.fromArray(view_ship.p2_body.interpolatedPosition);
-                    var current_to_target_dis = curren_point.distance(move_target_point);
-                    // 动力、质量、以及空间摩擦力的比例
-                    var force_mass_rate = view_ship.config.force / view_ship.p2_body.mass / view_ship.p2_body.damping;
-                    var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
-                    var force_vic = new Victor_3.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
-                    force_vic.setLength(view_ship.config.force * force_rate);
-                    if (force_vic.distanceSq(origin_vic) <= 100) {
-                        console.log("基本到达，停止自动移动");
-                        move_target_point = null;
-                    }
-                    var new_config = { x_speed: force_vic.x, y_speed: force_vic.y };
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: new_config
-                    }, function (data) {
-                        // console.log("setConfig:stop-move", data);
-                    });
-                }
-            });
-        }
-        if (const_9._isMobile) {
-            // 旋转角度
-            common_4.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
-                if (view_ship) {
-                    var touch_list = e.data.originalEvent.touches;
-                    var touch = common_4.touchManager.getFreeOne(touch_list);
-                    if (!touch) {
-                        return;
-                    }
-                    var touch_point = { x: touch.clientX, y: touch.clientY };
-                    var direction = new Victor_3.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
-                    var angle_value = direction.angle();
-                    if (angle_value < 0) {
-                        angle_value += PIXI.PI_2;
-                    }
-                    var new_config = {
-                        rotation: angle_value
-                    };
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: new_config
-                    }, function (data) { });
-                }
-            });
-            // 发射
-            common_4.on(exports.current_stage_wrap, "touchstart", function (e) {
-                if (view_ship) {
-                    var touch_list = e.data.originalEvent.touches;
-                    var touch = common_4.touchManager.getFreeOne(touch_list);
-                    if (!touch) {
-                        return;
-                    }
-                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
-                }
-            });
-        }
-        else {
-            // 旋转角度
-            common_4.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
-                if (view_ship) {
-                    var touch_point = e.data.global;
-                    var direction = new Victor_3.default(touch_point.x - common_4.VIEW.CENTER.x, touch_point.y - common_4.VIEW.CENTER.y);
-                    var angle_value = direction.angle();
-                    if (angle_value < 0) {
-                        angle_value += PIXI.PI_2;
-                    }
-                    var new_config = {
-                        rotation: angle_value
-                    };
-                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
-                        config: new_config
-                    }, function (data) { });
-                }
-            });
-            // 发射
-            common_4.on(exports.current_stage_wrap, "mousedown", function (e) {
-                if (view_ship) {
-                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
-                }
-            });
-        }
-        /**响应服务端事件
-         *
-         */
-        Pomelo_1.pomelo.on("explode", function (arg) {
-            var bullet_info = arg.data;
-            console.log("explode:", bullet_info);
-            var bullet = instanceMap[bullet_info.id];
-            if (bullet) {
-                bullet.setConfig(bullet_info.config);
-                bullet.emit("explode");
-                instanceMap[bullet_info.id] = null;
-            }
-        });
-        Pomelo_1.pomelo.on("fire_start", function (arg) {
-            var bullet_info = arg.data;
-            console.log("fire_start:", bullet_info);
-            var bullet = instanceMap[bullet_info.id];
-            if (bullet) {
-                bullet.setConfig(bullet_info.config);
-                bullet.emit("fire_start");
-            }
-        });
-        Pomelo_1.pomelo.on("change-hp", function (arg) {
-            var ship_info = arg.data;
-            console.log("change-hp:", ship_info);
-            var ship = instanceMap[ship_info.id];
-            if (ship) {
-                if (ship_info.config.cur_hp < ship.config.cur_hp) {
-                    ship.emit("flash");
-                }
-                var ship_config = ship_info.config;
-                ship.setConfig(ship_config);
-                var hp = HP_WEAKMAP[ship_info.id];
-                if (hp) {
-                    hp.setHP(ship_config.cur_hp / ship_config.max_hp);
-                }
-            }
-        });
-        Pomelo_1.pomelo.on("ember", function (arg) {
-            var flyer_info = arg.data;
-            console.log("ember:", flyer_info);
-            var flyer = instanceMap[flyer_info.id];
-            if (flyer) {
-                var hp = HP_WEAKMAP[flyer_info.id];
-                hp.parent.removeChild(hp);
-                hp.destroy();
-                flyer.setConfig(flyer_info.config);
-                flyer.emit("ember");
-                instanceMap[flyer_info.id] = null;
-            }
-        });
-        var is_my_ship_live = false;
-        // 死亡对话框
-        var die_dialog = (function () {
-            var title = new PIXI.Container();
-            var restart_button = new Button_1.default({
-                value: "重新开始",
-                fontSize: const_9.pt2px(14),
-                paddingTop: const_9.pt2px(4),
-                paddingBottom: const_9.pt2px(4),
-                paddingLeft: const_9.pt2px(4),
-                paddingRight: const_9.pt2px(4),
-                color: 0xffffff,
-                fontFamily: "微软雅黑"
-            });
-            var content = new FlowLayout_1.default([
-                new TextBuilder_1.default("被击杀！", {
-                    fontSize: const_9.pt2px(16),
-                    fontFamily: "微软雅黑"
-                }),
-                restart_button
-            ], {
-                float: "center"
-            });
-            content.max_width = const_9.pt2px(60);
-            content.reDrawFlow();
-            common_4.on(restart_button, "click|tap", function (e) {
-                exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
-                    if (err) {
-                        alert(err);
-                    }
-                    else {
-                        exports.current_stage_wrap.emit("before-active", game_info);
-                        die_dialog.close();
-                        die_dialog.once("removed", function () {
-                            exports.current_stage_wrap.emit("active");
-                        });
-                    }
-                });
-            });
-            var dialog = new Dialog_1.default(title, content, ani_tween, {
-                title: {
-                    show: false
-                },
-                closeButton: {
-                    show: false
-                },
-                bg: {
-                    alpha: 0.4
-                }
-            });
-            return dialog;
-        })();
-        Pomelo_1.pomelo.on("die", function (arg) {
-            var ship_info = arg.data;
-            console.log("die:", ship_info);
-            var ship = instanceMap[ship_info.id];
-            if (ship) {
-                var hp = HP_WEAKMAP[ship_info.id];
-                hp.parent.removeChild(hp);
-                hp.destroy();
-                ship.emit("die");
-                instanceMap[ship_info.id] = null;
-                if (ship._id === view_ship._id) {
-                    // 玩家死亡
-                    view_ship = null; //TODO，镜头使用击杀者
-                    is_my_ship_live = false;
-                    // 打开对话框
-                    die_dialog.open(exports.current_stage_wrap, exports.current_stage, common_4.renderer);
-                }
-            }
-        });
-        /**帧率
-         *
-         */
-        var pre_time;
-        ani_ticker.add(function () {
-            // 动画控制器
-            ani_tween.update();
-            jump_tween.update();
-            // 客户端对场景的优化渲染
-            pre_time || (pre_time = performance.now());
-            var cur_time = performance.now();
-            var dif_time = cur_time - pre_time;
-            pre_time = cur_time;
-            // 更新影子世界
-            shadowWorld_1.engine.update(dif_time, timeSinceLastCalled, isNewDataFrame);
-            isNewDataFrame = false;
-            // 跟随主角移动
-            if (view_ship) {
-                exports.current_stage.x = common_4.VIEW.WIDTH / 2 - view_ship.x;
-                exports.current_stage.y = common_4.VIEW.HEIGHT / 2 - view_ship.y;
-            }
-            // 更新血量显示
-            hp_stage["update"](dif_time);
-        });
-        var FPS_Text = new PIXI.Text("FPS:0", {
-            font: '24px Arial',
-            fill: 0x00ffff33,
-            align: "left"
-        });
-        exports.current_stage_wrap.addChild(FPS_Text);
-        FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_4.VIEW.WIDTH + " H:" + common_4.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
-            if (view_ship) {
-                var info = "\n";
-                for (var k in view_ship.config) {
-                    var val = view_ship.config[k];
-                    if (typeof val === "number") {
-                        val = val.toFixed(2);
-                    }
-                    info += k + ": " + val + "\n";
-                }
-                FPS_Text.text += info;
-            }
-        });
-        // 触发布局计算
-        common_4.emitReisze(exports.current_stage_wrap);
-        init_w.ok(0, []);
-    }
-    exports.current_stage_wrap.on("init", initStage);
-    exports.current_stage_wrap.on("reinit", function () {
-        renderInit(exports.loader, exports.loader.resources);
-        common_4.emitReisze(exports.current_stage);
-    });
-    exports.current_stage_wrap["_has_custom_resize"] = true;
-    exports.current_stage_wrap.on("resize", function () {
-        jump_tween.clear();
-        ani_tween.clear();
-        common_4.emitReisze(this);
-    });
-    // 初始化本机ID
-    var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
-    if (!mac_ship_id) {
-        mac_ship_id = (Math.random() * Date.now()).toString().replace(".", "");
-        localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
-    }
-    var old_username;
-    exports.current_stage_wrap.on("enter", function (username, cb) {
-        // 发送名字，初始化角色
-        Pomelo_1.pomelo.request("connector.entryHandler.enter", {
-            username: username || old_username,
-            mac_ship_id: mac_ship_id,
-            width: common_4.VIEW.WIDTH,
-            height: common_4.VIEW.HEIGHT,
-        }, function (game_info) {
-            if (game_info.code === 500) {
-                console.log(game_info);
-                if (game_info.error == "重复登录") {
-                    cb("名字已被使用，请重新输入");
-                }
-            }
-            else {
-                old_username = username;
-                cb(null, game_info);
-            }
-        });
-    });
-    var init_w = new When_1.default(2, function () {
-        common_4.emitReisze(exports.current_stage);
-        ani_tween.start();
-        jump_tween.start();
-        ani_ticker.start();
-        FPS_ticker.start();
-    });
-    function initStage() {
-        init_w.ok(1, []);
-    }
-    exports.initStage = initStage;
-});
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_8, When_2, Flyer_3, Ship_3, Wall_3, Victor_4, world_1, common_5, const_10) {
-    "use strict";
-    var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_8.default();
-    var jump_tween = new Tween_8.default();
-    var FPS_ticker = new PIXI.ticker.Ticker();
-    exports.current_stage_wrap = new PIXI.Graphics();
-    exports.current_stage = new PIXI.Container();
-    exports.current_stage_wrap.addChild(exports.current_stage);
-    // current_stage_wrap["keep_direction"] = "horizontal";
-    //加载图片资源
-    exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("button", "./res/game_res.png");
-    exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: const_10.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
-    exports.current_stage.addChild(loading_text);
-    exports.loader.once("complete", renderInit);
-    function renderInit(loader, resource) {
-        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
-            exports.current_stage.removeChildAt(0);
-        }
-        /**素材加载
-         * 初始化场景
-         */
-        function drawPlan() {
-            exports.current_stage_wrap.clear();
-            exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
-            exports.current_stage_wrap.drawRect(0, 0, common_5.VIEW.WIDTH, common_5.VIEW.HEIGHT);
-            exports.current_stage_wrap.endFill();
-        }
-        exports.current_stage_wrap.on("resize", drawPlan);
-        drawPlan();
-        // 子弹绘图层
-        var bullet_stage = new PIXI.Container();
-        bullet_stage["update"] = function (delay) {
-            this.children.forEach(function (bullet) {
-                bullet.update(delay);
-            });
-        };
-        exports.current_stage.addChild(bullet_stage);
-        // 物体绘图层：墙、飞船等等
-        var object_stage = new PIXI.Container();
-        object_stage["update"] = function (delay) {
-            this.children.forEach(function (obj) {
-                obj.update(delay);
-            });
-        };
-        exports.current_stage.addChild(object_stage);
-        var flyerTypes = Object.keys(Flyer_3.default.TYPES);
-        for (var i_1 = 0; i_1 < flyerTypes.length * 2; i_1 += 1) {
-            var flyer = new Flyer_3.default({
-                x: 50 + Math.random() * (common_5.VIEW.WIDTH - 100),
-                y: 50 + Math.random() * (common_5.VIEW.HEIGHT - 100),
-                x_speed: 10 * 2 * (Math.random() - 0.5),
-                y_speed: 10 * 2 * (Math.random() - 0.5),
-                body_color: 0xffffff * Math.random(),
-                type: flyerTypes[i_1 % flyerTypes.length]
-            });
-            object_stage.addChild(flyer);
-            world_1.engine.add(flyer);
-        }
-        // 四边限制
-        var top_edge = new Wall_3.default({
-            x: common_5.VIEW.CENTER.x, y: 0,
-            width: common_5.VIEW.WIDTH,
-            height: 10
-        });
-        object_stage.addChild(top_edge);
-        world_1.engine.add(top_edge);
-        var bottom_edge = new Wall_3.default({
-            x: common_5.VIEW.CENTER.x, y: common_5.VIEW.HEIGHT - 5,
-            width: common_5.VIEW.WIDTH,
-            height: 10
-        });
-        object_stage.addChild(bottom_edge);
-        world_1.engine.add(bottom_edge);
-        var left_edge = new Wall_3.default({
-            x: 5, y: common_5.VIEW.CENTER.y,
-            width: 10,
-            height: common_5.VIEW.HEIGHT
-        });
-        object_stage.addChild(left_edge);
-        world_1.engine.add(left_edge);
-        var right_edge = new Wall_3.default({
-            x: common_5.VIEW.WIDTH - 5, y: common_5.VIEW.CENTER.y,
-            width: 10,
-            height: common_5.VIEW.HEIGHT
-        });
-        object_stage.addChild(right_edge);
-        world_1.engine.add(right_edge);
-        (function () {
-            var x_len = 2;
-            var y_len = 2;
-            var x_unit = common_5.VIEW.WIDTH / (x_len + 1);
-            var y_unit = common_5.VIEW.HEIGHT / (y_len + 1);
-            var width = 40;
-            for (var _x = 1; _x <= x_len; _x += 1) {
-                for (var _y = 1; _y <= y_len; _y += 1) {
-                    var mid_edge = new Wall_3.default({
-                        x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
-                        width: width,
-                        height: width
-                    });
-                    object_stage.addChild(mid_edge);
-                    world_1.engine.add(mid_edge);
-                }
-            }
-        })();
-        var my_ship = new Ship_3.default({
-            x: common_5.VIEW.CENTER.x,
-            y: common_5.VIEW.CENTER.y,
-            body_color: 0x366345
-        });
-        object_stage.addChild(my_ship);
-        world_1.engine.add(my_ship);
-        var other_ship = new Ship_3.default({
-            x: common_5.VIEW.CENTER.x - 200,
-            y: common_5.VIEW.CENTER.y - 100,
-            body_color: 0x633645,
-            team_tag: 12
-        });
-        object_stage.addChild(other_ship);
-        world_1.engine.add(other_ship);
-        /**初始化动画
-         *
-         */
-        var pre_time;
-        ani_ticker.add(function () {
-            pre_time || (pre_time = performance.now() - 1000 / 60);
-            var cur_time = performance.now();
-            var dif_time = cur_time - pre_time;
-            pre_time = cur_time;
-            // 物理引擎运作
-            world_1.engine.update(dif_time);
-        });
-        /**按钮事件
-         *
-         */
-        /**交互动画
-         *
-         */
-        var speed_ux = {
-            37: "-x",
-            65: "-x",
-            38: "-y",
-            87: "-y",
-            39: "+x",
-            68: "+x",
-            40: "+y",
-            83: "+y",
-        };
-        var effect_speed_keys = []; // 记录按下的按钮
-        function generate_speed(force) {
-            var effect_speed = new Victor_4.default(0, 0);
-            if (effect_speed_keys.length) {
-                for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
-                    var speed_info = speed_ux[keyCode];
-                    effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
-                }
-                effect_speed.setLength(force);
-            }
-            return effect_speed;
-        }
-        common_5.on(exports.current_stage_wrap, "keydown", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
-                move_target_point = null;
-                if (effect_speed_keys.indexOf(e.keyCode) === -1) {
-                    effect_speed_keys.push(e.keyCode);
-                }
-                var effect_speed = generate_speed(my_ship.config.force);
-                my_ship.operateShip({
-                    x_speed: effect_speed.x,
-                    y_speed: effect_speed.y,
-                });
-            }
-        });
-        common_5.on(exports.current_stage_wrap, "keyup", function (e) {
-            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
-                move_target_point = null;
-                effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode), 1);
-                var effect_speed = generate_speed(my_ship.config.force);
-                my_ship.operateShip({
-                    x_speed: effect_speed.x,
-                    y_speed: effect_speed.y,
                 });
             }
         });
@@ -7553,11 +7381,13 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                     handle_dir.y = touch_point.y - mobile_operator_2.y;
                     var _length = Math.min(handle_dir.length(), _size);
                     var force_rate = _length / _size;
-                    handle_dir.setLength(force_rate * my_ship.config.force);
-                    my_ship.operateShip({
-                        x_speed: handle_dir.x,
-                        y_speed: handle_dir.y,
-                    });
+                    handle_dir.setLength(force_rate * view_ship.config.force);
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: {
+                            x_speed: handle_dir.x,
+                            y_speed: handle_dir.y,
+                        }
+                    }, function (data) { });
                     // 移动handle控制球
                     handle_dir.setLength(force_rate * _size);
                     handle.x = mobile_operator_2.x + handle_dir.x;
@@ -7571,10 +7401,12 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                         common_5.touchManager.free(current_touch_id);
                         current_touch_id = null;
                     });
-                    my_ship.operateShip({
-                        x_speed: 0,
-                        y_speed: 0,
-                    });
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: {
+                            x_speed: 0,
+                            y_speed: 0,
+                        }
+                    }, function (data) { });
                     handle.x = mobile_operator_2.x;
                     handle.y = mobile_operator_2.y;
                 });
@@ -7592,7 +7424,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             target_anchor.scale.set(0);
             exports.current_stage.addChild(target_anchor);
             common_5.on(exports.current_stage_wrap, "rightclick", function (e) {
-                if (my_ship) {
+                if (view_ship) {
                     move_target_point = new Victor_4.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
                     target_anchor.position.set(move_target_point.x, move_target_point.y);
                     ani_tween.Tween(target_anchor.scale)
@@ -7601,86 +7433,254 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                         .start();
                 }
             });
+            var origin_vic = new Victor_4.default(0, 0);
             ani_ticker.add(function () {
                 if (move_target_point) {
-                    var curren_point = Victor_4.default.fromArray(my_ship.p2_body.interpolatedPosition);
+                    var curren_point = Victor_4.default.fromArray(view_ship.p2_body.interpolatedPosition);
                     var current_to_target_dis = curren_point.distance(move_target_point);
                     // 动力、质量、以及空间摩擦力的比例
-                    var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
+                    var force_mass_rate = view_ship.config.force / view_ship.p2_body.mass / view_ship.p2_body.damping;
                     var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
-                    var force_vic = new Victor_4.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
-                    force_vic.setLength(my_ship.config.force * force_rate);
-                    if (force_vic.lengthSq() <= 100) {
+                    var force_vic = new Victor_4.default(move_target_point.x - view_ship.config.x, move_target_point.y - view_ship.config.y);
+                    force_vic.setLength(view_ship.config.force * force_rate);
+                    if (force_vic.distanceSq(origin_vic) <= 100) {
                         console.log("基本到达，停止自动移动");
                         move_target_point = null;
                     }
-                    my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
+                    var new_config = { x_speed: force_vic.x, y_speed: force_vic.y };
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) {
+                        // console.log("setConfig:stop-move", data);
+                    });
                 }
             });
         }
         if (const_10._isMobile) {
             // 旋转角度
             common_5.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
-                var touch_list = e.data.originalEvent.touches;
-                var touch = common_5.touchManager.getFreeOne(touch_list);
-                if (!touch) {
-                    return;
+                if (view_ship) {
+                    var touch_list = e.data.originalEvent.touches;
+                    var touch = common_5.touchManager.getFreeOne(touch_list);
+                    if (!touch) {
+                        return;
+                    }
+                    var touch_point = { x: touch.clientX, y: touch.clientY };
+                    var direction = new Victor_4.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
+                    var angle_value = direction.angle();
+                    if (angle_value < 0) {
+                        angle_value += PIXI.PI_2;
+                    }
+                    var new_config = {
+                        rotation: angle_value
+                    };
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) { });
                 }
-                var touch_point = { x: touch.clientX, y: touch.clientY };
-                var direction = new Victor_4.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
-                my_ship.operateShip({ rotation: direction.angle() });
             });
             // 发射
             common_5.on(exports.current_stage_wrap, "touchstart", function (e) {
-                var touch_list = e.data.originalEvent.touches;
-                var touch = common_5.touchManager.getFreeOne(touch_list);
-                if (!touch) {
-                    return;
-                }
-                var bullets = my_ship.fire();
-                if (bullets.length) {
-                    bullets.forEach(function (bullet) {
-                        bullet_stage.addChild(bullet);
-                        world_1.engine.add(bullet);
-                    });
+                if (view_ship) {
+                    var touch_list = e.data.originalEvent.touches;
+                    var touch = common_5.touchManager.getFreeOne(touch_list);
+                    if (!touch) {
+                        return;
+                    }
+                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
                 }
             });
         }
         else {
             // 旋转角度
             common_5.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
-                var touch_point = e.data.global;
-                var direction = new Victor_4.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
-                my_ship.operateShip({ rotation: direction.angle() });
+                if (view_ship) {
+                    var touch_point = e.data.global;
+                    var direction = new Victor_4.default(touch_point.x - common_5.VIEW.CENTER.x, touch_point.y - common_5.VIEW.CENTER.y);
+                    var angle_value = direction.angle();
+                    if (angle_value < 0) {
+                        angle_value += PIXI.PI_2;
+                    }
+                    var new_config = {
+                        rotation: angle_value
+                    };
+                    Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
+                        config: new_config
+                    }, function (data) { });
+                }
             });
             // 发射
             common_5.on(exports.current_stage_wrap, "mousedown", function (e) {
-                var bullets = my_ship.fire();
-                if (bullets.length) {
-                    bullets.forEach(function (bullet) {
-                        bullet_stage.addChild(bullet);
-                        world_1.engine.add(bullet);
-                    });
+                if (view_ship) {
+                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
                 }
             });
         }
-        // setTimeout(function () {
-        //     rule.close();
-        // }, 3000)
-        // 动画控制器
-        ani_ticker.add(function () {
-            ani_tween.update();
-            jump_tween.update();
-            exports.current_stage.x = common_5.VIEW.WIDTH / 2 - my_ship.x;
-            exports.current_stage.y = common_5.VIEW.HEIGHT / 2 - my_ship.y;
+        /**响应服务端事件
+         *
+         */
+        Pomelo_1.pomelo.on("explode", function (arg) {
+            var bullet_info = arg.data;
+            console.log("explode:", bullet_info);
+            var bullet = instanceMap[bullet_info.id];
+            if (bullet) {
+                bullet.setConfig(bullet_info.config);
+                bullet.emit("explode");
+                instanceMap[bullet_info.id] = null;
+            }
+        });
+        Pomelo_1.pomelo.on("fire_start", function (arg) {
+            var bullet_info = arg.data;
+            console.log("fire_start:", bullet_info);
+            var bullet = instanceMap[bullet_info.id];
+            if (bullet) {
+                bullet.setConfig(bullet_info.config);
+                bullet.emit("fire_start");
+            }
+        });
+        Pomelo_1.pomelo.on("change-hp", function (arg) {
+            var ship_info = arg.data;
+            console.log("change-hp:", ship_info);
+            var ship = instanceMap[ship_info.id];
+            if (ship) {
+                if (ship_info.config.cur_hp < ship.config.cur_hp) {
+                    ship.emit("flash");
+                }
+                var ship_config = ship_info.config;
+                ship.setConfig(ship_config);
+                var hp = HP_WEAKMAP[ship_info.id];
+                if (hp) {
+                    hp.setHP(ship_config.cur_hp / ship_config.max_hp);
+                }
+            }
+        });
+        Pomelo_1.pomelo.on("ember", function (arg) {
+            var flyer_info = arg.data;
+            console.log("ember:", flyer_info);
+            var flyer = instanceMap[flyer_info.id];
+            if (flyer) {
+                var hp = HP_WEAKMAP[flyer_info.id];
+                hp.parent.removeChild(hp);
+                hp.destroy();
+                flyer.setConfig(flyer_info.config);
+                flyer.emit("ember");
+                instanceMap[flyer_info.id] = null;
+            }
+        });
+        var is_my_ship_live = false;
+        // 死亡对话框
+        var die_dialog = (function () {
+            var title = new PIXI.Container();
+            var restart_button = new Button_1.default({
+                value: "重新开始",
+                fontSize: const_10.pt2px(14),
+                paddingTop: const_10.pt2px(4),
+                paddingBottom: const_10.pt2px(4),
+                paddingLeft: const_10.pt2px(4),
+                paddingRight: const_10.pt2px(4),
+                color: 0xffffff,
+                fontFamily: "微软雅黑"
+            });
+            var content = new FlowLayout_1.default([
+                new TextBuilder_1.default("被击杀！", {
+                    fontSize: const_10.pt2px(16),
+                    fontFamily: "微软雅黑"
+                }),
+                restart_button
+            ], {
+                float: "center"
+            });
+            content.max_width = const_10.pt2px(60);
+            content.reDrawFlow();
+            common_5.on(restart_button, "click|tap", function (e) {
+                exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
+                    if (err) {
+                        alert(err);
+                    }
+                    else {
+                        exports.current_stage_wrap.emit("before-active", game_info);
+                        die_dialog.close();
+                        die_dialog.once("removed", function () {
+                            exports.current_stage_wrap.emit("active");
+                        });
+                    }
+                });
+            });
+            var dialog = new Dialog_1.default(title, content, ani_tween, {
+                title: {
+                    show: false
+                },
+                closeButton: {
+                    show: false
+                },
+                bg: {
+                    alpha: 0.4
+                }
+            });
+            return dialog;
+        })();
+        Pomelo_1.pomelo.on("die", function (arg) {
+            var ship_info = arg.data;
+            console.log("die:", ship_info);
+            var ship = instanceMap[ship_info.id];
+            if (ship) {
+                var hp = HP_WEAKMAP[ship_info.id];
+                hp.parent.removeChild(hp);
+                hp.destroy();
+                ship.emit("die");
+                instanceMap[ship_info.id] = null;
+                if (ship._id === view_ship._id) {
+                    // 玩家死亡
+                    view_ship = null; //TODO，镜头使用击杀者
+                    is_my_ship_live = false;
+                    // 打开对话框
+                    die_dialog.open(exports.current_stage_wrap, exports.current_stage, common_5.renderer);
+                }
+            }
         });
         /**帧率
          *
          */
-        var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
+        var pre_time;
+        ani_ticker.add(function () {
+            // 动画控制器
+            ani_tween.update();
+            jump_tween.update();
+            // 客户端对场景的优化渲染
+            pre_time || (pre_time = performance.now());
+            var cur_time = performance.now();
+            var dif_time = cur_time - pre_time;
+            pre_time = cur_time;
+            // 更新影子世界
+            shadowWorld_1.engine.update(dif_time, timeSinceLastCalled, isNewDataFrame);
+            isNewDataFrame = false;
+            // 跟随主角移动
+            if (view_ship) {
+                exports.current_stage.x = common_5.VIEW.WIDTH / 2 - view_ship.x;
+                exports.current_stage.y = common_5.VIEW.HEIGHT / 2 - view_ship.y;
+            }
+            // 更新血量显示
+            hp_stage["update"](dif_time);
+        });
+        var FPS_Text = new PIXI.Text("FPS:0", {
+            font: '24px Arial',
+            fill: 0x00ffff33,
+            align: "left"
+        });
         exports.current_stage_wrap.addChild(FPS_Text);
         FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_5.VIEW.WIDTH + " H:" + common_5.VIEW.HEIGHT;
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_5.VIEW.WIDTH + " H:" + common_5.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
+            if (view_ship) {
+                var info = "\n";
+                for (var k in view_ship.config) {
+                    var val = view_ship.config[k];
+                    if (typeof val === "number") {
+                        val = val.toFixed(2);
+                    }
+                    info += k + ": " + val + "\n";
+                }
+                FPS_Text.text += info;
+            }
         });
         // 触发布局计算
         common_5.emitReisze(exports.current_stage_wrap);
@@ -7697,6 +7697,33 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         ani_tween.clear();
         common_5.emitReisze(this);
     });
+    // 初始化本机ID
+    var mac_ship_id = localStorage.getItem("MAC-SHIP-ID");
+    if (!mac_ship_id) {
+        mac_ship_id = (Math.random() * Date.now()).toString().replace(".", "");
+        localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
+    }
+    var old_username;
+    exports.current_stage_wrap.on("enter", function (username, cb) {
+        // 发送名字，初始化角色
+        Pomelo_1.pomelo.request("connector.entryHandler.enter", {
+            username: username || old_username,
+            mac_ship_id: mac_ship_id,
+            width: common_5.VIEW.WIDTH,
+            height: common_5.VIEW.HEIGHT,
+        }, function (game_info) {
+            if (game_info.code === 500) {
+                console.log(game_info);
+                if (game_info.error == "重复登录") {
+                    cb("名字已被使用，请重新输入");
+                }
+            }
+            else {
+                old_username = username;
+                cb(null, game_info);
+            }
+        });
+    });
     var init_w = new When_2.default(2, function () {
         common_5.emitReisze(exports.current_stage);
         ani_tween.start();
@@ -7709,11 +7736,412 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     }
     exports.initStage = initStage;
 });
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_9, When_3, Dialog_2, common_6) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/Victor", "app/engine/world", "app/common", "app/const"], function (require, exports, Tween_9, When_3, Flyer_4, Ship_4, Wall_4, Victor_5, world_2, common_6, const_11) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_9.default();
     var jump_tween = new Tween_9.default();
+    var FPS_ticker = new PIXI.ticker.Ticker();
+    exports.current_stage_wrap = new PIXI.Graphics();
+    exports.current_stage = new PIXI.Container();
+    exports.current_stage_wrap.addChild(exports.current_stage);
+    // current_stage_wrap["keep_direction"] = "horizontal";
+    //加载图片资源
+    exports.loader = new PIXI.loaders.Loader();
+    exports.loader.add("button", "./res/game_res.png");
+    exports.loader.load();
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_11.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    exports.current_stage.addChild(loading_text);
+    function renderInit(loader, resource) {
+        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
+            exports.current_stage.removeChildAt(0);
+        }
+        /**素材加载
+         * 初始化场景
+         */
+        function drawPlan() {
+            exports.current_stage_wrap.clear();
+            exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
+            exports.current_stage_wrap.drawRect(0, 0, common_6.VIEW.WIDTH, common_6.VIEW.HEIGHT);
+            exports.current_stage_wrap.endFill();
+        }
+        exports.current_stage_wrap.on("resize", drawPlan);
+        drawPlan();
+        // 子弹绘图层
+        var bullet_stage = new PIXI.Container();
+        bullet_stage["update"] = function (delay) {
+            this.children.forEach(function (bullet) {
+                bullet.update(delay);
+            });
+        };
+        exports.current_stage.addChild(bullet_stage);
+        // 物体绘图层：墙、飞船等等
+        var object_stage = new PIXI.Container();
+        object_stage["update"] = function (delay) {
+            this.children.forEach(function (obj) {
+                obj.update(delay);
+            });
+        };
+        exports.current_stage.addChild(object_stage);
+        var flyerTypes = Object.keys(Flyer_4.default.TYPES);
+        for (var i_1 = 0; i_1 < flyerTypes.length * 2; i_1 += 1) {
+            var flyer = new Flyer_4.default({
+                x: 50 + Math.random() * (common_6.VIEW.WIDTH - 100),
+                y: 50 + Math.random() * (common_6.VIEW.HEIGHT - 100),
+                x_speed: 10 * 2 * (Math.random() - 0.5),
+                y_speed: 10 * 2 * (Math.random() - 0.5),
+                body_color: 0xffffff * Math.random(),
+                type: flyerTypes[i_1 % flyerTypes.length]
+            });
+            object_stage.addChild(flyer);
+            world_2.engine.add(flyer);
+        }
+        // 四边限制
+        var top_edge = new Wall_4.default({
+            x: common_6.VIEW.CENTER.x, y: 0,
+            width: common_6.VIEW.WIDTH,
+            height: 10
+        });
+        object_stage.addChild(top_edge);
+        world_2.engine.add(top_edge);
+        var bottom_edge = new Wall_4.default({
+            x: common_6.VIEW.CENTER.x, y: common_6.VIEW.HEIGHT - 5,
+            width: common_6.VIEW.WIDTH,
+            height: 10
+        });
+        object_stage.addChild(bottom_edge);
+        world_2.engine.add(bottom_edge);
+        var left_edge = new Wall_4.default({
+            x: 5, y: common_6.VIEW.CENTER.y,
+            width: 10,
+            height: common_6.VIEW.HEIGHT
+        });
+        object_stage.addChild(left_edge);
+        world_2.engine.add(left_edge);
+        var right_edge = new Wall_4.default({
+            x: common_6.VIEW.WIDTH - 5, y: common_6.VIEW.CENTER.y,
+            width: 10,
+            height: common_6.VIEW.HEIGHT
+        });
+        object_stage.addChild(right_edge);
+        world_2.engine.add(right_edge);
+        (function () {
+            var x_len = 2;
+            var y_len = 2;
+            var x_unit = common_6.VIEW.WIDTH / (x_len + 1);
+            var y_unit = common_6.VIEW.HEIGHT / (y_len + 1);
+            var width = 40;
+            for (var _x = 1; _x <= x_len; _x += 1) {
+                for (var _y = 1; _y <= y_len; _y += 1) {
+                    var mid_edge = new Wall_4.default({
+                        x: _x * x_unit - width / 2, y: _y * y_unit - width / 2,
+                        width: width,
+                        height: width
+                    });
+                    object_stage.addChild(mid_edge);
+                    world_2.engine.add(mid_edge);
+                }
+            }
+        })();
+        var my_ship = new Ship_4.default({
+            x: common_6.VIEW.CENTER.x,
+            y: common_6.VIEW.CENTER.y,
+            body_color: 0x366345
+        });
+        object_stage.addChild(my_ship);
+        world_2.engine.add(my_ship);
+        var other_ship = new Ship_4.default({
+            x: common_6.VIEW.CENTER.x - 200,
+            y: common_6.VIEW.CENTER.y - 100,
+            body_color: 0x633645,
+            team_tag: 12
+        });
+        object_stage.addChild(other_ship);
+        world_2.engine.add(other_ship);
+        /**初始化动画
+         *
+         */
+        var pre_time;
+        ani_ticker.add(function () {
+            pre_time || (pre_time = performance.now() - 1000 / 60);
+            var cur_time = performance.now();
+            var dif_time = cur_time - pre_time;
+            pre_time = cur_time;
+            // 物理引擎运作
+            world_2.engine.update(dif_time);
+        });
+        /**按钮事件
+         *
+         */
+        /**交互动画
+         *
+         */
+        var speed_ux = {
+            37: "-x",
+            65: "-x",
+            38: "-y",
+            87: "-y",
+            39: "+x",
+            68: "+x",
+            40: "+y",
+            83: "+y",
+        };
+        var effect_speed_keys = []; // 记录按下的按钮
+        function generate_speed(force) {
+            var effect_speed = new Victor_5.default(0, 0);
+            if (effect_speed_keys.length) {
+                for (var i = 0, keyCode; keyCode = effect_speed_keys[i]; i += 1) {
+                    var speed_info = speed_ux[keyCode];
+                    effect_speed[speed_info.charAt(1)] = speed_info.charAt(0) === "-" ? -1 : 1;
+                }
+                effect_speed.setLength(force);
+            }
+            return effect_speed;
+        }
+        common_6.on(exports.current_stage_wrap, "keydown", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
+                move_target_point = null;
+                if (effect_speed_keys.indexOf(e.keyCode) === -1) {
+                    effect_speed_keys.push(e.keyCode);
+                }
+                var effect_speed = generate_speed(my_ship.config.force);
+                my_ship.operateShip({
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                });
+            }
+        });
+        common_6.on(exports.current_stage_wrap, "keyup", function (e) {
+            if (speed_ux.hasOwnProperty(e.keyCode) && my_ship) {
+                move_target_point = null;
+                effect_speed_keys.splice(effect_speed_keys.indexOf(e.keyCode), 1);
+                var effect_speed = generate_speed(my_ship.config.force);
+                my_ship.operateShip({
+                    x_speed: effect_speed.x,
+                    y_speed: effect_speed.y,
+                });
+            }
+        });
+        if (const_11._isMobile) {
+            var mobile_operator_3 = new PIXI.Graphics();
+            (function () {
+                var _size;
+                var _border;
+                mobile_operator_3.on("resize", function () {
+                    mobile_operator_3.clear();
+                    _size = Math.min(common_6.VIEW.HEIGHT, common_6.VIEW.WIDTH) / 6;
+                    _border = _size / 6;
+                    mobile_operator_3.lineStyle(_border, 0xFFFFFF, 0.5);
+                    mobile_operator_3.beginFill(0xFFFFFF, 0.3);
+                    mobile_operator_3.drawCircle(0, 0, _size);
+                    mobile_operator_3.endFill();
+                    mobile_operator_3.x = _border * 2 + _size;
+                    mobile_operator_3.y = common_6.VIEW.HEIGHT - _size - _border * 2;
+                    // handle resize
+                    handle.clear();
+                    var _h_size;
+                    _h_size = _size / 3;
+                    handle.beginFill(0xFFFFFF, 0.6);
+                    handle.drawCircle(0, 0, _h_size);
+                    handle.endFill();
+                    handle.cacheAsBitmap = true;
+                    handle.x = mobile_operator_3.x; // + _size;
+                    handle.y = mobile_operator_3.y; // - _size;
+                });
+                var handle = new PIXI.Graphics();
+                exports.current_stage_wrap.addChild(handle);
+                // 交互
+                mobile_operator_3.interactive = true;
+                var handle_dir = new Victor_5.default(0, 0);
+                var current_touch_id = null;
+                common_6.on(mobile_operator_3, "touchstart|touchmove", function (e) {
+                    var touch_list = e.data.originalEvent.touches;
+                    // 多点触摸，寻找处于左下角的那个，不考虑最接近，但考虑一定要处于左下角
+                    if (current_touch_id !== null) {
+                        var touch = common_6.touchManager.getById(touch_list, current_touch_id);
+                        var touch_point = { x: touch.clientX, y: touch.clientY };
+                    }
+                    else {
+                        var _touch_com = new Victor_5.default(0, 0);
+                        var _control_able_size = _size + _border * 2; // 可控制的空间范围
+                        for (var i = 0, touch; touch = touch_list[i]; i += 1) {
+                            _touch_com.x = touch.clientX - mobile_operator_3.x;
+                            _touch_com.y = touch.clientY - mobile_operator_3.y;
+                            if (_touch_com.length() <= _control_able_size) {
+                                var touch_point = { x: touch.clientX, y: touch.clientY };
+                                current_touch_id = common_6.touchManager.register(touch);
+                                break;
+                            }
+                        }
+                    }
+                    if (!touch_point) {
+                        current_touch_id = null;
+                        return;
+                    }
+                    handle_dir.x = touch_point.x - mobile_operator_3.x;
+                    handle_dir.y = touch_point.y - mobile_operator_3.y;
+                    var _length = Math.min(handle_dir.length(), _size);
+                    var force_rate = _length / _size;
+                    handle_dir.setLength(force_rate * my_ship.config.force);
+                    my_ship.operateShip({
+                        x_speed: handle_dir.x,
+                        y_speed: handle_dir.y,
+                    });
+                    // 移动handle控制球
+                    handle_dir.setLength(force_rate * _size);
+                    handle.x = mobile_operator_3.x + handle_dir.x;
+                    handle.y = mobile_operator_3.y + handle_dir.y;
+                });
+                common_6.on(mobile_operator_3, "touchend|touchendoutside", function _cancel_force(e) {
+                    if (current_touch_id === null) {
+                        return;
+                    }
+                    requestAnimationFrame(function () {
+                        common_6.touchManager.free(current_touch_id);
+                        current_touch_id = null;
+                    });
+                    my_ship.operateShip({
+                        x_speed: 0,
+                        y_speed: 0,
+                    });
+                    handle.x = mobile_operator_3.x;
+                    handle.y = mobile_operator_3.y;
+                });
+            }());
+            // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
+            exports.current_stage_wrap.addChild(mobile_operator_3);
+        }
+        else {
+            // 将要去的目的点，在接近的时候改变飞船速度
+            var move_target_point;
+            var target_anchor = new PIXI.Graphics();
+            target_anchor.lineStyle(const_11.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_11.pt2px(10));
+            target_anchor.cacheAsBitmap = true;
+            target_anchor.scale.set(0);
+            exports.current_stage.addChild(target_anchor);
+            common_6.on(exports.current_stage_wrap, "rightclick", function (e) {
+                if (my_ship) {
+                    move_target_point = new Victor_5.default(e.x - exports.current_stage.x, e.y - exports.current_stage.y);
+                    target_anchor.position.set(move_target_point.x, move_target_point.y);
+                    ani_tween.Tween(target_anchor.scale)
+                        .set({ x: 1, y: 1 })
+                        .to({ x: 0, y: 0 }, const_11.B_ANI_TIME)
+                        .start();
+                }
+            });
+            ani_ticker.add(function () {
+                if (move_target_point) {
+                    var curren_point = Victor_5.default.fromArray(my_ship.p2_body.interpolatedPosition);
+                    var current_to_target_dis = curren_point.distance(move_target_point);
+                    // 动力、质量、以及空间摩擦力的比例
+                    var force_mass_rate = my_ship.config.force / my_ship.p2_body.mass / my_ship.p2_body.damping;
+                    var force_rate = Math.min(Math.max(current_to_target_dis / force_mass_rate, 0), 1);
+                    var force_vic = new Victor_5.default(move_target_point.x - my_ship.config.x, move_target_point.y - my_ship.config.y);
+                    force_vic.setLength(my_ship.config.force * force_rate);
+                    if (force_vic.lengthSq() <= 100) {
+                        console.log("基本到达，停止自动移动");
+                        move_target_point = null;
+                    }
+                    my_ship.operateShip({ x_speed: force_vic.x, y_speed: force_vic.y });
+                }
+            });
+        }
+        if (const_11._isMobile) {
+            // 旋转角度
+            common_6.on(exports.current_stage_wrap, "touchstart|touchmove", function (e) {
+                var touch_list = e.data.originalEvent.touches;
+                var touch = common_6.touchManager.getFreeOne(touch_list);
+                if (!touch) {
+                    return;
+                }
+                var touch_point = { x: touch.clientX, y: touch.clientY };
+                var direction = new Victor_5.default(touch_point.x - common_6.VIEW.CENTER.x, touch_point.y - common_6.VIEW.CENTER.y);
+                my_ship.operateShip({ rotation: direction.angle() });
+            });
+            // 发射
+            common_6.on(exports.current_stage_wrap, "touchstart", function (e) {
+                var touch_list = e.data.originalEvent.touches;
+                var touch = common_6.touchManager.getFreeOne(touch_list);
+                if (!touch) {
+                    return;
+                }
+                var bullets = my_ship.fire();
+                if (bullets.length) {
+                    bullets.forEach(function (bullet) {
+                        bullet_stage.addChild(bullet);
+                        world_2.engine.add(bullet);
+                    });
+                }
+            });
+        }
+        else {
+            // 旋转角度
+            common_6.on(exports.current_stage_wrap, "mousemove|mousedown", function (e) {
+                var touch_point = e.data.global;
+                var direction = new Victor_5.default(touch_point.x - common_6.VIEW.CENTER.x, touch_point.y - common_6.VIEW.CENTER.y);
+                my_ship.operateShip({ rotation: direction.angle() });
+            });
+            // 发射
+            common_6.on(exports.current_stage_wrap, "mousedown", function (e) {
+                var bullets = my_ship.fire();
+                if (bullets.length) {
+                    bullets.forEach(function (bullet) {
+                        bullet_stage.addChild(bullet);
+                        world_2.engine.add(bullet);
+                    });
+                }
+            });
+        }
+        // setTimeout(function () {
+        //     rule.close();
+        // }, 3000)
+        // 动画控制器
+        ani_ticker.add(function () {
+            ani_tween.update();
+            jump_tween.update();
+            exports.current_stage.x = common_6.VIEW.WIDTH / 2 - my_ship.x;
+            exports.current_stage.y = common_6.VIEW.HEIGHT / 2 - my_ship.y;
+        });
+        /**帧率
+         *
+         */
+        var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
+        exports.current_stage_wrap.addChild(FPS_Text);
+        FPS_ticker.add(function () {
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_6.VIEW.WIDTH + " H:" + common_6.VIEW.HEIGHT;
+        });
+        // 触发布局计算
+        common_6.emitReisze(exports.current_stage_wrap);
+        ani_tween.start();
+        jump_tween.start();
+        ani_ticker.start();
+        FPS_ticker.start();
+    }
+    exports.loader.once("complete", function () {
+        init_w.ok(2, []);
+    });
+    exports.current_stage_wrap.on("init", function () {
+        init_w.ok(1, []);
+    });
+    exports.current_stage_wrap.on("active", function () {
+        init_w.ok(0, []);
+    });
+    exports.current_stage_wrap["_has_custom_resize"] = true;
+    exports.current_stage_wrap.on("resize", function () {
+        jump_tween.clear();
+        ani_tween.clear();
+        common_6.emitReisze(this);
+    });
+    var init_w = new When_3.default(3, function () {
+        renderInit(exports.loader, exports.loader.resources);
+    });
+});
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_10, When_4, Dialog_2, common_7) {
+    "use strict";
+    var ani_ticker = new PIXI.ticker.Ticker();
+    var ani_tween = new Tween_10.default();
+    var jump_tween = new Tween_10.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Container();
@@ -7721,16 +8149,16 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     // current_stage_wrap["keep_direction"] = "vertical";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
-    exports.loader.add("bg", "http://cdn2.youdob.com/4.jpg?imageView2/1/w/" + common_6.VIEW.WIDTH + "/h/" + common_6.VIEW.HEIGHT);
+    exports.loader.add("bg", "http://cdn2.youdob.com/4.jpg?imageView2/1/w/" + common_7.VIEW.WIDTH + "/h/" + common_7.VIEW.HEIGHT);
     exports.loader.load();
     var loading_text = new PIXI.Text("加载中……", {
-        font: common_6.pt2px(25) + "px 微软雅黑",
+        font: common_7.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
     exports.loader.once("complete", renderInit);
     var waitting_text = new PIXI.Text("连接服务器中……", {
-        font: common_6.pt2px(25) + "px 微软雅黑",
+        font: common_7.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     function renderInit(loader, resource) {
@@ -7740,17 +8168,17 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
         var bg_tex = resource["bg"].texture;
         var bg = new PIXI.Sprite(bg_tex);
         exports.current_stage.addChild(bg);
-        if (bg_tex.width / bg_tex.height > common_6.VIEW.WIDTH / common_6.VIEW.HEIGHT) {
-            var bg_rate = common_6.VIEW.HEIGHT / bg_tex.height;
+        if (bg_tex.width / bg_tex.height > common_7.VIEW.WIDTH / common_7.VIEW.HEIGHT) {
+            var bg_rate = common_7.VIEW.HEIGHT / bg_tex.height;
         }
         else {
-            var bg_rate = common_6.VIEW.WIDTH / bg_tex.width;
+            var bg_rate = common_7.VIEW.WIDTH / bg_tex.width;
         }
         bg.scale.set(bg_rate, bg_rate);
         exports.current_stage.addChild(waitting_text);
-        common_6.stageManager.backgroundColor = "#333";
-        waitting_text.x = common_6.VIEW.CENTER.x - waitting_text.width / 2;
-        waitting_text.y = common_6.VIEW.CENTER.y - waitting_text.height / 2;
+        common_7.stageManager.backgroundColor = "#333";
+        waitting_text.x = common_7.VIEW.CENTER.x - waitting_text.width / 2;
+        waitting_text.y = common_7.VIEW.CENTER.y - waitting_text.height / 2;
         /**初始化动画
          *
          */
@@ -7763,7 +8191,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
             var title = new PIXI.Container();
             var content = new PIXI.Graphics();
             content.beginFill(0xffffff, 0.5);
-            var _r = Math.min(common_6.VIEW.WIDTH, common_6.VIEW.HEIGHT) / 2 * 0.9;
+            var _r = Math.min(common_7.VIEW.WIDTH, common_7.VIEW.HEIGHT) / 2 * 0.9;
             content.drawCircle(_r, _r, _r);
             content.endFill();
             var dialog = new Dialog_2.default(title, content, ani_tween, {
@@ -7790,7 +8218,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 })
                     .to({
                     opacity: 1
-                }, common_6.B_ANI_TIME)
+                }, common_7.B_ANI_TIME)
                     .onUpdate(function (p) {
                     ui_wrap.style.transform = "scale(" + p + ")";
                 })
@@ -7803,7 +8231,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 })
                     .to({
                     opacity: 0
-                }, common_6.B_ANI_TIME)
+                }, common_7.B_ANI_TIME)
                     .start()
                     .onUpdate(function (p) {
                     ui_wrap.style.transform = "scale(" + (1 - p) + ")";
@@ -7817,15 +8245,15 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 ui_wrap = document.createElement("div");
                 ui_wrap.style.cssText = "\n                display: -webkit-flex;\n                display: flex;\n                position: absolute;\n                left:0;\n                top:0;\n                width:100%;\n                height:100%;\n                -webkit-align-items: center;\n                      align-items: center;\n                -webkit-justify-content: center;\n                      justify-content: center;\n            ";
                 exports.current_stage_wrap["ui_wrap"] = ui_wrap;
-                var input_width = common_6.pt2px(200);
-                var input_height = common_6.pt2px(20);
+                var input_width = common_7.pt2px(200);
+                var input_height = common_7.pt2px(20);
                 var input_placeholder = "请输入用户名";
                 ui_wrap.innerHTML = "\n            <div style=\"\n                width: " + input_width + "px;\n                height: " + input_height * 3 + "px;\n                text-align:center;\n                \">\n                <input placeholder=\"" + input_placeholder + "\" style=\"display:block;\n                    width:" + input_width + "px;\n                    border-radius:" + input_height * 0.3 + "px;\n                    padding:" + input_height * 0.3 + "px;\n                    margin:0;\n                    border:0;\n                    background-color:rgba(221,221,221,0.9);\n                    outline:none;\n                    color:#333;\n                    font-size:" + input_height * 0.8 + "px;\"/>\n                <button style=\"\n                    cursor:point;\n                    border-radius:" + input_height * 0.1 + "px;\n                    min-width:" + input_width * 0.6 + "px;\n                    margin:" + input_height * 0.4 + "px 0 0 0;\n                    border:0;\n                    color:#ddd;\n                    background-color:rgba(33,33,221,0.8);\n                    outline:none;\n                    padding:" + input_height * 0.1 + "px;\n                    font-size:" + input_height * 0.8 + "px;\">\u63D0\u4EA4</button>\n            </div>\n            ";
                 var ui_input = ui_wrap.firstElementChild.firstElementChild;
                 ui_input["showError"] = function (errorText) {
                     ui_input.value = "";
                     ui_input.placeholder = errorText;
-                    ui_input.style.boxShadow = "0 0 " + common_6.pt2px(10) + "px rgba(221,33,33,1)";
+                    ui_input.style.boxShadow = "0 0 " + common_7.pt2px(10) + "px rgba(221,33,33,1)";
                     setTimeout(function () {
                         ui_input.placeholder = input_placeholder;
                         ui_input.style.boxShadow = "none";
@@ -7848,7 +8276,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
                 var ui_input = ui_wrap.firstElementChild.firstElementChild;
                 ui_input["showError"](errorText);
             }
-            inputName_dialog.open(exports.current_stage_wrap, exports.current_stage, common_6.renderer);
+            inputName_dialog.open(exports.current_stage_wrap, exports.current_stage, common_7.renderer);
         });
         /**按钮事件
          *
@@ -7865,7 +8293,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
          *
          */
         // 触发布局计算
-        common_6.emitReisze(exports.current_stage_wrap);
+        common_7.emitReisze(exports.current_stage_wrap);
         init_w.ok(0, []);
     }
     exports.current_stage_wrap.on("init", initStage);
@@ -7876,9 +8304,9 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     exports.current_stage_wrap.on("resize", function () {
         jump_tween.clear();
         ani_tween.clear();
-        common_6.emitReisze(this);
+        common_7.emitReisze(this);
     });
-    var init_w = new When_3.default(2, function () {
+    var init_w = new When_4.default(2, function () {
         ani_tween.start();
         jump_tween.start();
         ani_ticker.start();
@@ -7889,12 +8317,15 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     }
     exports.initStage = initStage;
 });
-define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_7, game2_1, game_oline_1, loader_1, Pomelo_2) {
+define("app/main", ["require", "exports", "app/common", "app/game2", "app/editor", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_8, game2_1, editor_1, game_oline_1, loader_1, Pomelo_2) {
     "use strict";
-    common_7.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
-    common_7.stageManager.set(loader_1.current_stage_wrap);
+    common_8.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
+    common_8.stageManager.set(loader_1.current_stage_wrap);
     if (location.hash === "#game") {
-        common_7.stageManager.set(game2_1.current_stage_wrap);
+        common_8.stageManager.set(game2_1.current_stage_wrap);
+    }
+    else if (location.hash === "#editor") {
+        common_8.stageManager.set(editor_1.current_stage_wrap);
     }
     else {
         var host = location.hostname;
@@ -7919,7 +8350,7 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
                                 }
                                 else {
                                     game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                                    common_7.stageManager.set(game_oline_1.current_stage_wrap);
+                                    common_8.stageManager.set(game_oline_1.current_stage_wrap);
                                 }
                             });
                         });
@@ -7932,7 +8363,7 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/game-o
         });
     }
     function animate() {
-        common_7.renderer.render(common_7.stageManager.get());
+        common_8.renderer.render(common_8.stageManager.get());
         requestAnimationFrame(animate);
     }
     animate();
@@ -8078,7 +8509,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_10, SVGGraphics_2, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_11, SVGGraphics_2, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -8103,7 +8534,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_10.default();
+            this._tween = new Tween_11.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -8379,7 +8810,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_10.default.Easing.Quartic.Out)
+                        .easing(Tween_11.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -8390,7 +8821,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_10.default.Easing.Quartic.Out)
+                    .easing(Tween_11.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -8405,7 +8836,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_10.default.Easing.Quartic.Out)
+                        .easing(Tween_11.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -8415,7 +8846,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_10.default.Easing.Quartic.Out)
+                        .easing(Tween_11.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -8441,7 +8872,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_10.default.Easing.Quartic.Out)
+                .easing(Tween_11.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -8617,7 +9048,7 @@ define("class/pixelCollision", ["require", "exports"], function (require, export
     }
     exports.isCollisionWithRect = isCollisionWithRect;
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_11) {
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_12) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -8632,7 +9063,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_11.default();
+            this.ANI = new Tween_12.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -8666,7 +9097,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_11.default.Easing.Quartic.Out)
+                .easing(Tween_12.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -8777,7 +9208,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_11.default.Easing.Quartic.Out)
+                        .easing(Tween_12.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

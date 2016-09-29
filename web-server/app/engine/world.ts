@@ -179,10 +179,12 @@ export const engine = {
          if(!current_ship&&!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
-        var bullet = current_ship.fire();
-        if(bullet) {
-            engine.add(bullet)
-            return bullet;
+        var bullets = current_ship.fire();
+        if(bullets.length) {
+            bullets.forEach(function (bullet) {
+                engine.add(bullet)
+                return bullet;
+            });
         }
     }
 };

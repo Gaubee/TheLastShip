@@ -1,5 +1,6 @@
 import {renderer, VIEW, stageManager} from "./common";
 import {current_stage_wrap as g_stage} from "./game2";
+import {current_stage_wrap as e_stage} from "./editor";
 import {current_stage_wrap as ol_stage} from "./game-oline";
 import {current_stage_wrap as l_stage} from "./loader";
 import {pomelo} from "./engine/Pomelo";
@@ -9,6 +10,8 @@ stageManager.add(l_stage, g_stage);
 stageManager.set(l_stage);
 if(location.hash==="#game") {
     stageManager.set(g_stage);
+}else if(location.hash==="#editor") {
+    stageManager.set(e_stage);
 }else{
     var host = location.hostname;
     var port = "3051";

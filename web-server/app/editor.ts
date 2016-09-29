@@ -15,6 +15,7 @@ import {P2I} from "./engine/Collision";
 import Victor from "./engine/Victor";
 import {engine} from "./engine/world";
 // import {pomelo} from "./engine/Pomelo";
+import * as ediorStage from "./ediorStage.json";
 
 import {
     VIEW,
@@ -33,10 +34,12 @@ import {
     S_ANI_TIME,
     pt2px,
     mix_options,
+    assign,
     _isBorwser,
     _isNode,
     _isMobile,
 } from "./const";
+
 
 const ani_ticker = new PIXI.ticker.Ticker();
 const ani_tween = new TWEEN();
@@ -66,7 +69,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
      */
     function drawPlan() {
         current_stage_wrap.clear();
-        current_stage_wrap.beginFill(0x333ddd, 0.5);
+        current_stage_wrap.beginFill(0x999999, 1);
         current_stage_wrap.drawRect(0, 0, VIEW.WIDTH, VIEW.HEIGHT);
         current_stage_wrap.endFill();
     }
@@ -90,54 +93,56 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     }
     current_stage.addChild(object_stage);
 
-    var flyerTypes = Object.keys(Flyer.TYPES);
-    for(let i = 0;i < flyerTypes.length*2;i+=1){
-        let flyer = new Flyer({
-            x: 50+Math.random()*(VIEW.WIDTH-100),
-            y: 50+Math.random()*(VIEW.HEIGHT-100),
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
-            body_color: 0xffffff * Math.random(),
-            type:flyerTypes[i%flyerTypes.length]
+    if(ediorStage["flyers"] instanceof Array){
+        ediorStage["flyers"].forEach(function (flyer_config) {
+            let flyer = new Flyer(assign({
+                x: 50+Math.random()*(VIEW.WIDTH-100),
+                y: 50+Math.random()*(VIEW.HEIGHT-100),
+                x_speed: 10 * 2 * (Math.random() - 0.5),
+                y_speed: 10 * 2 * (Math.random() - 0.5),
+                body_color: 0xffffff * Math.random()
+            },flyer_config));
+            object_stage.addChild(flyer);
+            engine.add(flyer);
         });
-        object_stage.addChild(flyer);
-        engine.add(flyer);
     }
 
+    const EDGE_WIDTH = VIEW.WIDTH*2;
+    const EDGE_HEIGHT = VIEW.HEIGHT*2;
     // 四边限制
     var top_edge = new Wall({
-        x: VIEW.CENTER.x, y: 0,
-        width: VIEW.WIDTH,
+        x: EDGE_WIDTH/2, y: 0,
+        width: EDGE_WIDTH,
         height: 10
     });
     object_stage.addChild(top_edge);
     engine.add(top_edge);
     var bottom_edge = new Wall({
-        x: VIEW.CENTER.x, y: VIEW.HEIGHT - 5,
-        width: VIEW.WIDTH,
+        x: EDGE_WIDTH/2, y: EDGE_HEIGHT - 5,
+        width: EDGE_WIDTH,
         height: 10
     });
     object_stage.addChild(bottom_edge);
     engine.add(bottom_edge);
     var left_edge = new Wall({
-        x: 5, y: VIEW.CENTER.y,
+        x: 5, y: EDGE_HEIGHT/2,
         width: 10,
-        height: VIEW.HEIGHT
+        height: EDGE_HEIGHT
     });
     object_stage.addChild(left_edge);
     engine.add(left_edge);
     var right_edge = new Wall({
-        x: VIEW.WIDTH - 5, y: VIEW.CENTER.y,
+        x: EDGE_WIDTH - 5, y: EDGE_HEIGHT/2,
         width: 10,
-        height: VIEW.HEIGHT
+        height: EDGE_HEIGHT
     });
     object_stage.addChild(right_edge);
     engine.add(right_edge);
     (() => {
-        var x_len = 2;
-        var y_len = 2;
-        var x_unit = VIEW.WIDTH / (x_len + 1)
-        var y_unit = VIEW.HEIGHT / (y_len + 1)
+        var x_len = 6;
+        var y_len = 6;
+        var x_unit = EDGE_WIDTH / (x_len + 1)
+        var y_unit = EDGE_HEIGHT / (y_len + 1)
         var width = 40;
         for (var _x = 1; _x <= x_len; _x += 1) {
             for (var _y = 1; _y <= y_len; _y += 1) {
@@ -152,24 +157,45 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             }
         }
     })();
+    if(ediorStage["myship"]){
+        var my_ship = new Ship(assign({
+            x: VIEW.CENTER.x,
+            y: VIEW.CENTER.y,
+            body_color: 0x366345
+        },ediorStage["myship"]));
+        object_stage.addChild(my_ship);
+        engine.add(my_ship);
+    }
+    if(ediorStage["ships"] instanceof Array) {
+        ediorStage["ships"].forEach(function (ship_config) {
+            var ship = new Ship(assign({
+                x: 100+(EDGE_WIDTH-200)*Math.random(),
+                y: 100+(EDGE_HEIGHT-200)*Math.random(),
+                body_color: 0xffffff*Math.random()
+            },ship_config));
+            object_stage.addChild(ship);
+            engine.add(ship);
+        })
+    }
 
-    var my_ship = new Ship({
-        x: VIEW.CENTER.x,
-        y: VIEW.CENTER.y,
-        body_color: 0x366345
-    });
-    object_stage.addChild(my_ship);
-    engine.add(my_ship);
-
-    var other_ship = new Ship({
-        x: VIEW.CENTER.x-200,
-        y: VIEW.CENTER.y-100,
-        body_color: 0x633645,
-        team_tag: 12
-    });
-    object_stage.addChild(other_ship);
-    engine.add(other_ship);
-
+    // 辅助线
+    (() => {
+        var lines = new PIXI.Graphics();
+        var x_unit = pt2px(10);
+        var y_unit = pt2px(10);
+        var x_len = (EDGE_WIDTH/x_unit)|0;
+        var y_len = (EDGE_HEIGHT/y_unit)|0;
+        lines.lineStyle(1,0x333333,0.8);
+        for (var _x = 1; _x <= x_len; _x += 1) {
+            lines.moveTo(_x*x_unit,0);
+            lines.lineTo(_x*x_unit,EDGE_HEIGHT);
+        }
+        for (var _y = 1; _y <= y_len; _y += 1) {
+            lines.moveTo(0, _y*y_unit);
+            lines.lineTo(EDGE_WIDTH, _y*y_unit);
+        }
+        current_stage.addChildAt(lines, 0);
+    })();
     /**初始化动画
      * 
      */
@@ -383,7 +409,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             }
             var touch_point = {x:touch.clientX,y:touch.clientY};
             var direction = new Victor(touch_point.x - VIEW.CENTER.x, touch_point.y - VIEW.CENTER.y);
-            my_ship.operateShip({ rotation: direction.angle() })
+            .operateShip({ rotation: direction.angle() })
         });
         // 发射
         on(current_stage_wrap, "touchstart", function (e) {
@@ -426,8 +452,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     ani_ticker.add(() => {
         ani_tween.update();
         jump_tween.update();
-        current_stage.x = VIEW.WIDTH / 2 - my_ship.x
-        current_stage.y = VIEW.HEIGHT / 2 - my_ship.y 
+        if(my_ship) {
+            current_stage.x = VIEW.WIDTH / 2 - my_ship.x
+            current_stage.y = VIEW.HEIGHT / 2 - my_ship.y 
+        }
     });
 
     /**帧率
@@ -447,6 +475,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     jump_tween.start();
     ani_ticker.start();
     FPS_ticker.start();
+
 }
 
 loader.once("complete", function () {

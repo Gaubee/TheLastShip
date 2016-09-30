@@ -117,6 +117,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             flyer.on("change-hp",function () {
                 hp.setHP()
             });
+            flyer.on("ember",function () {
+                hp_stage.removeChild(hp);
+                hp.destroy();
+            });
             engine.add(flyer);
         });
     }
@@ -192,6 +196,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             hp_stage.addChild(hp);
             ship.on("change-hp",function () {
                 hp.setHP()
+            });
+            ship.on("die",function () {
+                hp_stage.removeChild(hp);
+                hp.destroy();
             });
             engine.add(ship);
         })

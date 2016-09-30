@@ -38,16 +38,40 @@ export function assign(to_obj, from_obj) {
 export function transformJSON(JSON_str) {
     return JSON.parse(JSON_str, function(key, value) {
         // 对配置文件中的数量进行基本的单位换算
-        if (typeof value === "string") {
-            if (value.indexOf("pt2px!") === 0) {
-                return pt2px(+value.substr(6));
+        return transformValue(value);
+    });
+}
+export function transformValue(value) {
+    if (typeof value === "string") {
+        if (value.indexOf("pt2px!") === 0) {
+            return pt2px(+value.substr(6));
+        }
+        if (value.indexOf("0x") === 0) {
+            return parseInt(value, 16);
+        }
+        if (value.indexOf("PI!") === 0) {
+            return Math.PI * (+value.substr(3));
+        }
+    }
+    return value;
+}
+
+export function transformMix(parent_config,cur_config) {
+    return JSON.parse(JSON.stringify(cur_config),function (key,value) {
+        if(typeof value === "string"&&value.indexOf("mix@")===0) {
+            value = value.substr(4);
+            var owner_key = key;
+            if(value.charAt(0) === "(") {//指定特定属性名
+                var value_info = value.match(/\((.+)\)(.+)/);
+                if(value_info) {
+                    owner_key = value_info[1];
+                    value = value_info[2];
+                }
             }
-            if (value.indexOf("0x") === 0) {
-                return parseInt(value, 16);
+            if(!parent_config.hasOwnProperty(owner_key)) {
+                throw new SyntaxError(`属性：${owner_key} 不可用`);
             }
-            if (value.indexOf("PI!") === 0) {
-                return Math.PI * (+value.substr(3));
-            }
+            return parent_config[owner_key] + parseFloat(transformValue(value));
         }
         return value;
     });

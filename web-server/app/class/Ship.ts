@@ -15,7 +15,9 @@ import {
     mix_options,
     _isBorwser,
     _isNode,
+    assign,
     transformJSON,
+    transformValue,
 } from "../const";
 import * as shipShape from "./shipShape.json";
 if(_isNode) {
@@ -82,7 +84,7 @@ export default class Ship extends P2I {
         overload_speed: 1,
 
         // 标志
-        team_tag: 10,
+        team_tag: Math.random(),
         type: "S-1"
     }
     body_shape: p2.Shape
@@ -90,22 +92,29 @@ export default class Ship extends P2I {
         super();
         const self = this;
         const config = self.config;
-        mix_options(config, new_config);
-        const typeInfo = shipShape[config.type];
+        const typeInfo = shipShape[new_config.type]||shipShape[config.type];
         if(!typeInfo) {
             throw new TypeError("UNKONW Ship Type: " + config.type);
         }
         // 覆盖配置
         mix_options(config, typeInfo.body.config);
+        mix_options(config, new_config);
 
         // 绘制武器
-        typeInfo.guns.forEach(function (gun_config) {
-            for(var k in gun_config){
-                var v = gun_config[k];
-                if(typeof v === "string" && v.indexOf("mix@") === 0) {// 属性混合模式
-                    gun_config[k] = config[k]+(+v.substr(4))
+        typeInfo.guns.forEach(function (_gun_config) {
+            var gun_config = assign({},_gun_config);
+            // 枪支继承飞船的基本配置
+            [
+                "bullet_force",
+                "bullet_damage",
+                "bullet_penetrate",
+                "overload_speed",
+            ].forEach(function (k) {
+                var ship_v = config[k];
+                if(!gun_config.hasOwnProperty(k)){
+                    gun_config[k] = ship_v;
                 }
-            }
+            });
             new Gun(gun_config, self)
         });
 

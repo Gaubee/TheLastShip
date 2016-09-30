@@ -162,6 +162,13 @@ define('json', ["app/const"], function (const_1) {
 /*		
 		pointer-events: none;*/
 	}
+	code{
+		background-color: #DDD;
+		color:#333;
+		border: 1px solid #666;
+		padding: 0 2px;
+		border-radius: 2px;
+	}
 </style>
 </head>
 <script src="./dist.js"></script>
@@ -177,6 +184,10 @@ define('json', ["app/const"], function (const_1) {
 					<button class="reset-button">重置</button>
 					<button class="upload-button">校验并上传</button>
 				</h2>
+				<p>表达式帮助：
+					<p><code>pt2px!</code>绘制大小时应该添加的前缀，后面跟一个简单的数字</p>
+					<p><code>PI!</code>数学PI值，后面跟一个简单的数字，小数不可用分数表达式表示（ 除法表达式）</p>
+				</p>
 				<div class="config-uploader">初始化中……</div>
 			</div>
 			<div data-path="app/class/shipShape.json">
@@ -184,6 +195,17 @@ define('json', ["app/const"], function (const_1) {
 					<button class="reset-button">重置</button>
 					<button class="upload-button">校验并上传</button>
 				</h2>
+				<p>混合式帮助：
+					<p><code>mix@</code>在guns中使用，可用在
+						<code>bullet_force</code>
+		                <code>bullet_damage</code>
+		                <code>bullet_penetrate</code>
+		                <code>overload_speed</code>
+		                <code>size</code>
+		                中，代表混合ship本身的属性值，后可跟<code>pt2px!</code>、<code>PI!</code>等表达式
+		            </p>
+					<p><code>PI!</code>数学PI值，后面跟一个简单的数字，小数不可用分数表达式表示（ 除法表达式）</p>
+				</p>
 				<div class="config-uploader">初始化中……</div>
 			</div>
 			<div data-path="app/class/gunShape.json">

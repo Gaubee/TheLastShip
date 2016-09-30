@@ -249,11 +249,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             };
             pomelo.request("connector.worldHandler.setConfig", {
                 config: new_config
-            }, function(data) {
-                // console.log("setConfig:to-move", data);
-                // 触发发射动画
-                view_ship.emit("fire-ani");
-            });
+            }, function(data) { });
         }
     });
 
@@ -268,9 +264,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             };
             pomelo.request("connector.worldHandler.setConfig", {
                 config: new_config
-            }, function(data) {
-                // console.log("setConfig:stop-move", data);
-            });
+            }, function(data) { });
         }
     });
 
@@ -371,7 +365,6 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         }());
         // 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
         current_stage_wrap.addChild(mobile_operator);
-
     }else{// 电脑版本提供右键操作的支持
         // 将要去的目的点，在接近的时候改变飞船速度
         var move_target_point:Victor;
@@ -450,7 +443,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 if(!touch) {
                     return
                 }
-                pomelo.request("connector.worldHandler.fire", {}, function(data) {});
+                pomelo.request("connector.worldHandler.fire", {}, function(data) {
+                    // 触发发射动画
+                    view_ship.guns.forEach(gun=>gun.emit("fire_ani"))
+                });
             }
         });
     }else{
@@ -477,7 +473,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         // 发射
         on(current_stage_wrap, "mousedown", function (e) {
             if(view_ship) {
-                pomelo.request("connector.worldHandler.fire", {}, function(data) {});
+                pomelo.request("connector.worldHandler.fire", {}, function(data) {
+                    // 触发发射动画
+                    view_ship.guns.forEach(gun=>gun.emit("fire_ani"))
+                });
             }
         });
     }

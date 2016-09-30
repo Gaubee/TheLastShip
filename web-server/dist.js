@@ -1480,21 +1480,46 @@ define("app/const", ["require", "exports"], function (require, exports) {
     function transformJSON(JSON_str) {
         return JSON.parse(JSON_str, function (key, value) {
             // 对配置文件中的数量进行基本的单位换算
-            if (typeof value === "string") {
-                if (value.indexOf("pt2px!") === 0) {
-                    return exports.pt2px(+value.substr(6));
+            return transformValue(value);
+        });
+    }
+    exports.transformJSON = transformJSON;
+    function transformValue(value) {
+        if (typeof value === "string") {
+            if (value.indexOf("pt2px!") === 0) {
+                return exports.pt2px(+value.substr(6));
+            }
+            if (value.indexOf("0x") === 0) {
+                return parseInt(value, 16);
+            }
+            if (value.indexOf("PI!") === 0) {
+                return Math.PI * (+value.substr(3));
+            }
+        }
+        return value;
+    }
+    exports.transformValue = transformValue;
+    function transformMix(parent_config, cur_config) {
+        return JSON.parse(JSON.stringify(cur_config), function (key, value) {
+            if (typeof value === "string" && value.indexOf("mix@") === 0) {
+                value = value.substr(4);
+                var owner_key = key;
+                if (value.charAt(0) === "(") {
+                    var value_info = value.match(/\((.+)\)(.+)/);
+                    if (value_info) {
+                        owner_key = value_info[1];
+                        value = value_info[2];
+                    }
                 }
-                if (value.indexOf("0x") === 0) {
-                    return parseInt(value, 16);
+                if (!parent_config.hasOwnProperty(owner_key)) {
+                    throw new SyntaxError("\u5C5E\u6027\uFF1A" + owner_key + " \u4E0D\u53EF\u7528");
                 }
-                if (value.indexOf("PI!") === 0) {
-                    return Math.PI * (+value.substr(3));
-                }
+                return parent_config[owner_key] + parseFloat(transformValue(value));
             }
             return value;
         });
     }
-    exports.transformJSON = transformJSON;
+    exports.transformMix = transformMix;
 });
 define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], function (require, exports, const_1) {
     "use strict";
@@ -2610,26 +2635,33 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 bullet_penetrate: 0.5,
                 overload_speed: 1,
                 // 标志
-                team_tag: 10,
+                team_tag: Math.random(),
                 type: "S-1"
             };
             var self = this;
             var config = self.config;
-            const_5.mix_options(config, new_config);
-            var typeInfo = shipShape[config.type];
+            var typeInfo = shipShape[new_config.type] || shipShape[config.type];
             if (!typeInfo) {
                 throw new TypeError("UNKONW Ship Type: " + config.type);
             }
             // 覆盖配置
             const_5.mix_options(config, typeInfo.body.config);
+            const_5.mix_options(config, new_config);
             // 绘制武器
-            typeInfo.guns.forEach(function (gun_config) {
-                for (var k in gun_config) {
-                    var v = gun_config[k];
-                    if (typeof v === "string" && v.indexOf("mix@") === 0) {
-                        gun_config[k] = config[k] + (+v.substr(4));
+            typeInfo.guns.forEach(function (_gun_config) {
+                var gun_config = const_5.assign({}, _gun_config);
+                // 枪支继承飞船的基本配置
+                [
+                    "bullet_force",
+                    "bullet_damage",
+                    "bullet_penetrate",
+                    "overload_speed",
+                ].forEach(function (k) {
+                    var ship_v = config[k];
+                    if (!gun_config.hasOwnProperty(k)) {
+                        gun_config[k] = ship_v;
                     }
-                }
+                });
                 new Gun_1.default(gun_config, self);
             });
             // 绘制船体
@@ -2767,12 +2799,12 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             this.owner = null;
             this.gun = new PIXI.Graphics();
             this.config = {
-                size: const_6.pt2px(5),
                 rotation: 0,
                 //战斗相关的状态
                 is_firing: false,
                 ison_BTAR: false,
                 // 战斗相关的属性
+                bullet_size: const_6.pt2px(5),
                 bullet_force: 1,
                 bullet_damage: 1,
                 bullet_penetrate: 1,
@@ -2781,16 +2813,24 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 type: "NONE"
             };
             var self = this;
-            self.owner = owner;
             var config = self.config;
-            const_6.mix_options(config, new_config);
-            var typeInfo = gunShape[config.type];
+            var typeInfo = gunShape[new_config.type] || gunShape[config.type];
             if (!typeInfo) {
                 throw new TypeError("UNKONW Gun Type: " + config.type);
             }
+            self.owner = owner;
+            var owner_config = owner.config;
+            // 动态合成配置
+            new_config = const_6.transformMix(owner_config, new_config);
+            typeInfo = const_6.transformMix(owner_config, typeInfo);
             if (new_config["args"]) {
-                typeInfo = const_6.assign(const_6.assign({}, typeInfo), { args: new_config["args"] });
+                typeInfo = const_6.assign(const_6.assign({}, typeInfo), {
+                    args: new_config["args"]
+                });
             }
+            // 覆盖配置
+            const_6.mix_options(config, typeInfo["config"]);
+            const_6.mix_options(config, new_config);
             // 绘制枪体
             GunDrawer_1.default(self, config, typeInfo);
             if (owner) {
@@ -2890,7 +2930,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 return;
             }
             this.emit("fire_start");
-            var bullet_size = config.size;
+            var bullet_size = config.bullet_size;
             var bullet_force = new Victor_1.default(ship_config.bullet_force, 0);
             var bullet_start = new Victor_1.default(ship_config.size + bullet_size / 2, 0);
             var bullet_dir = ship_config.rotation + config.rotation;
@@ -4508,6 +4548,10 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                 flyer.on("change-hp", function () {
                     hp.setHP();
                 });
+                flyer.on("ember", function () {
+                    hp_stage.removeChild(hp);
+                    hp.destroy();
+                });
                 world_1.engine.add(flyer);
             });
         }
@@ -4581,6 +4625,10 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                 hp_stage.addChild(hp);
                 ship.on("change-hp", function () {
                     hp.setHP();
+                });
+                ship.on("die", function () {
+                    hp_stage.removeChild(hp);
+                    hp.destroy();
                 });
                 world_1.engine.add(ship);
             });
@@ -7317,11 +7365,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 };
                 Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
                     config: new_config
-                }, function (data) {
-                    // console.log("setConfig:to-move", data);
-                    // 触发发射动画
-                    view_ship.emit("fire-ani");
-                });
+                }, function (data) { });
             }
         });
         common_5.on(exports.current_stage_wrap, "keyup", function (e) {
@@ -7335,9 +7379,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 };
                 Pomelo_1.pomelo.request("connector.worldHandler.setConfig", {
                     config: new_config
-                }, function (data) {
-                    // console.log("setConfig:stop-move", data);
-                });
+                }, function (data) { });
             }
         });
         if (const_10._isMobile) {
@@ -7506,7 +7548,10 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     if (!touch) {
                         return;
                     }
-                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
+                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
+                        // 触发发射动画
+                        view_ship.guns.forEach(function (gun) { return gun.emit("fire_ani"); });
+                    });
                 }
             });
         }
@@ -7531,7 +7576,10 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             // 发射
             common_5.on(exports.current_stage_wrap, "mousedown", function (e) {
                 if (view_ship) {
-                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
+                    Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
+                        // 触发发射动画
+                        view_ship.guns.forEach(function (gun) { return gun.emit("fire_ani"); });
+                    });
                 }
             });
         }

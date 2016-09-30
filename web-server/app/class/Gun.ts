@@ -19,6 +19,8 @@ import {
 	_isBorwser,
 	_isNode,
 	transformJSON,
+	transformValue,
+	transformMix,
 } from "../const";
 import * as gunShape from "./gunShape.json";
 if(_isNode) {
@@ -34,6 +36,7 @@ export interface GunConfig {
 	ison_BTAR ? : boolean // 是否处于攻击钱摇
 
 	// 战斗相关的属性
+	bullet_size ?: number 
 	bullet_force ? : number
 	bullet_damage ? : number
 	bullet_penetrate ? : number // 穿透，意味着子弹存在时间
@@ -47,13 +50,13 @@ export default class Gun extends P2I {
 	owner: Ship = null
 	gun: PIXI.Graphics = new PIXI.Graphics()
 	config:GunConfig = {
-		size: pt2px(5),
 		rotation : 0,
 		//战斗相关的状态
 		is_firing : false,
 		ison_BTAR : false, // 是否处于攻击钱摇
 
 		// 战斗相关的属性
+		bullet_size: pt2px(5),
 		bullet_force : 1,
 		bullet_damage : 1,
 		bullet_penetrate : 1, // 穿透，意味着子弹存在时间
@@ -65,16 +68,27 @@ export default class Gun extends P2I {
 	constructor(new_config: GunConfig = {}, owner ? : Ship) {
 		super();
 		const self = this;
-		self.owner = owner;
 		const config = self.config;
-		mix_options(config, new_config);
-		var typeInfo = gunShape[config.type];
+		var typeInfo = gunShape[new_config.type]||gunShape[config.type];
 		if (!typeInfo) {
 			throw new TypeError("UNKONW Gun Type: " + config.type);
 		}
-		if(new_config["args"]) {// 飞船配置强制覆盖枪杆配置
-			typeInfo = assign(assign({}, typeInfo),{args:new_config["args"]})
+
+		self.owner = owner;
+		const owner_config = owner.config;
+
+		// 动态合成配置
+		new_config = transformMix(owner_config, new_config)
+		typeInfo = transformMix(owner_config, typeInfo)
+
+		if (new_config["args"]) { // 飞船绘制配置强制覆盖枪杆配置
+			typeInfo = assign(assign({}, typeInfo), {
+				args: new_config["args"]
+			})
 		}
+		// 覆盖配置
+		mix_options(config, typeInfo["config"]);
+		mix_options(config, new_config);
 		// 绘制枪体
 		GunDrawer(self, config, typeInfo);
 
@@ -180,7 +194,7 @@ export default class Gun extends P2I {
 			return
 		}
 		this.emit("fire_start");
-		var bullet_size = config.size;
+		var bullet_size = config.bullet_size;
 		var bullet_force = new Victor(ship_config.bullet_force, 0);
 		var bullet_start = new Victor(ship_config.size + bullet_size / 2, 0);
 		var bullet_dir = ship_config.rotation + config.rotation;

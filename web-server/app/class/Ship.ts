@@ -51,6 +51,8 @@ export interface ShipConfig {
 
     // 队伍标志
     team_tag?: number
+    // 经验值
+    experience?: number
     // 飞船基本形状
     type?: string
 }
@@ -85,6 +87,8 @@ export default class Ship extends P2I {
 
         // 标志
         team_tag: Math.random(),
+        // 经验值
+        experience: 0,
         type: "S-1"
     }
     body_shape: p2.Shape
@@ -242,5 +246,26 @@ export default class Ship extends P2I {
     fire(){
         var res_bullets = this.guns.map(gun=>gun.fire());
         return res_bullets.filter(bullet=>bullet);
+    }
+    private _fireBind
+    is_keep_fire = false
+    startKeepFire(cb:(bullets:Bullet[])=>void){
+        this._fireBind = ()=>{
+            cb(this.fire());
+        }
+        this.on("update",this._fireBind);
+    }
+    stopKeepFire(){
+        this.off("update",this._fireBind);
+        this._fireBind = null;
+    }
+    toggleKeepFire(cb:(bullets:Bullet[])=>void){
+        if(!this.is_keep_fire) {
+            this.is_keep_fire = true;
+            this.startKeepFire(cb);
+        }else{
+            this.is_keep_fire = false;
+            this.stopKeepFire();
+        }
     }
 }

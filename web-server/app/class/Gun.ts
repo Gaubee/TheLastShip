@@ -217,8 +217,8 @@ export default class Gun extends P2I {
 		bullet.once("add-to-world", () => {
 			var mass_rate = bullet.p2_body.mass / ship.p2_body.mass;
 			// 飞船自身提供给子弹大量的初始推动力
-			var init_x_force = bullet_force.x * 20;
-			var init_y_force = bullet_force.y * 20;
+			var init_x_force = bullet_force.x * 50;
+			var init_y_force = bullet_force.y * 50;
 			bullet.p2_body.force = [init_x_force, init_y_force];
 
 			ship.p2_body.force[0] -= init_x_force * mass_rate;

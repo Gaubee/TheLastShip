@@ -4,6 +4,7 @@ import {
 import Victor from "../engine/Victor";
 import Flyer from "./Flyer";
 import Wall from "./Wall";
+import Gun from "./Gun";
 import TWEEN from "../../class/Tween";
 const Easing = TWEEN.Easing;
 
@@ -65,9 +66,11 @@ export default class Bullet extends P2I {
 
     body_shape: p2.Circle
     static material = new p2.Material()
-    constructor(new_config: BulletConfig = {}) {
+    owner:Gun
+    constructor(new_config: BulletConfig = {},owner?:Gun) {
         super();
         const self = this;
+        self.owner = owner;
         const config = self.config;
         mix_options(config, new_config);
 
@@ -177,6 +180,11 @@ export default class Bullet extends P2I {
                 });
             });
         }
+    }
+    toJSON(){
+        var res = super.toJSON();
+        res["owner_id"] = this.owner&&this.owner._id;
+        return res
     }
     setConfig(new_config) {
         super.setConfig(new_config);

@@ -209,7 +209,7 @@ export default class Gun extends P2I {
 			size: bullet_size,
 			damage: config.bullet_damage,
 			penetrate: config.bullet_penetrate,
-		});
+		}, this);
 
 		bullet.p2_body.velocity = ship.p2_body.velocity.slice();
 

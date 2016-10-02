@@ -105,7 +105,7 @@ export default class Ship extends P2I {
         mix_options(config, new_config);
 
         // 绘制武器
-        typeInfo.guns.forEach(function (_gun_config) {
+        typeInfo.guns.forEach(function (_gun_config,i) {
             var gun_config = assign({},_gun_config);
             // 枪支继承飞船的基本配置
             [
@@ -119,7 +119,9 @@ export default class Ship extends P2I {
                     gun_config[k] = ship_v;
                 }
             });
-            new Gun(gun_config, self)
+            var gun = new Gun(gun_config, self);
+            // 定死ID
+            gun._id = self._id+"_gun_"+i;
         });
 
         // 绘制船体
@@ -227,7 +229,7 @@ export default class Ship extends P2I {
         }
         this.setConfig(limit_config);
     }
-    setConfig(new_config:ShipConfig) {
+    setConfig(new_config) {
         var config = this.config;
         mix_options(config, new_config);
 

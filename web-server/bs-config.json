@@ -3,8 +3,10 @@
 	"files": [
 		"./class/**/*.{js}",
 		"./app/**/*.{js}",
+		"./js/**/*.{json}",
+		"./js/*.{js}",
 		"./dist.js",
-		"./index.html"
+		"./*.html"
 	],
 	"server": {
 		"baseDir": "./"

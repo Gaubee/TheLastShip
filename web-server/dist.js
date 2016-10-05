@@ -2572,12 +2572,13 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         size: "size",
         density: "density",
         proto_list_length: "proto_list_length",
+        level: "level",
         type: "type",
         toJSON: "toJSON"
     };
     var Ship = (function (_super) {
         __extends(Ship, _super);
-        function Ship(new_config) {
+        function Ship(new_config, id) {
             if (new_config === void 0) { new_config = {}; }
             _super.call(this);
             this.guns = [];
@@ -2645,7 +2646,27 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 // 经验值
                 _a.experience = 0,
                 // 等级
-                _a.level = 0,
+                _a["__level"] = 0,
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.level, {
+                    get: function () {
+                        return this.__level;
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.level, {
+                    set: function (new_level) {
+                        if (new_level != this.__level) {
+                            var old_level = this.__level;
+                            this.__level = new_level;
+                            if (const_4._isBorwser) {
+                                this.__self__.emit("level-changed", old_level, new_level);
+                            }
+                        }
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
                 _a["__self__"] = this,
                 Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length, {
                     // 只读·技能加点信息
@@ -2694,14 +2715,17 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             );
             this.is_keep_fire = false;
             var self = this;
+            id && (self._id = id);
             var config = self.config;
             var typeInfo = shipShape[new_config.type] || shipShape[config.type];
             if (!typeInfo) {
                 throw new TypeError("UNKONW Ship Type: " + config.type);
             }
             // 覆盖配置
-            const_4.mix_options(config, typeInfo.body.config);
-            const_4.mix_options(config, new_config);
+            var cache_config = config["toJSON"]();
+            const_4.mix_options(cache_config, typeInfo.body.config);
+            const_4.mix_options(cache_config, new_config);
+            const_4.mix_options(config, cache_config);
             // 绘制武器
             self.loadWeapon();
             // 绘制船体
@@ -2855,6 +2879,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             var config = self.config;
             var typeInfo = shipShape[config.type];
             typeInfo.guns.forEach(function (_gun_config, i) {
+                var gun = self.guns[i];
+                if (!gun) {
+                    return;
+                }
                 var gun_config = const_4.assign({}, _gun_config);
                 // 枪支继承飞船的基本配置
                 [
@@ -2868,7 +2896,6 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                         gun_config[k] = ship_v;
                     }
                 });
-                var gun = self.guns[i];
                 gun.setConfig(gun_config);
             });
         };
@@ -2912,11 +2939,22 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         // 属性加点
         Ship.prototype.addProto = function (add_proto) {
             var config = this.config;
-            this.proto_list.push(add_proto);
-            if (const_4._isNode) {
-                this._computeConfig();
-                this.reloadWeapon();
+            // 点数溢出
+            if (config.level <= config.proto_list_length) {
+                return;
             }
+            var typeInfo = shipShape[config.type];
+            var proto_grow_config = typeInfo.body.proto_grow_config;
+            if (!proto_grow_config.hasOwnProperty(add_proto)) {
+                throw new TypeError("UNKNOW SKILL UPGREAT: " + add_proto);
+            }
+            var proto_grow_config_item = proto_grow_config[add_proto];
+            if (this.proto_list.filter(function (proto) { return proto == add_proto; }).length >= proto_grow_config_item.max) {
+                throw new RangeError("OVERFLOW SKILL UPGREAT: " + add_proto);
+            }
+            this.proto_list.push(add_proto);
+            this._computeConfig();
+            this.reloadWeapon();
         };
         Ship.prototype._computeConfig = function () {
             var _this = this;
@@ -4269,36 +4307,64 @@ define("app/common", ["require", "exports", "class/color2color"], function (requ
     exports.B_ANI_TIME = 375;
     exports.M_ANI_TIME = 225;
     exports.S_ANI_TIME = 195;
-    exports.on = function (obj, eventName, handle) {
+    exports.on = function (obj, eventName, handle, is_once) {
         obj["interactive"] = true;
-        return eventName.split("|").map(function (en) {
+        if (is_once) {
+            var _handle = handle;
+            handle = function () {
+                _handle.apply(this, arguments);
+                register_event_res.forEach(function (register_event_info) {
+                    if (register_event_info.target.removeEventListener) {
+                        register_event_info.target.removeEventListener(register_event_info.eventName, register_event_info.handle);
+                    }
+                    else if (register_event_info.target.off) {
+                        register_event_info.target.off(register_event_info.eventName, register_event_info.handle);
+                    }
+                });
+            };
+        }
+        var register_event_res = eventName.split("|").map(function (en) {
             if (en === "touchenter") {
-                return obj.on("touchmove", function (e) {
+                var res_target = obj;
+                var res_handle = function (e) {
                     console.log(e.target === obj);
                     if (e.target === _this) {
                         handle(e);
                     }
-                });
+                };
+                var res_eventName = "touchmove";
+                res_target.on("touchmove", res_handle);
             }
             else if (en === "rightclick") {
-                document.body.addEventListener("mousedown", function (e) {
+                var res_target = document.body;
+                var res_handle = function (e) {
                     if (e.which == 3) {
                         // alert("Disabled - do whatever you like here..");
                         handle(e);
                     }
-                });
-            }
-            else if (en === "touchout") {
+                };
+                var res_eventName = "mousedown";
+                res_target.addEventListener("mousedown", res_handle);
             }
             else if (en === "keydown" || en === "keyup") {
-                document.body.addEventListener(en, function (e) {
-                    handle(e);
-                });
+                var res_target = document.body;
+                var res_handle = handle;
+                var res_eventName = en;
+                res_target.addEventListener(res_eventName, res_handle);
             }
             else {
-                return obj.on(en, handle);
+                var res_target = obj;
+                var res_handle = handle;
+                var res_eventName = en;
+                res_target.on(res_eventName, res_handle);
             }
+            return {
+                target: res_target,
+                handle: res_handle,
+                eventName: res_eventName
+            };
         });
+        return register_event_res;
     };
     var _current_stage;
     var _current_stage_index = 0;
@@ -5346,6 +5412,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
     }
     exports.shipAutoFire = shipAutoFire;
     var proto_plan = new FlowLayout_1.default();
+    var close_ti = null;
     function showProtoPlan(
         /*事件监听层*/
         listen_stage, 
@@ -5364,9 +5431,10 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         if (proto_plan["is_opened"] || proto_plan["is_ani"]) {
             return;
         }
+        clearTimeout(close_ti);
         proto_plan["is_opened"] = true;
         proto_plan["is_ani"] = true;
-        drawProtoPlan(view_ship, changeProto_cb);
+        drawProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
         ani_tween.Tween(proto_plan)
             .set({
             x: -proto_plan.width,
@@ -5386,7 +5454,18 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
     /** 重绘属性加点面板
      *
      */
-    function drawProtoPlan(view_ship, changeProto_cb) {
+    function drawProtoPlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, changeProto_cb) {
+        var view_ship = get_view_ship();
         // 销毁重绘
         proto_plan.children.slice().forEach(function (child) {
             proto_plan.removeChild(child);
@@ -5405,10 +5484,25 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                 text_info.interactive = true;
                 (function (k, text_info) {
                     common_2.on(text_info, "click|tap", function () {
-                        view_ship.addProto(k);
-                        // 重绘
-                        drawProtoPlan(view_ship, changeProto_cb);
-                        changeProto_cb();
+                        changeProto_cb(k, function () {
+                            // 重绘
+                            drawProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
+                            if (view_ship.config.level <= view_ship.config.proto_list_length) {
+                                var delay_close = function () {
+                                    close_ti = setTimeout(function () {
+                                        hideProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker);
+                                        close_ti = null;
+                                    }, const_9.B_ANI_TIME);
+                                };
+                                // if(_isMobile) {
+                                // 	delay_close();
+                                // }else{
+                                // 	// on(proto_plan, "mouseout", delay_close, true);
+                                // 	proto_plan.once("mouseout", delay_close);
+                                // }
+                                delay_close();
+                            }
+                        });
                     });
                 })(k, text_info);
             }
@@ -5464,6 +5558,10 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         /*渲染循环器*/
         ani_ticker, changeProto_cb) {
         common_2.on(listen_stage, "keydown", function (e) {
+            var view_ship = get_view_ship();
+            if (!view_ship) {
+                return;
+            }
             if (e.keyCode == 67) {
                 if (proto_plan["is_opened"]) {
                     hideProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker);
@@ -5472,6 +5570,9 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                     showProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
                 }
             }
+            view_ship.on("level-changed", function () {
+                showProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
+            });
         });
     }
     exports.toggleProtoPlan = toggleProtoPlan;
@@ -7874,7 +7975,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                         console.error("UNKONW TYPE:", obj_info);
                         return;
                     }
-                    var ins = instanceMap[obj_info.id] = new Con(obj_info.config);
+                    var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
+                    ins._id = obj_info.id;
                     if (view_ship_info.id === obj_info.id) {
                         view_ship = ins;
                     }
@@ -7998,6 +8100,17 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         //             });
         //         });
         //     });
+        // 切换属性加点面板的显示隐藏
+        UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function (add_proto, cb_to_redraw) {
+            // view_ship._computeConfig();
+            // view_ship.reloadWeapon();
+            Pomelo_1.pomelo.request("connector.worldHandler.addProto", {
+                proto: add_proto
+            }, function (data) {
+                view_ship.proto_list = data;
+                cb_to_redraw();
+            });
+        });
         /**响应服务端事件
          *
          */
@@ -8154,8 +8267,9 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_6.VIEW.WIDTH + " H:" + common_6.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
             if (view_ship) {
                 var info = "\n";
-                for (var k in view_ship.config) {
-                    var val = view_ship.config[k];
+                var config = view_ship.config["toJSON"]();
+                for (var k in config) {
+                    var val = config[k];
                     if (typeof val === "number") {
                         val = val.toFixed(2);
                     }
@@ -8386,9 +8500,9 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             });
         });
         // 切换属性加点面板的显示隐藏
-        UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function () {
-            my_ship._computeConfig();
-            my_ship.reloadWeapon();
+        UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (add_proto, cb_to_redraw) {
+            my_ship.addProto(add_proto);
+            cb_to_redraw();
         });
         // 动画控制器
         ani_ticker.add(function () {

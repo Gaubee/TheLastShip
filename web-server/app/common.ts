@@ -83,38 +83,61 @@ export const L_ANI_TIME = 1225;
 export const B_ANI_TIME = 375;
 export const M_ANI_TIME = 225;
 export const S_ANI_TIME = 195;
-export const on = (obj: PIXI.EventEmitter, eventName: string, handle) => {
+export const on = (obj: PIXI.EventEmitter, eventName: string, handle, is_once?:boolean) => {
     obj["interactive"] = true;
-    return eventName.split("|").map(en => {
+    if(is_once) {
+        var _handle = handle;
+        handle = function () {
+            _handle.apply(this,arguments);
+            register_event_res.forEach(function (register_event_info) {
+                if(register_event_info.target.removeEventListener){
+                    register_event_info.target.removeEventListener(register_event_info.eventName,register_event_info.handle)
+                }else if(register_event_info.target.off){
+                    register_event_info.target.off(register_event_info.eventName,register_event_info.handle);
+                }
+            })
+        }
+    }
+    var register_event_res = eventName.split("|").map(en => {
+
         if (en === "touchenter") {
-            return obj.on("touchmove", (e) => {
+            var res_target:any = obj;
+            var res_handle:any =  (e) => {
                 console.log(e.target === obj);
                 if (e.target === this) {
                     handle(e);
                 }
-            });
+            };
+            var res_eventName = "touchmove";
+            res_target.on("touchmove",res_handle);
         } else if(en === "rightclick") {
-            document.body.addEventListener("mousedown",function (e) {
+            var res_target:any = document.body;
+            var res_handle:any = function (e) {
                 if (e.which==3) {//righClick
                     // alert("Disabled - do whatever you like here..");
                     handle(e)
                 }
-            });
-        } else if (en === "touchout") {
-            // return obj.on("touchmove", (e) => {
-            //     console.log(e.target === this);
-            //     if (e.target === this) {
-            //         handle(e);
-            //     }
-            // });
+            }
+            var res_eventName = "mousedown";
+            res_target.addEventListener("mousedown",res_handle);
         } else if (en === "keydown" || en === "keyup") {
-            document.body.addEventListener(en, function (e) {
-                handle(e)
-            });
+            var res_target:any = document.body;
+            var res_handle:any = handle;
+            var res_eventName = en;
+            res_target.addEventListener(res_eventName, res_handle);
         } else {
-            return obj.on(en, handle)
+            var res_target:any = obj;
+            var res_handle:any = handle;
+            var res_eventName = en;
+            res_target.on(res_eventName, res_handle);
         }
-    })
+        return {
+            target:res_target,
+            handle:res_handle,
+            eventName:res_eventName
+        }
+    });
+    return register_event_res;
 }
 interface Point {
     x: number,

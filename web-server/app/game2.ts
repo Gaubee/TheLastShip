@@ -246,9 +246,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,current_stage
         ,()=>my_ship
         ,ani_tween
-        ,ani_ticker,function () {
-            my_ship._computeConfig();
-            my_ship.reloadWeapon();
+        ,ani_ticker,function (add_proto:string,cb_to_redraw) {
+            my_ship.addProto(add_proto);
+            cb_to_redraw();
         });
 
 

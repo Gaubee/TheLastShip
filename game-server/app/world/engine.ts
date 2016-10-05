@@ -31,10 +31,11 @@ world.runNarrowphase = function(np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen) {
         sj["ship_team_tag"] === si["bullet_team_tag"]) {
         return;
     }
-    // // 如果si、sj有其中一个是子弹，无视碰撞，使用穿透算法
-    // if (si["bullet_team_tag"] && sj["bullet_team_tag"]) {
-    //     return;
-    // }
+    // 如果是同队子弹，无视碰撞
+    if(si["bullet_team_tag"] &&
+        si["bullet_team_tag"] === sj["bullet_team_tag"]) {
+        return
+    }
     return _runNarrowphase.call(this, np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen);
 };
 // 计算穿透
@@ -71,7 +72,14 @@ world.on("beginContact",function(evt){
         var impact_obj = p2i_A;
     }
     if(impact_obj) {
-        impact_obj.emit("change-hp", -impact_bullet.config.damage);
+        // 同组判定
+        if (impact_obj.config.team_tag &&
+            impact_obj.config.team_tag === impact_bullet.config.team_tag) {
+            return;
+        }
+        impact_obj.emit("change-hp", -impact_bullet.config.damage,
+            // 子弹 - 枪支 - 飞船
+            impact_bullet.owner.owner);
     }
 });
 world.on("endContact",function (evt) {
@@ -193,6 +201,14 @@ export const engine = {
             });
         }
         return bullets;
+    },
+    addProto(ship_id, add_proto){
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!(current_ship instanceof Ship)) {
+            throw `SHIP ID NO REF INSTANCE:${ship_id}`;
+        }
+        current_ship.addProto(add_proto);
+        return current_ship.proto_list;
     }
 };
 // 材质信息

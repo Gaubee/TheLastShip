@@ -80,6 +80,14 @@ WorldRemote.prototype.fire = function(ship_id, cb) {
 		cb(e);
 	}
 };
+WorldRemote.prototype.addProto = function(ship_id, add_proto, cb) {
+	try {
+		var proto_list = this.world.addProto(ship_id, add_proto);
+		cb(null, proto_list);
+	} catch (e) {
+		cb(e);
+	}
+};
 /**
  * Get user from chat channel.
  *

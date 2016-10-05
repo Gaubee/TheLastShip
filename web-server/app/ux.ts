@@ -407,6 +407,7 @@ export function shipAutoFire(
  */
 import * as shipShape from "./class/shipShape.json";
 const proto_plan = new FlowLayout();
+var close_ti = null;
 export function showProtoPlan(
 	/*事件监听层*/
 	listen_stage: PIXI.Container,
@@ -418,7 +419,7 @@ export function showProtoPlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	changeProto_cb: () => void) {
+	changeProto_cb: (add_proto:string,cb_to_redraw:()=>void) => void) {
 	const view_ship = get_view_ship();
 	if(!view_ship){
 		return
@@ -426,9 +427,15 @@ export function showProtoPlan(
 	if(proto_plan["is_opened"]||proto_plan["is_ani"]){
 		return
 	}
+	clearTimeout(close_ti);
 	proto_plan["is_opened"] = true;
 	proto_plan["is_ani"] = true;
-	drawProtoPlan(view_ship,changeProto_cb);
+	drawProtoPlan(listen_stage,
+		view_stage,
+		get_view_ship,
+		ani_tween,
+		ani_ticker,
+		changeProto_cb);
 	ani_tween.Tween(proto_plan)
 		.set({
 			x:-proto_plan.width,
@@ -447,8 +454,19 @@ export function showProtoPlan(
 /** 重绘属性加点面板
  *
  */
-function drawProtoPlan(view_ship:Ship,
-	changeProto_cb: () => void) {
+function drawProtoPlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	changeProto_cb: (add_proto:string,cb_to_redraw:()=>void) => void) {
+	const view_ship = get_view_ship();
 	// 销毁重绘
 	proto_plan.children.slice().forEach(child=>{
 		proto_plan.removeChild(child);
@@ -468,10 +486,34 @@ function drawProtoPlan(view_ship:Ship,
 			text_info.interactive = true;
 			(function (k,text_info) {
 				on(text_info,"click|tap",function () {
-					view_ship.addProto(k);
-					// 重绘
-					drawProtoPlan(view_ship,changeProto_cb);
-					changeProto_cb();
+					changeProto_cb(k,function () {
+						// 重绘
+						drawProtoPlan(listen_stage,
+							view_stage,
+							get_view_ship,
+							ani_tween,
+							ani_ticker,
+							changeProto_cb);
+						if(view_ship.config.level <= view_ship.config.proto_list_length) {
+							var delay_close = function () {
+								close_ti = setTimeout(function () {
+									hideProtoPlan(listen_stage,
+										view_stage,
+										get_view_ship,
+										ani_tween,
+										ani_ticker);
+									close_ti = null;
+								}, B_ANI_TIME);	
+							}
+							// if(_isMobile) {
+							// 	delay_close();
+							// }else{
+							// 	// on(proto_plan, "mouseout", delay_close, true);
+							// 	proto_plan.once("mouseout", delay_close);
+							// }
+							delay_close();
+						}
+					});
 				});
 			})(k,text_info);
 		}
@@ -525,8 +567,12 @@ export function toggleProtoPlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	changeProto_cb: () => void) {
+	changeProto_cb: (add_proto:string,cb_to_redraw:()=>void) => void) {
 	on(listen_stage, "keydown", function(e) {
+		const view_ship = get_view_ship();
+		if(!view_ship) {
+			return
+		}
 		if (e.keyCode == 67) {
 			if(proto_plan["is_opened"]) {
 				hideProtoPlan(listen_stage,
@@ -543,5 +589,14 @@ export function toggleProtoPlan(
 					changeProto_cb)
 			}
 		}
+
+		view_ship.on("level-changed",function () {
+			showProtoPlan(listen_stage,
+				view_stage,
+				get_view_ship,
+				ani_tween,
+				ani_ticker,
+				changeProto_cb);
+		});
 	});
 }

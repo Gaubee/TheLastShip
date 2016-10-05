@@ -104,6 +104,7 @@ const FIX_GETTER_SETTER_BUG_KEYS_MAP = {
     size:"size",
     density:"density",
     proto_list_length:"proto_list_length",
+    level:"level",
     type:"type",
     toJSON:"toJSON"
 }
@@ -163,7 +164,19 @@ export default class Ship extends P2I {
         // 经验值
         experience: 0,
         // 等级
-        level: 0,
+        ["__level"]: 0,
+        get [FIX_GETTER_SETTER_BUG_KEYS_MAP.level]() {
+            return this.__level;
+        },
+        set [FIX_GETTER_SETTER_BUG_KEYS_MAP.level](new_level: string) {
+            if (new_level != this.__level) {
+                var old_level = this.__level;
+                this.__level = new_level;
+                if(_isBorwser) {
+                    this.__self__.emit("level-changed", old_level, new_level);
+                }
+            }
+        },
         ["__self__"]: this,
         // 只读·技能加点信息
         get [FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length]() {
@@ -186,7 +199,7 @@ export default class Ship extends P2I {
             const config = this;
             var json_config = {};
             for (var k in config) {
-                if (k.indexOf("__") !== 0&&k!=="toJSON") {
+                if (k.indexOf("__") !== 0 && k!=="toJSON") {
                     json_config[k] = config[k]
                 }
             }
@@ -194,17 +207,20 @@ export default class Ship extends P2I {
         }
     }
     body_shape: p2.Shape
-    constructor(new_config: ShipConfig = {}) {
+    constructor(new_config: ShipConfig = {}, id?: string) {
         super();
         const self = this;
+        id&&(self._id = id);
         const config = self.config;
         const typeInfo = shipShape[new_config.type] || shipShape[config.type];
         if (!typeInfo) {
             throw new TypeError("UNKONW Ship Type: " + config.type);
         }
         // 覆盖配置
-        mix_options(config, typeInfo.body.config);
-        mix_options(config, new_config);
+        var cache_config = config["toJSON"]();
+        mix_options(cache_config, typeInfo.body.config);
+        mix_options(cache_config, new_config);
+        mix_options(config, cache_config);
 
         // 绘制武器
         self.loadWeapon();
@@ -362,6 +378,10 @@ export default class Ship extends P2I {
         const config = self.config;
         const typeInfo = shipShape[config.type];
         typeInfo.guns.forEach(function (_gun_config, i) {
+            var gun = self.guns[i];
+            if(!gun) {
+                return
+            }
             var gun_config = assign({}, _gun_config);
             // 枪支继承飞船的基本配置
             [
@@ -375,7 +395,6 @@ export default class Ship extends P2I {
                     gun_config[k] = ship_v;
                 }
             });
-            var gun = self.guns[i];
             gun.setConfig(gun_config);
         });
     }
@@ -423,11 +442,24 @@ export default class Ship extends P2I {
     // 属性加点
     addProto(add_proto) {
         const config = this.config;
-        this.proto_list.push(add_proto);
-        if (_isNode) {
-            this._computeConfig();
-            this.reloadWeapon();
+        // 点数溢出
+        if(config.level <= config.proto_list_length) {
+            return;
         }
+        const typeInfo = shipShape[config.type];
+        const proto_grow_config = typeInfo.body.proto_grow_config;
+        if(!proto_grow_config.hasOwnProperty(add_proto)) {
+            throw new TypeError("UNKNOW SKILL UPGREAT: " + add_proto);
+        }
+
+        var proto_grow_config_item = proto_grow_config[add_proto];
+        if(this.proto_list.filter(proto=>proto==add_proto).length >= proto_grow_config_item.max) {
+            throw new RangeError("OVERFLOW SKILL UPGREAT: " + add_proto);
+        }
+
+        this.proto_list.push(add_proto);
+        this._computeConfig();
+        this.reloadWeapon();
     }
     _computeConfig() {
         const config = this.config;

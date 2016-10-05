@@ -135,7 +135,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                     console.error("UNKONW TYPE:", obj_info);
                     return
                 }
-                var ins = instanceMap[obj_info.id] = new Con(obj_info.config);
+                var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
+                ins._id = obj_info.id;
                 if (view_ship_info.id === obj_info.id) {
                     view_ship = ins;
                 }
@@ -277,6 +278,21 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     //         });
     //     });
 
+    // 切换属性加点面板的显示隐藏
+    UX.toggleProtoPlan(current_stage_wrap
+        ,current_stage
+        ,()=>view_ship
+        ,ani_tween
+        ,ani_ticker,function (add_proto:string,cb_to_redraw) {
+            // view_ship._computeConfig();
+            // view_ship.reloadWeapon();
+            pomelo.request("connector.worldHandler.addProto", {
+                proto: add_proto
+            }, function (data) {
+                view_ship.proto_list = data;
+                cb_to_redraw();
+            });
+        });
 
 
     /**响应服务端事件
@@ -441,8 +457,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         FPS_Text.text = `FPS:${FPS_ticker.FPS.toFixed(0)}/${(1 / timeSinceLastCalled).toFixed(0)} W:${VIEW.WIDTH} H:${VIEW.HEIGHT} Ping:${ping.toFixed(2)}`;
         if (view_ship) {
             var info = "\n";
-            for (var k in view_ship.config) {
-                var val = view_ship.config[k];
+            var config = view_ship.config["toJSON"]();
+            for (var k in config) {
+                var val = config[k];
                 if (typeof val === "number") {
                     val = val.toFixed(2);
                 }

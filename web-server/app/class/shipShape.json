@@ -12,16 +12,16 @@
 				"bullet_damage": 5,
 				"restore_hp": 5,
 				"force": 80000,
-				"overload_speed": 0.3,
+				"overload_speed": 2.3,
 				"bullet_force": 20000,
 				"bullet_penetrate": 0.5
 			},
 			"level_grow": {
 				"//": "等级成长信息",
 				"size": {
-					"when": "eval!return this.config.level > 0 && this.config.level % 3 === 0",
+					"when": "eval!return this.config.level >= 3",
 					"value": "pt2px!0.5",
-					"then": "eval!this.config.size += info.value"
+					"then": "eval!this.config.size += info.value*parseInt(this.config.level/3)"
 				},
 				"bullet_damage": 0.5,
 				"max_hp": 10

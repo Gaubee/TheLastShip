@@ -1,7 +1,7 @@
 /// <reference path="../typings/pixi.js/pixi.js.d.ts" />
 import BackgroundGaussianBlur from "../class/BackgroundGaussianBlur";
 import SVGGraphics from "../class/SVGGraphics";
-import TWEEN, {Tween} from "../class/Tween";
+import TWEEN, { Tween } from "../class/Tween";
 import When from "../class/When";
 
 // import Dialog from "./Dialog";
@@ -12,9 +12,9 @@ import Wall from "./class/Wall";
 import Bullet from "./class/Bullet";
 import HP from "./class/HP";
 
-import {P2I} from "./engine/Collision";
+import { P2I } from "./engine/Collision";
 import Victor from "./engine/Victor";
-import {engine} from "./engine/world";
+import { engine } from "./engine/world";
 // import {pomelo} from "./engine/Pomelo";
 import * as ediorStage from "./ediorStage.json";
 
@@ -81,7 +81,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     // 子弹绘图层
     const bullet_stage = new PIXI.Container();
     bullet_stage["update"] = function (delay) {
-        this.children.forEach((bullet:Bullet)=>{
+        this.children.forEach((bullet: Bullet) => {
             bullet.update(delay);
         });
     }
@@ -89,7 +89,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     // 物体绘图层：墙、飞船等等
     const object_stage = new PIXI.Container();
     object_stage["update"] = function (delay) {
-        this.children.forEach((obj:Wall | Ship)=>{
+        this.children.forEach((obj: Wall | Ship) => {
             obj.update(delay);
         });
     }
@@ -99,26 +99,26 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var hp_stage = new PIXI.Container();
     current_stage.addChild(hp_stage);
     hp_stage["update"] = function (delay) {
-        this.children.forEach((hp:HP)=>{
+        this.children.forEach((hp: HP) => {
             hp.update(delay);
         });
     }
-    if(ediorStage["flyers"] instanceof Array){
+    if (ediorStage["flyers"] instanceof Array) {
         ediorStage["flyers"].forEach(function (flyer_config) {
             let flyer = new Flyer(assign({
-                x: 50+Math.random()*(VIEW.WIDTH-100),
-                y: 50+Math.random()*(VIEW.HEIGHT-100),
+                x: 50 + Math.random() * (VIEW.WIDTH - 100),
+                y: 50 + Math.random() * (VIEW.HEIGHT - 100),
                 x_speed: 10 * 2 * (Math.random() - 0.5),
                 y_speed: 10 * 2 * (Math.random() - 0.5),
                 body_color: 0xffffff * Math.random()
-            },flyer_config));
+            }, flyer_config));
             object_stage.addChild(flyer);
             var hp = new HP(flyer, ani_tween);
             hp_stage.addChild(hp);
-            flyer.on("change-hp",function () {
+            flyer.on("change-hp", function () {
                 hp.setHP()
             });
-            flyer.on("ember",function () {
+            flyer.on("ember", function () {
                 hp_stage.removeChild(hp);
                 hp.destroy();
             });
@@ -126,32 +126,32 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         });
     }
 
-    const EDGE_WIDTH = VIEW.WIDTH*2;
-    const EDGE_HEIGHT = VIEW.HEIGHT*2;
+    const EDGE_WIDTH = VIEW.WIDTH * 2;
+    const EDGE_HEIGHT = VIEW.HEIGHT * 2;
     // 四边限制
     var top_edge = new Wall({
-        x: EDGE_WIDTH/2, y: 0,
+        x: EDGE_WIDTH / 2, y: 0,
         width: EDGE_WIDTH,
         height: 10
     });
     object_stage.addChild(top_edge);
     engine.add(top_edge);
     var bottom_edge = new Wall({
-        x: EDGE_WIDTH/2, y: EDGE_HEIGHT - 5,
+        x: EDGE_WIDTH / 2, y: EDGE_HEIGHT - 5,
         width: EDGE_WIDTH,
         height: 10
     });
     object_stage.addChild(bottom_edge);
     engine.add(bottom_edge);
     var left_edge = new Wall({
-        x: 5, y: EDGE_HEIGHT/2,
+        x: 5, y: EDGE_HEIGHT / 2,
         width: 10,
         height: EDGE_HEIGHT
     });
     object_stage.addChild(left_edge);
     engine.add(left_edge);
     var right_edge = new Wall({
-        x: EDGE_WIDTH - 5, y: EDGE_HEIGHT/2,
+        x: EDGE_WIDTH - 5, y: EDGE_HEIGHT / 2,
         width: 10,
         height: EDGE_HEIGHT
     });
@@ -176,29 +176,29 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             }
         }
     })();
-    if(ediorStage["myship"]){
+    if (ediorStage["myship"]) {
         var my_ship = new Ship(assign({
             x: VIEW.CENTER.x,
             y: VIEW.CENTER.y,
             body_color: 0x366345
-        },ediorStage["myship"]));
+        }, ediorStage["myship"]));
         object_stage.addChild(my_ship);
         engine.add(my_ship);
     }
-    if(ediorStage["ships"] instanceof Array) {
+    if (ediorStage["ships"] instanceof Array) {
         ediorStage["ships"].forEach(function (ship_config) {
             var ship = new Ship(assign({
-                x: 100+(EDGE_WIDTH-200)*Math.random(),
-                y: 100+(EDGE_HEIGHT-200)*Math.random(),
-                body_color: 0xffffff*Math.random()
-            },ship_config));
+                x: 100 + (EDGE_WIDTH - 200) * Math.random(),
+                y: 100 + (EDGE_HEIGHT - 200) * Math.random(),
+                body_color: 0xffffff * Math.random()
+            }, ship_config));
             object_stage.addChild(ship);
             var hp = new HP(ship, ani_tween);
             hp_stage.addChild(hp);
-            ship.on("change-hp",function () {
+            ship.on("change-hp", function () {
                 hp.setHP()
             });
-            ship.on("die",function () {
+            ship.on("die", function () {
                 hp_stage.removeChild(hp);
                 hp.destroy();
             });
@@ -211,16 +211,16 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         var lines = new PIXI.Graphics();
         var x_unit = pt2px(10);
         var y_unit = pt2px(10);
-        var x_len = (EDGE_WIDTH/x_unit)|0;
-        var y_len = (EDGE_HEIGHT/y_unit)|0;
-        lines.lineStyle(1,0x333333,0.8);
+        var x_len = (EDGE_WIDTH / x_unit) | 0;
+        var y_len = (EDGE_HEIGHT / y_unit) | 0;
+        lines.lineStyle(1, 0x333333, 0.8);
         for (var _x = 1; _x <= x_len; _x += 1) {
-            lines.moveTo(_x*x_unit,0);
-            lines.lineTo(_x*x_unit,EDGE_HEIGHT);
+            lines.moveTo(_x * x_unit, 0);
+            lines.lineTo(_x * x_unit, EDGE_HEIGHT);
         }
         for (var _y = 1; _y <= y_len; _y += 1) {
-            lines.moveTo(0, _y*y_unit);
-            lines.lineTo(EDGE_WIDTH, _y*y_unit);
+            lines.moveTo(0, _y * y_unit);
+            lines.lineTo(EDGE_WIDTH, _y * y_unit);
         }
         current_stage.addChildAt(lines, 0);
     })();
@@ -229,7 +229,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
      */
     var pre_time
     ani_ticker.add(() => {
-        pre_time || (pre_time = performance.now() - 1000/60);
+        pre_time || (pre_time = performance.now() - 1000 / 60);
         var cur_time = performance.now();
         var dif_time = cur_time - pre_time;
         pre_time = cur_time;
@@ -250,32 +250,32 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 
     // 飞船移动
     UX.moveShip(current_stage_wrap
-        ,current_stage
-        ,()=>my_ship
-        ,ani_tween
-        ,ani_ticker
-        ,(move_info)=> {
+        , current_stage
+        , () => my_ship
+        , ani_tween
+        , ani_ticker
+        , (move_info) => {
             my_ship.operateShip(move_info)
         });
     // 飞船转向
     UX.turnHead(current_stage_wrap
-        ,current_stage
-        ,()=>my_ship
-        ,ani_tween
-        ,ani_ticker
-        ,(turnHead_info)=> {
+        , current_stage
+        , () => my_ship
+        , ani_tween
+        , ani_ticker
+        , (turnHead_info) => {
             my_ship.operateShip(turnHead_info)
         });
     // 飞船发射
     UX.shipFire(current_stage_wrap
-        ,current_stage
-        ,()=>my_ship
-        ,ani_tween
-        ,ani_ticker
-        ,()=> {
+        , current_stage
+        , () => my_ship
+        , ani_tween
+        , ani_ticker
+        , () => {
             var bullets = my_ship.fire();
-            if(bullets.length) {
-                bullets.forEach(bullet=>{
+            if (bullets.length) {
+                bullets.forEach(bullet => {
                     bullet_stage.addChild(bullet);
                     engine.add(bullet);
                 });
@@ -283,13 +283,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         });
     // 飞船切换自动
     UX.shipAutoFire(current_stage_wrap
-        ,current_stage
-        ,()=>my_ship
-        ,ani_tween
-        ,ani_ticker
-        ,()=> {
+        , current_stage
+        , () => my_ship
+        , ani_tween
+        , ani_ticker
+        , () => {
             my_ship.toggleKeepFire(function (bullets) {
-                bullets.forEach(bullet=>{
+                bullets.forEach(bullet => {
                     bullet_stage.addChild(bullet);
                     engine.add(bullet);
                 });
@@ -301,9 +301,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     ani_ticker.add(() => {
         ani_tween.update();
         jump_tween.update();
-        if(my_ship) {
+        if (my_ship) {
             current_stage.x = VIEW.WIDTH / 2 - my_ship.x
-            current_stage.y = VIEW.HEIGHT / 2 - my_ship.y 
+            current_stage.y = VIEW.HEIGHT / 2 - my_ship.y
         }
         pre_time || (pre_time = performance.now());
         var cur_time = performance.now();
@@ -334,7 +334,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 }
 
 loader.once("complete", function () {
-    init_w.ok(2,[]);
+    init_w.ok(2, []);
 });
 
 current_stage_wrap.on("init", function () {

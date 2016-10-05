@@ -235,14 +235,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,ani_ticker
         ,()=> {
             my_ship.toggleKeepFire(function (bullets) {
-                    
-                    bullets.forEach(bullet=>{
-                        bullet_stage.addChild(bullet);
-                        engine.add(bullet);
-                    });
+                bullets.forEach(bullet=>{
+                    bullet_stage.addChild(bullet);
+                    engine.add(bullet);
+                });
             });
         });
-// 切换属性加点面板的显示隐藏
+    // 切换属性加点面板的显示隐藏
     UX.toggleProtoPlan(current_stage_wrap
         ,current_stage
         ,()=>my_ship
@@ -271,7 +270,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + VIEW.WIDTH + " H:" + VIEW.HEIGHT;
         if (my_ship) {
             var info = "\n";
-            var config = my_ship.toJSON().config;
+            var config = my_ship.config["toJSON"]();
             for (var k in config) {
                 var val = config[k];
                 if (typeof val === "number") {

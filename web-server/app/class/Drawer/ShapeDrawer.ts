@@ -12,6 +12,13 @@ import {
 export default function ShapeDrawer(self, config, typeInfo) {
 	const body = self.body;
 	const typeInfoArgs = typeInfo.args||{};
+
+	// 清空原有的绘制与物理设定
+	if(self.body_shape) {
+		self.p2_body.removeShape(self.body_shape);
+		body.clear();
+	}
+
 	if(typeInfoArgs.lineStyle instanceof Array) {
 		body.lineStyle.apply(body, typeInfoArgs.lineStyle);
 	}else{

@@ -190,6 +190,13 @@ export default class Gun extends P2I {
 		mix_options(config, new_config);
 		// 绘制枪体
 		GunDrawer(self, config, typeInfo);
+		// 在射击动画结束的时候重置坐标，否则，原本射击的动画会影响绘制结果
+		var new_x = self.x;
+		var new_y = self.y;
+		self.once("cancel_fire_ani",function () {
+			self.x = new_x;
+			self.y = new_y;
+		});
 	}
 	update(delay){
 		this.emit("update", delay);

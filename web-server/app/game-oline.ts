@@ -245,9 +245,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , () => {
             pomelo.request("connector.worldHandler.fire", {}, function (data) {
                 showViewData(data);
-                var guns_id_map = view_ship["__GUNS_ID_MAP"] || (view_ship["__GUNS_ID_MAP"] = ((guns)=>{
+                var guns_id_map = view_ship["__GUNS_ID_MAP"] || (view_ship["__GUNS_ID_MAP"] = ((guns) => {
                     var _gun_id_map = {};
-                    guns.forEach(gun=>{
+                    guns.forEach(gun => {
                         _gun_id_map[gun._id] = gun;
                     });
                     return _gun_id_map;
@@ -255,7 +255,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 // 根据发射的子弹触发发射动画
                 data.forEach(function (bullet_info) {
                     var gun = guns_id_map[bullet_info.owner_id];
-                    if(!gun) {
+                    if (!gun) {
                         console.error("No Found Gun Id:", bullet_info.owner_id);
                     }
                     gun.emit("fire_ani");

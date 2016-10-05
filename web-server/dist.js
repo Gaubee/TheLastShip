@@ -1529,6 +1529,11 @@ define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], func
     function ShapeDrawer(self, config, typeInfo) {
         var body = self.body;
         var typeInfoArgs = typeInfo.args || {};
+        // 清空原有的绘制与物理设定
+        if (self.body_shape) {
+            self.p2_body.removeShape(self.body_shape);
+            body.clear();
+        }
         if (typeInfoArgs.lineStyle instanceof Array) {
             body.lineStyle.apply(body, typeInfoArgs.lineStyle);
         }
@@ -2464,6 +2469,13 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             const_3.mix_options(config, new_config);
             // 绘制枪体
             GunDrawer_1.default(self, config, typeInfo);
+            // 在射击动画结束的时候重置坐标，否则，原本射击的动画会影响绘制结果
+            var new_x = self.x;
+            var new_y = self.y;
+            self.once("cancel_fire_ani", function () {
+                self.x = new_x;
+                self.y = new_y;
+            });
         };
         Gun.prototype.update = function (delay) {
             this.emit("update", delay);
@@ -2556,6 +2568,13 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
     function level_to_experience(level_num) {
         return EXPERIENCE_LEVEL_MAP[level_num | 0];
     }
+    var FIX_GETTER_SETTER_BUG_KEYS_MAP = {
+        size: "size",
+        density: "density",
+        proto_list_length: "proto_list_length",
+        type: "type",
+        toJSON: "toJSON"
+    };
     var Ship = (function (_super) {
         __extends(Ship, _super);
         function Ship(new_config) {
@@ -2571,31 +2590,64 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     y: 0,
                     y_speed: 0,
                     x_speed: 0,
-                    force: 100000,
-                    size: const_4.pt2px(15),
-                    body_color: 0x2255ff,
-                    rotation: 0,
-                    max_hp: 100,
-                    cur_hp: 100,
-                    restore_hp: 1,
-                    density: 1,
-                    is_firing: false,
-                    ison_BTAR: false,
-                    // 战斗相关的属性
-                    bullet_force: 30000,
-                    //子弹的推进力
-                    bullet_damage: 5,
-                    bullet_penetrate: 0.5,
-                    overload_speed: 1,
-                    // 标志
-                    team_tag: Math.random(),
-                    // 经验值
-                    experience: 0,
-                    // 等级
-                    level: 0
+                    force: 100000
                 },
+                _a["__size"] = const_4.pt2px(15),
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.size, {
+                    get: function () {
+                        return this.__size;
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.size, {
+                    set: function (new_size) {
+                        if (new_size != this.__size) {
+                            this.__size = new_size;
+                            this.__self__.reDrawBody();
+                        }
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                _a.body_color = 0x2255ff,
+                _a.rotation = 0,
+                _a.max_hp = 100,
+                _a.cur_hp = 100,
+                _a.restore_hp = 1,
+                _a["__density"] = 1,
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.density, {
+                    get: function () {
+                        return this.__density;
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.density, {
+                    set: function (new_density) {
+                        if (new_density != this.__density) {
+                            this.__density = new_density;
+                            this.__self__.reDrawBody();
+                        }
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                _a.is_firing = false,
+                _a.ison_BTAR = false,
+                // 战斗相关的属性
+                _a.bullet_force = 30000,
+                _a.bullet_damage = 5,
+                _a.bullet_penetrate = 0.5,
+                _a.overload_speed = 1,
+                // 标志
+                _a.team_tag = Math.random(),
+                // 经验值
+                _a.experience = 0,
+                // 等级
+                _a.level = 0,
                 _a["__self__"] = this,
-                Object.defineProperty(_a, "proto_list_length", {
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length, {
                     // 只读·技能加点信息
                     get: function () {
                         return this.__self__.proto_list.length;
@@ -2603,7 +2655,41 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     enumerable: true,
                     configurable: true
                 }),
-                _a.type = "S-1",
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length, {
+                    set: function (_) {
+                        // just fix setter throw error
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                _a["__type"] = "S-1",
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.type, {
+                    get: function () {
+                        return this.__type;
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.type, {
+                    set: function (new_type) {
+                        if (new_type != this.__type) {
+                            this.__type = new_type;
+                            this.__self__.reDrawBody();
+                        }
+                    },
+                    enumerable: true,
+                    configurable: true
+                }),
+                _a[FIX_GETTER_SETTER_BUG_KEYS_MAP.toJSON] = function () {
+                    var config = this;
+                    var json_config = {};
+                    for (var k in config) {
+                        if (k.indexOf("__") !== 0 && k !== "toJSON") {
+                            json_config[k] = config[k];
+                        }
+                    }
+                    return json_config;
+                },
                 _a
             );
             this.is_keep_fire = false;
@@ -2619,10 +2705,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             // 绘制武器
             self.loadWeapon();
             // 绘制船体
-            ShapeDrawer_1.default(self, config, typeInfo.body);
-            if (const_4._isBorwser) {
-                self.body.cacheAsBitmap = true;
-            }
+            self.reDrawBody();
             self.body_shape["ship_team_tag"] = config.team_tag;
             self.p2_body.force = [config.x_speed, config.y_speed];
             self.p2_body.position = [config.x, config.y];
@@ -2713,23 +2796,26 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     var config_3 = self.config;
                     new_level = parseFloat(new_level);
                     config_3.level = parseFloat(new_level);
+                    self._computeConfig();
                 }
             });
             var _a;
         }
-        Ship.prototype.toJSON = function () {
+        // 重绘船体
+        Ship.prototype.reDrawBody = function () {
             var config = this.config;
-            var json_config = {};
-            for (var k in config) {
-                if (k.indexOf("__") !== 0) {
-                    json_config[k] = config[k];
-                }
+            var typeInfo = shipShape[config.type];
+            if (const_4._isBorwser) {
+                this.body.cacheAsBitmap = false;
+                // 绘制船体
+                ShapeDrawer_1.default(this, config, typeInfo.body);
+                this.reloadWeapon();
+                this.body.cacheAsBitmap = true;
             }
-            return {
-                id: this._id,
-                type: "Ship",
-                config: json_config
-            };
+            else {
+                // 绘制船体
+                ShapeDrawer_1.default(this, config, typeInfo.body);
+            }
         };
         // 装载武器
         Ship.prototype.loadWeapon = function () {
@@ -2835,6 +2921,9 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype._computeConfig = function () {
             var _this = this;
             var config = this.config;
+            // 用于临时替代config的对象，避免计算属性重复计算/
+            var cache_config = config[FIX_GETTER_SETTER_BUG_KEYS_MAP.toJSON]();
+            this.config = cache_config;
             var level = config.level;
             var typeInfo = shipShape[config.type];
             var type_config = typeInfo.body.config;
@@ -2843,11 +2932,11 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             /** 基础的等级带来的属性增长
              *
              */
-            const_4.mix_options(config, type_config);
+            const_4.assign(cache_config, type_config);
             for (var config_key in level_grow) {
                 var level_grow_value = level_grow[config_key];
                 if (isFinite(level_grow_value)) {
-                    config[config_key] += level_grow_value * level;
+                    cache_config[config_key] += level_grow_value * level;
                 }
                 else if (typeof level_grow_value === "object") {
                     if (level_grow_value.when instanceof Function && level_grow_value.then instanceof Function) {
@@ -2861,7 +2950,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             this.proto_list.forEach(function (proto) {
                 var proto_grow_value = proto_grow[proto];
                 if (isFinite(proto_grow_value)) {
-                    config[proto] += proto_grow_value;
+                    cache_config[proto] += proto_grow_value;
                 }
                 else if (typeof proto_grow_value === "object") {
                     if (proto_grow_value.when instanceof Function && proto_grow_value.then instanceof Function) {
@@ -2874,6 +2963,8 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     throw new TypeError("UNKNOW SKILL UPGREAT: " + proto);
                 }
             });
+            this.config = config;
+            const_4.mix_options(config, cache_config);
         };
         Ship.prototype.fire = function () {
             var res_bullets = this.guns.map(function (gun) { return gun.fire(); });
@@ -4525,10 +4616,11 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             sj["ship_team_tag"] === si["bullet_team_tag"]) {
             return;
         }
-        // // 如果si、sj有其中一个是子弹，无视碰撞，使用穿透算法
-        // if (si["bullet_team_tag"] && sj["bullet_team_tag"]) {
-        //     return;
-        // }
+        // 如果是同队子弹，无视碰撞
+        if (si["bullet_team_tag"] &&
+            si["bullet_team_tag"] === sj["bullet_team_tag"]) {
+            return;
+        }
         return _runNarrowphase.call(this, np, bi, si, xi, ai, bj, sj, xj, aj, cm, glen);
     };
     // 计算穿透
@@ -4566,6 +4658,11 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             var impact_obj = p2i_A;
         }
         if (impact_obj) {
+            // 同组判定
+            if (impact_obj.config.team_tag &&
+                impact_obj.config.team_tag === impact_bullet.config.team_tag) {
+                return;
+            }
             impact_obj.emit("change-hp", -impact_bullet.config.damage, 
             // 子弹 - 枪支 - 飞船
             impact_bullet.owner.owner);
@@ -8309,7 +8406,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_7.VIEW.WIDTH + " H:" + common_7.VIEW.HEIGHT;
             if (my_ship) {
                 var info = "\n";
-                var config = my_ship.toJSON().config;
+                var config = my_ship.config["toJSON"]();
                 for (var k in config) {
                     var val = config[k];
                     if (typeof val === "number") {

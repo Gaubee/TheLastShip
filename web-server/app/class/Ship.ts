@@ -53,13 +53,60 @@ export interface ShipConfig {
     team_tag?: number
     // 经验值
     experience?: number
+    // 等级
+    level?: number
+    // 技能加点信息
+    skill_list_length?: number
     // 飞船基本形状
     type?: string
 }
 
+const EXPERIENCE_LEVEL_MAP = [0];
+const LEVEL_STAGE_1 = 10;
+const LEVEL_STAGE_2 = 20;
+const LEVEL_STAGE_3 = 30;
+const LEVEL_STAGE_1_RATE = 10;
+const LEVEL_STAGE_2_RATE = 20;
+const LEVEL_STAGE_3_RATE = 40;
+for(var i = 1; i <= LEVEL_STAGE_1; i += 1){
+    EXPERIENCE_LEVEL_MAP[i] = EXPERIENCE_LEVEL_MAP[i-1] + i * LEVEL_STAGE_1_RATE;
+}
+/**第一阶段的基础增长值 */
+const LEVEL_STAGE_1_TOTAL = LEVEL_STAGE_1 * LEVEL_STAGE_1_RATE;
+for(var i = 1,len = LEVEL_STAGE_2 - LEVEL_STAGE_1; i <= len; i += 1){
+    EXPERIENCE_LEVEL_MAP[LEVEL_STAGE_1 + i] = EXPERIENCE_LEVEL_MAP[LEVEL_STAGE_1 + i-1] + LEVEL_STAGE_1_TOTAL + i * LEVEL_STAGE_2_RATE;
+}
+/**第二阶段的基础增长值 */
+const LEVEL_STAGE_2_TOTAL = LEVEL_STAGE_1_TOTAL + (LEVEL_STAGE_2 - LEVEL_STAGE_1) * LEVEL_STAGE_2_RATE;
+for(var i = 1,len = LEVEL_STAGE_3 - LEVEL_STAGE_2; i <= len; i += 1){
+    EXPERIENCE_LEVEL_MAP[LEVEL_STAGE_2 + i] = EXPERIENCE_LEVEL_MAP[LEVEL_STAGE_2 + i - 1] + LEVEL_STAGE_2_TOTAL + i * LEVEL_STAGE_3_RATE;
+}
+
+function experience_to_level(experience_num){
+    var res = 0;
+    EXPERIENCE_LEVEL_MAP.some(function (experience,level) {
+        if(experience >= experience_num){
+            if(experience === experience_num) {
+                res = level
+            }else{
+                res = level - 1;
+            }
+            return true;
+        }
+    });
+    return res
+}
+function level_to_experience(level_num){
+    return EXPERIENCE_LEVEL_MAP[level_num|0];
+}
+
 export default class Ship extends P2I {
     static TYPES = shipShape
+    static experience_to_level = experience_to_level
+    static level_to_experience = level_to_experience
     guns: Gun[] = []
+    // 技能加点
+    skill_list: number[] = []
     gun: PIXI.Graphics = new PIXI.Graphics()
     body: PIXI.Graphics = new PIXI.Graphics()
     config: ShipConfig = {
@@ -89,7 +136,28 @@ export default class Ship extends P2I {
         team_tag: Math.random(),
         // 经验值
         experience: 0,
+        // 等级
+        level: 0,
+        ["__self__"] : this,
+        // 只读·技能加点信息
+        get skill_list_length(){
+            return this.__self__.skill_list.length
+        },
         type: "S-1"
+    }
+    toJSON(){
+        const config = this.config;
+        var json_config = {};
+        for(var k in config){
+            if(k.indexOf("__")!==0) {
+                json_config[k] = config[k]
+            }
+        }
+        return {
+            id:this._id,
+            type: "Ship",
+            config: json_config
+        }
     }
     body_shape: p2.Shape
     constructor(new_config: ShipConfig = {}) {
@@ -201,6 +269,25 @@ export default class Ship extends P2I {
                 };
             });
         }
+        // 经验奖励
+        self.on("change-experience",function (dif_experience) {
+            if(isFinite(dif_experience)) {
+                const config = self.config;
+                config.experience += parseFloat(dif_experience);
+                var res_level = experience_to_level(config.experience);
+                if(res_level !== config.level) {
+                    self.emit("set-level", res_level);
+                }
+            }
+        });
+        // 等级改变
+        self.on("set-level",function (new_level) {
+            if(isFinite(new_level)) {
+                const config = self.config;
+                new_level = parseFloat(new_level);
+                config.level = parseFloat(new_level);
+            }
+        });
     }
     update(delay) {
         super.update(delay);

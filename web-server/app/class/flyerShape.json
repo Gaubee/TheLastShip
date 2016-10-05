@@ -2,12 +2,13 @@
 	"S-Circle": {
 		"type": "Circle",
 		"args": {
-			"lineStyle": ["pt2px!2", "0x000000", 1]
+			"lineStyle": ["pt2px!1", "0x000000", 1]
 		},
 		"config": {
 			"size": "pt2px!10",
 			"max_hp": 30,
-			"cur_hp": 30
+			"cur_hp": 30,
+			"reward_experience": 30
 		}
 	},
 	"S-Box": {
@@ -15,9 +16,10 @@
 		"args": {
 		},
 		"config": {
-			"size": "pt2px!10",
-			"max_hp": 50,
-			"cur_hp": 50
+			"size": "pt2px!8",
+			"max_hp": 10,
+			"cur_hp": 10,
+			"reward_experience": 10
 		}
 	},
 	"S-Convex-1": {
@@ -27,8 +29,9 @@
 		},
 		"config": {
 			"size": "pt2px!12",
-			"max_hp": 70,
-			"cur_hp": 70
+			"max_hp": 20,
+			"cur_hp": 20,
+			"reward_experience": 20
 		}
 	},
 	"S-Convex-2": {
@@ -38,8 +41,21 @@
 		},
 		"config": {
 			"size": "pt2px!18",
-			"max_hp": 100,
-			"cur_hp": 100
+			"max_hp": 50,
+			"cur_hp": 50,
+			"reward_experience": 50
+		}
+	},
+	"S-Convex-3": {
+		"type": "Convex",
+		"args": {
+			"vertices_length": 6
+		},
+		"config": {
+			"size": "pt2px!40",
+			"max_hp": 1000,
+			"cur_hp": 1000,
+			"reward_experience": 1000
 		}
 	}
 }

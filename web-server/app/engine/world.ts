@@ -64,7 +64,9 @@ world.on("beginContact",function(evt){
         var impact_obj = p2i_A;
     }
     if(impact_obj) {
-        impact_obj.emit("change-hp", -impact_bullet.config.damage);
+        impact_obj.emit("change-hp", -impact_bullet.config.damage,
+            // 子弹 - 枪支 - 飞船
+            impact_bullet.owner.owner);
     }
 });
 world.on("endContact",function (evt) {
@@ -104,7 +106,7 @@ export const engine = {
                 });
             })
         }else if(item instanceof Ship){
-            ["die", "change-hp"].forEach(eventName=>{
+            ["die", "change-hp", "fire_start"].forEach(eventName=>{
                 item.on(eventName,function () {
                     engine.emit(eventName, this);
                 });
@@ -148,8 +150,8 @@ export const engine = {
     },
     newShip(ship_config?: ShipConfig) {
         var default_ship_config = {
-            x: VIEW.WIDTH * Math.random(),
-            y: VIEW.HEIGHT * Math.random(),
+            x: 50+(VIEW.WIDTH-100) * Math.random(),
+            y: 50+(VIEW.HEIGHT-100) * Math.random(),
             body_color: 0x777777 * Math.random(),
             team_tag: Math.random()
         };
@@ -167,25 +169,25 @@ export const engine = {
         return ship_id && All_id_map.get(ship_id);
     },
     setConfig(ship_id, new_ship_config:ShipConfig){
-        var current_ship = All_id_map.get(ship_id);
-        if(!current_ship) {
+        var current_ship = <Ship>All_id_map.get(ship_id);
+        if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
-        current_ship.setConfig(new_ship_config);
+        current_ship.operateShip(new_ship_config);
         return current_ship;
     },
     fire(ship_id){
         var current_ship = <Ship>All_id_map.get(ship_id);
-         if(!current_ship&&!(current_ship instanceof Ship)) {
+         if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
         var bullets = current_ship.fire();
         if(bullets.length) {
             bullets.forEach(function (bullet) {
                 engine.add(bullet)
-                return bullet;
             });
         }
+        return bullets;
     }
 };
 // 材质信息
@@ -195,21 +197,21 @@ world.addContactMaterial(new p2.ContactMaterial(P2I.material, P2I.material,{
     stiffness : 500,    // This makes the contact soft!
     relaxation : 0.1
 }));
-// 子弹与子弹，体现穿透性
+// 子弹与子弹、墙、通用物体，体现穿透性
 world.addContactMaterial(new p2.ContactMaterial(Bullet.material, Bullet.material,{
     restitution : 0.0,
     stiffness : 200,    // This makes the contact soft!
     relaxation : 0.2
 }));
-// 子弹与墙，体现穿透性
+// 子弹与子弹、墙、通用物体，体现穿透性
 world.addContactMaterial(new p2.ContactMaterial(Bullet.material, Wall.material,{
     restitution : 0.0,
     stiffness : 10,    // 对于子弹穿透，墙体现低折射率，但会削弱子弹上海
     relaxation : 0.5
 }));
-// 子弹与通用物体，体现软弹性
+// 子弹与子弹、墙、通用物体，体现穿透性
 world.addContactMaterial(new p2.ContactMaterial(Bullet.material, P2I.material,{
     restitution : 0.0,
-    stiffness : 300,    // This makes the contact soft!
+    stiffness : 200,    // This makes the contact soft!
     relaxation : 0.2
 }));

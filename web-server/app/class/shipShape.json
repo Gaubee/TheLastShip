@@ -17,7 +17,7 @@
 		},{
 			"type": "long",
 			"overload_speed": "mix@2",
-			"rotation": "PI!0.333333",
+			"rotation": "PI!-0.666666666",
 			"args": {
 				"fill" : "0x992233"
 			}

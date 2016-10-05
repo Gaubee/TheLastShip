@@ -258,6 +258,18 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     current_stage_wrap.addChild(FPS_Text);
     FPS_ticker.add(function () {
         FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + VIEW.WIDTH + " H:" + VIEW.HEIGHT;
+        if (my_ship) {
+            var info = "\n";
+            var config = my_ship.toJSON().config;
+            for (var k in config) {
+                var val = config[k];
+                if (typeof val === "number") {
+                    val = val.toFixed(2);
+                }
+                info += `${k}: ${val}\n`;
+            }
+            FPS_Text.text += info;
+        }
     });
 
     // 触发布局计算

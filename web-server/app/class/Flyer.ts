@@ -1,5 +1,6 @@
 import {P2I} from "../engine/Collision";
 import ShapeDrawer from "./Drawer/ShapeDrawer";
+import Ship from "./Ship";
 
 import {
     L_ANI_TIME,
@@ -32,6 +33,8 @@ export interface FlyerConfig {
     max_hp?: number
     cur_hp?: number
     type?: string
+    // 奖励经验值
+    reward_experience?: number
 }
 
 export default class Flyer extends P2I {
@@ -50,6 +53,8 @@ export default class Flyer extends P2I {
         max_hp: 50,
         cur_hp: 50,
         type: "S-Box",
+        // 奖励经验值
+        reward_experience: 0,
     }
     body_shape: p2.Shape
     constructor(new_config: FlyerConfig = {}) {
@@ -76,7 +81,7 @@ export default class Flyer extends P2I {
         self.position.set(config.x, config.y);
 
 
-        self.on("change-hp", function (dif_hp) {
+        self.on("change-hp", function (dif_hp, damage_from) {
             // console.log("change-hp-value:",dif_hp)
             if(isFinite(dif_hp)) {
                 const config = self.config;
@@ -88,7 +93,7 @@ export default class Flyer extends P2I {
                     config.cur_hp = config.max_hp;
                 }
                 if (config.cur_hp <= 0) {
-                    self.emit("ember");
+                    self.emit("ember", damage_from);
                 }
             }
         });
@@ -97,7 +102,7 @@ export default class Flyer extends P2I {
                 self.emit("destroy");
             });
         }else{// 瀏覽器
-            self.once("ember",function () {
+            self.once("ember",function (damage_from?:Ship) {
                 var ani_time = B_ANI_TIME;
                 var ani_progress = 0;
                 var _update = self.update;
@@ -110,6 +115,9 @@ export default class Flyer extends P2I {
                     self.world = null;
                 }
                 self.emit("stop-flash");
+                if(damage_from) {
+                    damage_from.emit("change-experience", self.config.reward_experience)
+                }
 
                 self.update = (delay) => {
                     ani_progress += delay;

@@ -52,6 +52,9 @@ export function transformValue(value) {
         if (value.indexOf("PI!") === 0) {
             return Math.PI * (+value.substr(3));
         }
+        if(value.indexOf("eval!") === 0) {
+            return new Function("info",value.substr(5));
+        }
     }
     return value;
 }

@@ -4,6 +4,8 @@
 import TWEEN, {
 	Tween
 } from "../class/Tween";
+import FlowLayout from "../class/FlowLayout";
+import TextBuilder from "../class/TextBuilder";
 
 import Flyer from "./class/Flyer";
 import Ship from "./class/Ship";
@@ -399,4 +401,147 @@ export function shipAutoFire(
 			}
 		});
 	}
+}
+/** 显示属性加点面板
+ *
+ */
+import * as shipShape from "./class/shipShape.json";
+const proto_plan = new FlowLayout();
+export function showProtoPlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	changeProto_cb: () => void) {
+	const view_ship = get_view_ship();
+	if(!view_ship){
+		return
+	}
+	if(proto_plan["is_opened"]||proto_plan["is_ani"]){
+		return
+	}
+	proto_plan["is_opened"] = true;
+	proto_plan["is_ani"] = true;
+	drawProtoPlan(view_ship,changeProto_cb);
+	ani_tween.Tween(proto_plan)
+		.set({
+			x:-proto_plan.width,
+			y:VIEW.HEIGHT-proto_plan.height
+		})
+		.to({
+			x:0
+		}, B_ANI_TIME)
+		.easing(TWEEN.Easing.Quadratic.Out)
+		.start()
+		.onComplete(()=>{
+			proto_plan["is_ani"] = false
+		});
+	listen_stage.addChild(proto_plan);
+}
+/** 重绘属性加点面板
+ *
+ */
+function drawProtoPlan(view_ship:Ship,
+	changeProto_cb: () => void) {
+	// 销毁重绘
+	proto_plan.children.slice().forEach(child=>{
+		proto_plan.removeChild(child);
+		child.destroy();
+	})
+
+	const typeInfo = shipShape[view_ship.config.type];
+	const proto_grow_config = typeInfo.body.proto_grow_config;
+	for(var k in proto_grow_config){
+		var proto_grow_config_item = proto_grow_config[k];
+		if(typeof proto_grow_config_item === "object") {
+			var text_info = new TextBuilder(proto_grow_config_item.title+` : ${view_ship.proto_list.filter(skill_name=>skill_name === k).length}/${proto_grow_config_item.max}`,{
+				fontFamily:"微软雅黑",
+				fontSize:pt2px(10)
+			});
+			proto_plan.addChildToFlow(text_info,{float:"right"});
+			text_info.interactive = true;
+			(function (k,text_info) {
+				on(text_info,"click|tap",function () {
+					view_ship.addProto(k);
+					// 重绘
+					drawProtoPlan(view_ship,changeProto_cb);
+					changeProto_cb();
+				});
+			})(k,text_info);
+		}
+	}
+	var bg = new PIXI.Graphics();
+	bg.beginFill(0xffffff,0.5);
+	bg.drawRoundedRect(-10,-10,proto_plan.width+20,proto_plan.height+20,5);
+	proto_plan.addChildAt(bg,0);
+}
+/** 关闭属性加点面板
+ *
+ */
+export function hideProtoPlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker) {
+	if(!proto_plan["is_opened"]||proto_plan["is_ani"]){
+		return
+	}
+	proto_plan["is_opened"] = false;
+	proto_plan["is_ani"] = true;
+	ani_tween.Tween(proto_plan)
+		.to({
+			x:-proto_plan.width
+		}, B_ANI_TIME)
+		.easing(TWEEN.Easing.Quadratic.Out)
+		.start()
+		.onComplete(()=>{
+			proto_plan["is_ani"] = false
+			listen_stage.removeChild(proto_plan);
+		});
+}
+/** 切换属性加点面板的显示隐藏
+ *
+ */
+export function toggleProtoPlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	changeProto_cb: () => void) {
+	on(listen_stage, "keydown", function(e) {
+		if (e.keyCode == 67) {
+			if(proto_plan["is_opened"]) {
+				hideProtoPlan(listen_stage,
+					view_stage,
+					get_view_ship,
+					ani_tween,
+					ani_ticker)
+			}else{
+				showProtoPlan(listen_stage,
+					view_stage,
+					get_view_ship,
+					ani_tween,
+					ani_ticker,
+					changeProto_cb)
+			}
+		}
+	});
 }

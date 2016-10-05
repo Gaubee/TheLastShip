@@ -75,7 +75,7 @@ export default class Bullet extends P2I {
         mix_options(config, new_config);
 
         const body = self.body;
-        body.lineStyle(0, 0x000000, 1);
+        body.lineStyle(pt2px(1), 0x000000, 1);
         body.beginFill(config.body_color);
         body.drawCircle(config.size / 2, config.size / 2, config.size);
         body.endFill();
@@ -118,7 +118,7 @@ export default class Bullet extends P2I {
             config.penetrate -= obj.config.density/config.density;
             if(isFinite(change_damage)) {
                 var damage_rate = config.scale = change_damage/source_damage;
-                self.scale.set(damage_rate, damage_rate);
+                self.scale&&self.scale.set(damage_rate, damage_rate);
                 config.damage = change_damage;
             }
             if(config.penetrate <= 0) {// 穿透耗尽，子弹销毁

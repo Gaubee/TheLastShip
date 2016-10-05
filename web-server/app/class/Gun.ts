@@ -68,29 +68,9 @@ export default class Gun extends P2I {
 	constructor(new_config: GunConfig = {}, owner ? : Ship) {
 		super();
 		const self = this;
-		const config = self.config;
-		var typeInfo = gunShape[new_config.type]||gunShape[config.type];
-		if (!typeInfo) {
-			throw new TypeError("UNKONW Gun Type: " + config.type);
-		}
-
 		self.owner = owner;
-		const owner_config = owner.config;
-
-		// 动态合成配置
-		new_config = transformMix(owner_config, new_config)
-		typeInfo = transformMix(owner_config, typeInfo)
-
-		if (new_config["args"]) { // 飞船绘制配置强制覆盖枪杆配置
-			typeInfo = assign(assign({}, typeInfo), {
-				args: new_config["args"]
-			})
-		}
-		// 覆盖配置
-		mix_options(config, typeInfo["config"]);
-		mix_options(config, new_config);
-		// 绘制枪体
-		GunDrawer(self, config, typeInfo);
+		// const config = self.config;
+		self.setConfig(new_config);
 
 		if (owner) {
 			owner.guns.push(self);
@@ -106,6 +86,7 @@ export default class Gun extends P2I {
 			var before_the_attack_roll_ani = 0.5; // 攻击前腰在整个动画时间的占比
 			var acc_overload_time = 0;
 			self.once("fire_start", function _fire_start() {
+				const config = self.config;
 				config.is_firing = true;
 				config.ison_BTAR = true;
 				// 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
@@ -138,6 +119,7 @@ export default class Gun extends P2I {
 			self.on("fire_ani", function _fire_ani() {
 				self.emit("cancel_fire_ani");
 
+				const config = self.config;
 				var acc_fire_time = 0;
 				var overload_ani = 1000 / config.overload_speed;
 				var from_gun_x = self.x;
@@ -182,6 +164,32 @@ export default class Gun extends P2I {
 				});
 			});
 		}());
+	}
+	setConfig(new_config){
+		const self = this;
+		const config = self.config;
+		var typeInfo = gunShape[new_config.type]||gunShape[config.type];
+		if (!typeInfo) {
+			throw new TypeError("UNKONW Gun Type: " + config.type);
+		}
+
+		const owner = self.owner;
+		const owner_config = owner.config;
+
+		// 动态合成配置
+		new_config = transformMix(owner_config, new_config)
+		typeInfo = transformMix(owner_config, typeInfo)
+
+		if (new_config["args"]) { // 飞船绘制配置强制覆盖枪杆配置
+			typeInfo = assign(assign({}, typeInfo), {
+				args: new_config["args"]
+			})
+		}
+		// 覆盖配置
+		mix_options(config, typeInfo["config"]);
+		mix_options(config, new_config);
+		// 绘制枪体
+		GunDrawer(self, config, typeInfo);
 	}
 	update(delay){
 		this.emit("update", delay);

@@ -235,12 +235,23 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,ani_ticker
         ,()=> {
             my_ship.toggleKeepFire(function (bullets) {
-                bullets.forEach(bullet=>{
-                    bullet_stage.addChild(bullet);
-                    engine.add(bullet);
-                });
+                    
+                    bullets.forEach(bullet=>{
+                        bullet_stage.addChild(bullet);
+                        engine.add(bullet);
+                    });
             });
         });
+// 切换属性加点面板的显示隐藏
+    UX.toggleProtoPlan(current_stage_wrap
+        ,current_stage
+        ,()=>my_ship
+        ,ani_tween
+        ,ani_ticker,function () {
+            my_ship._computeConfig();
+            my_ship.reloadWeapon();
+        });
+
 
     // 动画控制器
     ani_ticker.add(() => {

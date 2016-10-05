@@ -14,6 +14,7 @@ import Gun from "../Gun";
 export default function GunDrawer(self: Gun, config, typeInfo) {
 	const ship = self.owner;
 	const body = self.gun;
+	body.clear();
 	const typeInfoArgs = typeInfo.args || {};
 	if (typeInfoArgs.lineStyle instanceof Array) {
 		body.lineStyle.apply(body, typeInfoArgs.lineStyle);

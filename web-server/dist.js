@@ -1495,6 +1495,9 @@ define("app/const", ["require", "exports"], function (require, exports) {
             if (value.indexOf("PI!") === 0) {
                 return Math.PI * (+value.substr(3));
             }
+            if (value.indexOf("eval!") === 0) {
+                return new Function("info", value.substr(5));
+            }
         }
         return value;
     }
@@ -1592,6 +1595,7 @@ define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/en
     function GunDrawer(self, config, typeInfo) {
         var ship = self.owner;
         var body = self.gun;
+        body.clear();
         var typeInfoArgs = typeInfo.args || {};
         if (typeInfoArgs.lineStyle instanceof Array) {
             body.lineStyle.apply(body, typeInfoArgs.lineStyle);
@@ -2347,26 +2351,9 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 type: "NONE"
             };
             var self = this;
-            var config = self.config;
-            var typeInfo = gunShape[new_config.type] || gunShape[config.type];
-            if (!typeInfo) {
-                throw new TypeError("UNKONW Gun Type: " + config.type);
-            }
             self.owner = owner;
-            var owner_config = owner.config;
-            // 动态合成配置
-            new_config = const_3.transformMix(owner_config, new_config);
-            typeInfo = const_3.transformMix(owner_config, typeInfo);
-            if (new_config["args"]) {
-                typeInfo = const_3.assign(const_3.assign({}, typeInfo), {
-                    args: new_config["args"]
-                });
-            }
-            // 覆盖配置
-            const_3.mix_options(config, typeInfo["config"]);
-            const_3.mix_options(config, new_config);
-            // 绘制枪体
-            GunDrawer_1.default(self, config, typeInfo);
+            // const config = self.config;
+            self.setConfig(new_config);
             if (owner) {
                 owner.guns.push(self);
                 owner.addChild(self);
@@ -2379,6 +2366,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 var before_the_attack_roll_ani = 0.5; // 攻击前腰在整个动画时间的占比
                 var acc_overload_time = 0;
                 self.once("fire_start", function _fire_start() {
+                    var config = self.config;
                     config.is_firing = true;
                     config.ison_BTAR = true;
                     // 射击相关的动画，不加锁，但可以取消（暂时没有想到取消前腰会有什么隐患，所以目前做成可以直接取消）
@@ -2409,6 +2397,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 // 射击钱摇枪管不可转向。
                 self.on("fire_ani", function _fire_ani() {
                     self.emit("cancel_fire_ani");
+                    var config = self.config;
                     var acc_fire_time = 0;
                     var overload_ani = 1000 / config.overload_speed;
                     var from_gun_x = self.x;
@@ -2453,6 +2442,29 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 });
             }());
         }
+        Gun.prototype.setConfig = function (new_config) {
+            var self = this;
+            var config = self.config;
+            var typeInfo = gunShape[new_config.type] || gunShape[config.type];
+            if (!typeInfo) {
+                throw new TypeError("UNKONW Gun Type: " + config.type);
+            }
+            var owner = self.owner;
+            var owner_config = owner.config;
+            // 动态合成配置
+            new_config = const_3.transformMix(owner_config, new_config);
+            typeInfo = const_3.transformMix(owner_config, typeInfo);
+            if (new_config["args"]) {
+                typeInfo = const_3.assign(const_3.assign({}, typeInfo), {
+                    args: new_config["args"]
+                });
+            }
+            // 覆盖配置
+            const_3.mix_options(config, typeInfo["config"]);
+            const_3.mix_options(config, new_config);
+            // 绘制枪体
+            GunDrawer_1.default(self, config, typeInfo);
+        };
         Gun.prototype.update = function (delay) {
             this.emit("update", delay);
         };
@@ -2551,7 +2563,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             _super.call(this);
             this.guns = [];
             // 技能加点
-            this.skill_list = [];
+            this.proto_list = [];
             this.gun = new PIXI.Graphics();
             this.body = new PIXI.Graphics();
             this.config = (_a = {
@@ -2583,10 +2595,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     level: 0
                 },
                 _a["__self__"] = this,
-                Object.defineProperty(_a, "skill_list_length", {
+                Object.defineProperty(_a, "proto_list_length", {
                     // 只读·技能加点信息
                     get: function () {
-                        return this.__self__.skill_list.length;
+                        return this.__self__.proto_list.length;
                     },
                     enumerable: true,
                     configurable: true
@@ -2605,24 +2617,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             const_4.mix_options(config, typeInfo.body.config);
             const_4.mix_options(config, new_config);
             // 绘制武器
-            typeInfo.guns.forEach(function (_gun_config, i) {
-                var gun_config = const_4.assign({}, _gun_config);
-                // 枪支继承飞船的基本配置
-                [
-                    "bullet_force",
-                    "bullet_damage",
-                    "bullet_penetrate",
-                    "overload_speed",
-                ].forEach(function (k) {
-                    var ship_v = config[k];
-                    if (!gun_config.hasOwnProperty(k)) {
-                        gun_config[k] = ship_v;
-                    }
-                });
-                var gun = new Gun_1.default(gun_config, self);
-                // 定死ID
-                gun._id = self._id + "_gun_" + i;
-            });
+            self.loadWeapon();
             // 绘制船体
             ShapeDrawer_1.default(self, config, typeInfo.body);
             if (const_4._isBorwser) {
@@ -2648,6 +2643,13 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     }
                 }
             });
+            // Nodejs && 浏览器
+            self.once("die", function (damage_from) {
+                if (damage_from) {
+                    // 失去1/2的经验，剩下的1/2用于复活后的基础经验
+                    damage_from.emit("change-experience", self.config.experience / 2);
+                }
+            });
             if (const_4._isNode) {
                 self.once("die", function () {
                     self.emit("destroy");
@@ -2655,7 +2657,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 // 生命回复、攻速限制
                 self.once("add-to-world", function () {
                     var acc_time = 0;
-                    var restore_hp_ani = 2000;
+                    var restore_hp_ani = 1000;
                     self.on("update", function (delay) {
                         if (config.max_hp !== config.cur_hp) {
                             acc_time += delay;
@@ -2729,6 +2731,61 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 config: json_config
             };
         };
+        // 装载武器
+        Ship.prototype.loadWeapon = function () {
+            var self = this;
+            var config = self.config;
+            var typeInfo = shipShape[config.type];
+            typeInfo.guns.forEach(function (_gun_config, i) {
+                var gun_config = const_4.assign({}, _gun_config);
+                // 枪支继承飞船的基本配置
+                [
+                    "bullet_force",
+                    "bullet_damage",
+                    "bullet_penetrate",
+                    "overload_speed",
+                ].forEach(function (k) {
+                    var ship_v = config[k];
+                    if (!gun_config.hasOwnProperty(k)) {
+                        gun_config[k] = ship_v;
+                    }
+                });
+                var gun = new Gun_1.default(gun_config, self);
+                // 定死ID
+                gun._id = self._id + "_gun_" + i;
+            });
+        };
+        // 卸载武器
+        Ship.prototype.unloadWeapon = function () {
+            var _this = this;
+            this.guns.forEach(function (gun) {
+                _this.removeChild(gun);
+                gun.destroy();
+            });
+        };
+        // 重载武器配置
+        Ship.prototype.reloadWeapon = function () {
+            var self = this;
+            var config = self.config;
+            var typeInfo = shipShape[config.type];
+            typeInfo.guns.forEach(function (_gun_config, i) {
+                var gun_config = const_4.assign({}, _gun_config);
+                // 枪支继承飞船的基本配置
+                [
+                    "bullet_force",
+                    "bullet_damage",
+                    "bullet_penetrate",
+                    "overload_speed",
+                ].forEach(function (k) {
+                    var ship_v = config[k];
+                    if (!gun_config.hasOwnProperty(k)) {
+                        gun_config[k] = ship_v;
+                    }
+                });
+                var gun = self.guns[i];
+                gun.setConfig(gun_config);
+            });
+        };
         Ship.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
             this.rotation = this.p2_body["rotation"];
@@ -2766,7 +2823,57 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 this.rotation = config.rotation;
             }
         };
-        Ship.prototype.levelUp = function (add_proto) {
+        // 属性加点
+        Ship.prototype.addProto = function (add_proto) {
+            var config = this.config;
+            this.proto_list.push(add_proto);
+            if (const_4._isNode) {
+                this._computeConfig();
+                this.reloadWeapon();
+            }
+        };
+        Ship.prototype._computeConfig = function () {
+            var _this = this;
+            var config = this.config;
+            var level = config.level;
+            var typeInfo = shipShape[config.type];
+            var type_config = typeInfo.body.config;
+            var level_grow = typeInfo.body.level_grow;
+            var proto_grow = typeInfo.body.proto_grow;
+            /** 基础的等级带来的属性增长
+             *
+             */
+            const_4.mix_options(config, type_config);
+            for (var config_key in level_grow) {
+                var level_grow_value = level_grow[config_key];
+                if (isFinite(level_grow_value)) {
+                    config[config_key] += level_grow_value * level;
+                }
+                else if (typeof level_grow_value === "object") {
+                    if (level_grow_value.when instanceof Function && level_grow_value.then instanceof Function) {
+                        if (level_grow_value.when.call(this, level_grow_value)) {
+                            level_grow_value.then.call(this, level_grow_value);
+                        }
+                    }
+                }
+            }
+            // 加点信息
+            this.proto_list.forEach(function (proto) {
+                var proto_grow_value = proto_grow[proto];
+                if (isFinite(proto_grow_value)) {
+                    config[proto] += proto_grow_value;
+                }
+                else if (typeof proto_grow_value === "object") {
+                    if (proto_grow_value.when instanceof Function && proto_grow_value.then instanceof Function) {
+                        if (proto_grow_value.when.call(_this, proto_grow_value)) {
+                            proto_grow_value.then.call(_this, proto_grow_value);
+                        }
+                    }
+                }
+                else {
+                    throw new TypeError("UNKNOW SKILL UPGREAT: " + proto);
+                }
+            });
         };
         Ship.prototype.fire = function () {
             var res_bullets = this.guns.map(function (gun) { return gun.fire(); });
@@ -2775,7 +2882,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype.startKeepFire = function (cb) {
             var _this = this;
             this._fireBind = function () {
-                cb(_this.fire());
+                var bullets = _this.fire();
+                requestAnimationFrame(function () {
+                    cb(bullets);
+                });
             };
             this.on("update", this._fireBind);
         };
@@ -2862,13 +2972,19 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
                     }
                 }
             });
+            // Nodejs && 浏览器
+            self.once("ember", function (damage_from) {
+                if (damage_from) {
+                    damage_from.emit("change-experience", self.config.reward_experience);
+                }
+            });
             if (const_5._isNode) {
                 self.once("ember", function () {
                     self.emit("destroy");
                 });
             }
             else {
-                self.once("ember", function (damage_from) {
+                self.once("ember", function () {
                     var ani_time = const_5.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
@@ -2881,9 +2997,6 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
                         self.world = null;
                     }
                     self.emit("stop-flash");
-                    if (damage_from) {
-                        damage_from.emit("change-experience", self.config.reward_experience);
-                    }
                     self.update = function (delay) {
                         ani_progress += delay;
                         var progress = Math.min(ani_progress / ani_time, 1);
@@ -3010,7 +3123,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             var config = self.config;
             const_7.mix_options(config, new_config);
             var body = self.body;
-            body.lineStyle(0, 0x000000, 1);
+            body.lineStyle(const_7.pt2px(1), 0x000000, 1);
             body.beginFill(config.body_color);
             body.drawCircle(config.size / 2, config.size / 2, config.size);
             body.endFill();
@@ -3047,7 +3160,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 config.penetrate -= obj.config.density / config.density;
                 if (isFinite(change_damage)) {
                     var damage_rate = config.scale = change_damage / source_damage;
-                    self.scale.set(damage_rate, damage_rate);
+                    self.scale && self.scale.set(damage_rate, damage_rate);
                     config.damage = change_damage;
                 }
                 if (config.penetrate <= 0) {
@@ -4607,7 +4720,192 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
         relaxation: 0.2
     }));
 });
-define("app/ux", ["require", "exports", "app/engine/Victor", "app/common", "app/const"], function (require, exports, Victor_3, common_2, const_9) {
+define("class/FlowLayout", ["require", "exports"], function (require, exports) {
+    "use strict";
+    var BaselineHandles = {
+        "center": function (childs) {
+            var max_height = 0;
+            var height_list = childs.map(function (child) {
+                var bounds = child.getBounds();
+                max_height = Math.max(bounds.height, max_height);
+                return bounds.height;
+            });
+            // console.group("max_height:" + max_height)
+            height_list.forEach(function (child_height, i) {
+                if (child_height !== max_height) {
+                    var child = childs[i];
+                    // console.log(child.y, child.y + (max_height - child_height) / 2)
+                    child.y += (max_height - child_height) / 2;
+                }
+            });
+            // console.groupEnd()
+        },
+        "bottom": function (childs) {
+            var max_height = 0;
+            var height_list = childs.map(function (child) {
+                var bounds = child.getBounds();
+                max_height = Math.max(bounds.height, max_height);
+                return bounds.height;
+            });
+            // console.group("max_height:" + max_height)
+            height_list.forEach(function (child_height, i) {
+                if (child_height !== max_height) {
+                    var child = childs[i];
+                    // console.log(child.y, child.y + (max_height - child_height) / 2)
+                    child.y += max_height - child_height;
+                }
+            });
+            // console.groupEnd()
+        }
+    };
+    var default_flow_style = {};
+    var FlowLayout = (function (_super) {
+        __extends(FlowLayout, _super);
+        function FlowLayout(childs, flow_style) {
+            var _this = this;
+            _super.call(this);
+            this.max_width = Infinity;
+            if (childs instanceof Array) {
+                childs.forEach(function (child) { return _this._addFlowChildItem(child, flow_style); });
+            }
+            else if (childs) {
+                this._addFlowChildItem(childs, flow_style);
+            }
+            this.reDrawFlow();
+        }
+        FlowLayout.prototype._addFlowChildItem = function (item, flow_style) {
+            if (flow_style === void 0) { flow_style = {}; }
+            item["_flow_style"] = flow_style || default_flow_style;
+            this.addChild(item);
+        };
+        FlowLayout.prototype.reDrawFlow = function () {
+            var childs = this.children;
+            if (childs.length <= 1) {
+                return;
+            }
+            var max_width = isFinite(this.max_width) ? this.max_width : (this.parent && this.parent.width);
+            if (!isFinite(max_width) || !max_width) {
+                max_width = document.body.clientWidth;
+            }
+            var pre_item = childs[0];
+            var per_style = (pre_item["_flow_style"] || default_flow_style);
+            var pre_bounds = pre_item.getBounds();
+            var current_line_width = pre_bounds.width; //当前行累计使用的宽度
+            var current_line_childs = [pre_item];
+            for (var i = 1, len = childs.length; i < len; i += 1) {
+                var cur_item = childs[i];
+                var cur_style = (cur_item["_flow_style"] || default_flow_style);
+                var cur_bounds = cur_item.getBounds();
+                var _new_line = function () {
+                    cur_item.x = 0;
+                    cur_item.y = pre_item.y + pre_bounds.height;
+                    current_line_width = cur_bounds.width;
+                    var baselineHandle = BaselineHandles[cur_style.baseline];
+                    if (baselineHandle instanceof Function) {
+                        baselineHandle(current_line_childs);
+                    }
+                    current_line_childs = [cur_item];
+                };
+                if (cur_style.float === "left") {
+                    if (current_line_width + cur_bounds.width <= max_width) {
+                        cur_item.y = pre_item.y;
+                        cur_item.x = pre_item.x + pre_bounds.width;
+                        current_line_width += cur_bounds.width;
+                        current_line_childs.push(cur_item);
+                    }
+                    else {
+                        _new_line();
+                    }
+                }
+                else if (cur_style.float === "center") {
+                    if (current_line_width + cur_bounds.width <= max_width) {
+                        cur_item.y = pre_item.y;
+                        cur_item.x = pre_item.x + (max_width - current_line_width - cur_bounds.width) / 2;
+                        current_line_width += cur_bounds.width;
+                        current_line_childs.push(cur_item);
+                    }
+                    else {
+                        _new_line();
+                        cur_item.x = max_width / 2 - cur_bounds.width / 2;
+                    }
+                }
+                else {
+                    _new_line();
+                }
+                pre_item = cur_item;
+                per_style = cur_style;
+                pre_bounds = cur_bounds;
+            }
+            // 最后一行
+            var baselineHandle = BaselineHandles[cur_style.baseline];
+            if (baselineHandle instanceof Function) {
+                baselineHandle(current_line_childs);
+            }
+        };
+        FlowLayout.prototype.addChildToFlow = function () {
+            var _this = this;
+            var childs = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                childs[_i - 0] = arguments[_i];
+            }
+            var current_flow_style;
+            childs.forEach(function (child) {
+                if (child instanceof PIXI.DisplayObject) {
+                    _this._addFlowChildItem(child, current_flow_style);
+                }
+                else {
+                    current_flow_style = child;
+                }
+            });
+            this.reDrawFlow();
+            return childs[0];
+        };
+        return FlowLayout;
+    }(PIXI.Container));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = FlowLayout;
+});
+define("class/TextBuilder", ["require", "exports"], function (require, exports) {
+    "use strict";
+    var TextBuilder = (function (_super) {
+        __extends(TextBuilder, _super);
+        function TextBuilder(text, style) {
+            _super.call(this);
+            var paddingTop = parseFloat(style.paddingTop) || 0;
+            var paddingBottom = parseFloat(style.paddingBottom) || 0;
+            var paddingLeft = parseFloat(style.paddingLeft) || 0;
+            var paddingRight = parseFloat(style.paddingRight) || 0;
+            var left = parseFloat(style.left) || 0;
+            var top = parseFloat(style.top) || 0;
+            if (!style.font) {
+                style.font = style.fontSize + "px " + style.fontFamily;
+            }
+            var textNode = this._textNode = new PIXI.Text(text, style);
+            var wrapNode = new PIXI.Graphics();
+            wrapNode.lineStyle(0);
+            wrapNode.drawRect(0, 0, textNode.width + paddingLeft + paddingRight + left, textNode.height + paddingTop + paddingBottom + top);
+            wrapNode.alpha = 0;
+            this.addChild(wrapNode);
+            textNode.x = paddingLeft + left;
+            textNode.y = paddingTop + top;
+            this.addChild(textNode);
+        }
+        Object.defineProperty(TextBuilder.prototype, "text", {
+            get: function () {
+                return this._textNode.text;
+            },
+            set: function (text) {
+                this._textNode.text = text;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        return TextBuilder;
+    }(PIXI.Container));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = TextBuilder;
+});
+define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "class/TextBuilder", "app/engine/Victor", "app/common", "app/const", "./class/shipShape.json"], function (require, exports, Tween_6, FlowLayout_1, TextBuilder_1, Victor_3, common_2, const_9, shipShape) {
     "use strict";
     /** 移动
      *
@@ -4950,12 +5248,142 @@ define("app/ux", ["require", "exports", "app/engine/Victor", "app/common", "app/
         }
     }
     exports.shipAutoFire = shipAutoFire;
+    var proto_plan = new FlowLayout_1.default();
+    function showProtoPlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, changeProto_cb) {
+        var view_ship = get_view_ship();
+        if (!view_ship) {
+            return;
+        }
+        if (proto_plan["is_opened"] || proto_plan["is_ani"]) {
+            return;
+        }
+        proto_plan["is_opened"] = true;
+        proto_plan["is_ani"] = true;
+        drawProtoPlan(view_ship, changeProto_cb);
+        ani_tween.Tween(proto_plan)
+            .set({
+            x: -proto_plan.width,
+            y: common_2.VIEW.HEIGHT - proto_plan.height
+        })
+            .to({
+            x: 0
+        }, const_9.B_ANI_TIME)
+            .easing(Tween_6.default.Easing.Quadratic.Out)
+            .start()
+            .onComplete(function () {
+            proto_plan["is_ani"] = false;
+        });
+        listen_stage.addChild(proto_plan);
+    }
+    exports.showProtoPlan = showProtoPlan;
+    /** 重绘属性加点面板
+     *
+     */
+    function drawProtoPlan(view_ship, changeProto_cb) {
+        // 销毁重绘
+        proto_plan.children.slice().forEach(function (child) {
+            proto_plan.removeChild(child);
+            child.destroy();
+        });
+        var typeInfo = shipShape[view_ship.config.type];
+        var proto_grow_config = typeInfo.body.proto_grow_config;
+        for (var k in proto_grow_config) {
+            var proto_grow_config_item = proto_grow_config[k];
+            if (typeof proto_grow_config_item === "object") {
+                var text_info = new TextBuilder_1.default(proto_grow_config_item.title + (" : " + view_ship.proto_list.filter(function (skill_name) { return skill_name === k; }).length + "/" + proto_grow_config_item.max), {
+                    fontFamily: "微软雅黑",
+                    fontSize: const_9.pt2px(10)
+                });
+                proto_plan.addChildToFlow(text_info, { float: "right" });
+                text_info.interactive = true;
+                (function (k, text_info) {
+                    common_2.on(text_info, "click|tap", function () {
+                        view_ship.addProto(k);
+                        // 重绘
+                        drawProtoPlan(view_ship, changeProto_cb);
+                        changeProto_cb();
+                    });
+                })(k, text_info);
+            }
+        }
+        var bg = new PIXI.Graphics();
+        bg.beginFill(0xffffff, 0.5);
+        bg.drawRoundedRect(-10, -10, proto_plan.width + 20, proto_plan.height + 20, 5);
+        proto_plan.addChildAt(bg, 0);
+    }
+    /** 关闭属性加点面板
+     *
+     */
+    function hideProtoPlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker) {
+        if (!proto_plan["is_opened"] || proto_plan["is_ani"]) {
+            return;
+        }
+        proto_plan["is_opened"] = false;
+        proto_plan["is_ani"] = true;
+        ani_tween.Tween(proto_plan)
+            .to({
+            x: -proto_plan.width
+        }, const_9.B_ANI_TIME)
+            .easing(Tween_6.default.Easing.Quadratic.Out)
+            .start()
+            .onComplete(function () {
+            proto_plan["is_ani"] = false;
+            listen_stage.removeChild(proto_plan);
+        });
+    }
+    exports.hideProtoPlan = hideProtoPlan;
+    /** 切换属性加点面板的显示隐藏
+     *
+     */
+    function toggleProtoPlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, changeProto_cb) {
+        common_2.on(listen_stage, "keydown", function (e) {
+            if (e.keyCode == 67) {
+                if (proto_plan["is_opened"]) {
+                    hideProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker);
+                }
+                else {
+                    showProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
+                }
+            }
+        });
+    }
+    exports.toggleProtoPlan = toggleProtoPlan;
 });
-define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_6, When_1, Flyer_2, Ship_2, Wall_2, HP_1, world_1, ediorStage, common_3, const_10, UX) {
+define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_7, When_1, Flyer_2, Ship_2, Wall_2, HP_1, world_1, ediorStage, common_3, const_10, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_6.default();
-    var jump_tween = new Tween_6.default();
+    var ani_tween = new Tween_7.default();
+    var jump_tween = new Tween_7.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -6965,7 +7393,7 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
         },
     };
 });
-define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_4, Tween_7, SVGGraphics_1, BackgroundGaussianBlur_1) {
+define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "class/SVGGraphics", "class/BackgroundGaussianBlur"], function (require, exports, common_4, Tween_8, SVGGraphics_1, BackgroundGaussianBlur_1) {
     "use strict";
     var Dialog = (function (_super) {
         __extends(Dialog, _super);
@@ -7099,7 +7527,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: this.x + common_4.VIEW.CENTER.x,
                 y: this.y + common_4.VIEW.CENTER.y
             })
-                .easing(Tween_7.default.Easing.Quintic.Out)
+                .easing(Tween_8.default.Easing.Quintic.Out)
                 .start();
             this.ani.Tween(this.scale)
                 .set({
@@ -7110,7 +7538,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: 1,
                 y: 1
             }, common_4.B_ANI_TIME)
-                .easing(Tween_7.default.Easing.Quintic.Out)
+                .easing(Tween_8.default.Easing.Quintic.Out)
                 .start()
                 .onComplete(function () {
                 _this._is_anining = false;
@@ -7151,7 +7579,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: 0,
                 y: 0
             }, common_4.B_ANI_TIME)
-                .easing(Tween_7.default.Easing.Quintic.In)
+                .easing(Tween_8.default.Easing.Quintic.In)
                 .start();
             var cur_x = this.x;
             var cur_y = this.y;
@@ -7160,7 +7588,7 @@ define("app/ui/Dialog", ["require", "exports", "app/common", "class/Tween", "cla
                 x: this.x + common_4.VIEW.CENTER.x,
                 y: this.y + common_4.VIEW.CENTER.y
             }, common_4.B_ANI_TIME)
-                .easing(Tween_7.default.Easing.Quintic.In)
+                .easing(Tween_8.default.Easing.Quintic.In)
                 .start()
                 .onComplete(function () {
                 _this.position.set(cur_x, cur_y);
@@ -7268,196 +7696,11 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Button;
 });
-define("class/TextBuilder", ["require", "exports"], function (require, exports) {
-    "use strict";
-    var TextBuilder = (function (_super) {
-        __extends(TextBuilder, _super);
-        function TextBuilder(text, style) {
-            _super.call(this);
-            var paddingTop = parseFloat(style.paddingTop) || 0;
-            var paddingBottom = parseFloat(style.paddingBottom) || 0;
-            var paddingLeft = parseFloat(style.paddingLeft) || 0;
-            var paddingRight = parseFloat(style.paddingRight) || 0;
-            var left = parseFloat(style.left) || 0;
-            var top = parseFloat(style.top) || 0;
-            if (!style.font) {
-                style.font = style.fontSize + "px " + style.fontFamily;
-            }
-            var textNode = this._textNode = new PIXI.Text(text, style);
-            var wrapNode = new PIXI.Graphics();
-            wrapNode.lineStyle(0);
-            wrapNode.drawRect(0, 0, textNode.width + paddingLeft + paddingRight + left, textNode.height + paddingTop + paddingBottom + top);
-            wrapNode.alpha = 0;
-            this.addChild(wrapNode);
-            textNode.x = paddingLeft + left;
-            textNode.y = paddingTop + top;
-            this.addChild(textNode);
-        }
-        Object.defineProperty(TextBuilder.prototype, "text", {
-            get: function () {
-                return this._textNode.text;
-            },
-            set: function (text) {
-                this._textNode.text = text;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        return TextBuilder;
-    }(PIXI.Container));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = TextBuilder;
-});
-define("class/FlowLayout", ["require", "exports"], function (require, exports) {
-    "use strict";
-    var BaselineHandles = {
-        "center": function (childs) {
-            var max_height = 0;
-            var height_list = childs.map(function (child) {
-                var bounds = child.getBounds();
-                max_height = Math.max(bounds.height, max_height);
-                return bounds.height;
-            });
-            // console.group("max_height:" + max_height)
-            height_list.forEach(function (child_height, i) {
-                if (child_height !== max_height) {
-                    var child = childs[i];
-                    // console.log(child.y, child.y + (max_height - child_height) / 2)
-                    child.y += (max_height - child_height) / 2;
-                }
-            });
-            // console.groupEnd()
-        },
-        "bottom": function (childs) {
-            var max_height = 0;
-            var height_list = childs.map(function (child) {
-                var bounds = child.getBounds();
-                max_height = Math.max(bounds.height, max_height);
-                return bounds.height;
-            });
-            // console.group("max_height:" + max_height)
-            height_list.forEach(function (child_height, i) {
-                if (child_height !== max_height) {
-                    var child = childs[i];
-                    // console.log(child.y, child.y + (max_height - child_height) / 2)
-                    child.y += max_height - child_height;
-                }
-            });
-            // console.groupEnd()
-        }
-    };
-    var default_flow_style = {};
-    var FlowLayout = (function (_super) {
-        __extends(FlowLayout, _super);
-        function FlowLayout(childs, flow_style) {
-            var _this = this;
-            _super.call(this);
-            this.max_width = Infinity;
-            if (childs instanceof Array) {
-                childs.forEach(function (child) { return _this._addFlowChildItem(child, flow_style); });
-            }
-            else if (childs) {
-                this._addFlowChildItem(childs, flow_style);
-            }
-            this.reDrawFlow();
-        }
-        FlowLayout.prototype._addFlowChildItem = function (item, flow_style) {
-            if (flow_style === void 0) { flow_style = {}; }
-            item["_flow_style"] = flow_style || default_flow_style;
-            this.addChild(item);
-        };
-        FlowLayout.prototype.reDrawFlow = function () {
-            var childs = this.children;
-            if (childs.length <= 1) {
-                return;
-            }
-            var max_width = isFinite(this.max_width) ? this.max_width : (this.parent && this.parent.width);
-            if (!isFinite(max_width) || !max_width) {
-                max_width = document.body.clientWidth;
-            }
-            var pre_item = childs[0];
-            var per_style = (pre_item["_flow_style"] || default_flow_style);
-            var pre_bounds = pre_item.getBounds();
-            var current_line_width = pre_bounds.width; //当前行累计使用的宽度
-            var current_line_childs = [pre_item];
-            for (var i = 1, len = childs.length; i < len; i += 1) {
-                var cur_item = childs[i];
-                var cur_style = (cur_item["_flow_style"] || default_flow_style);
-                var cur_bounds = cur_item.getBounds();
-                var _new_line = function () {
-                    cur_item.x = 0;
-                    cur_item.y = pre_item.y + pre_bounds.height;
-                    current_line_width = cur_bounds.width;
-                    var baselineHandle = BaselineHandles[cur_style.baseline];
-                    if (baselineHandle instanceof Function) {
-                        baselineHandle(current_line_childs);
-                    }
-                    current_line_childs = [cur_item];
-                };
-                if (cur_style.float === "left") {
-                    if (current_line_width + cur_bounds.width <= max_width) {
-                        cur_item.y = pre_item.y;
-                        cur_item.x = pre_item.x + pre_bounds.width;
-                        current_line_width += cur_bounds.width;
-                        current_line_childs.push(cur_item);
-                    }
-                    else {
-                        _new_line();
-                    }
-                }
-                else if (cur_style.float === "center") {
-                    if (current_line_width + cur_bounds.width <= max_width) {
-                        cur_item.y = pre_item.y;
-                        cur_item.x = pre_item.x + (max_width - current_line_width - cur_bounds.width) / 2;
-                        current_line_width += cur_bounds.width;
-                        current_line_childs.push(cur_item);
-                    }
-                    else {
-                        _new_line();
-                        cur_item.x = max_width / 2 - cur_bounds.width / 2;
-                    }
-                }
-                else {
-                    _new_line();
-                }
-                pre_item = cur_item;
-                per_style = cur_style;
-                pre_bounds = cur_bounds;
-            }
-            // 最后一行
-            var baselineHandle = BaselineHandles[cur_style.baseline];
-            if (baselineHandle instanceof Function) {
-                baselineHandle(current_line_childs);
-            }
-        };
-        FlowLayout.prototype.addChildToFlow = function () {
-            var _this = this;
-            var childs = [];
-            for (var _i = 0; _i < arguments.length; _i++) {
-                childs[_i - 0] = arguments[_i];
-            }
-            var current_flow_style;
-            childs.forEach(function (child) {
-                if (child instanceof PIXI.DisplayObject) {
-                    _this._addFlowChildItem(child, current_flow_style);
-                }
-                else {
-                    current_flow_style = child;
-                }
-            });
-            this.reDrawFlow();
-            return childs[0];
-        };
-        return FlowLayout;
-    }(PIXI.Container));
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = FlowLayout;
-});
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Pomelo", "app/common", "app/const", "app/ux"], function (require, exports, Tween_8, When_2, Flyer_3, Wall_3, Ship_3, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_1, FlowLayout_1, shadowWorld_1, Pomelo_1, common_6, const_11, UX) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Pomelo", "app/common", "app/const", "app/ux"], function (require, exports, Tween_9, When_2, Flyer_3, Wall_3, Ship_3, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_2, FlowLayout_2, shadowWorld_1, Pomelo_1, common_6, const_11, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_8.default();
-    var jump_tween = new Tween_8.default();
+    var ani_tween = new Tween_9.default();
+    var jump_tween = new Tween_9.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -7723,8 +7966,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 color: 0xffffff,
                 fontFamily: "微软雅黑"
             });
-            var content = new FlowLayout_1.default([
-                new TextBuilder_1.default("被击杀！", {
+            var content = new FlowLayout_2.default([
+                new TextBuilder_2.default("被击杀！", {
                     fontSize: const_11.pt2px(16),
                     fontFamily: "微软雅黑"
                 }),
@@ -7878,11 +8121,11 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/world", "app/common", "app/const", "app/ux"], function (require, exports, Tween_9, When_3, Flyer_4, Ship_4, Wall_4, world_2, common_7, const_12, UX) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/world", "app/common", "app/const", "app/ux"], function (require, exports, Tween_10, When_3, Flyer_4, Ship_4, Wall_4, world_2, common_7, const_12, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_9.default();
-    var jump_tween = new Tween_9.default();
+    var ani_tween = new Tween_10.default();
+    var jump_tween = new Tween_10.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
@@ -8045,6 +8288,11 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 });
             });
         });
+        // 切换属性加点面板的显示隐藏
+        UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function () {
+            my_ship._computeConfig();
+            my_ship.reloadWeapon();
+        });
         // 动画控制器
         ani_ticker.add(function () {
             ani_tween.update();
@@ -8098,11 +8346,11 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         renderInit(exports.loader, exports.loader.resources);
     });
 });
-define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_10, When_4, Dialog_2, common_8) {
+define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui/Dialog", "app/common"], function (require, exports, Tween_11, When_4, Dialog_2, common_8) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
-    var ani_tween = new Tween_10.default();
-    var jump_tween = new Tween_10.default();
+    var ani_tween = new Tween_11.default();
+    var jump_tween = new Tween_11.default();
     var FPS_ticker = new PIXI.ticker.Ticker();
     exports.current_stage_wrap = new PIXI.Container();
     exports.current_stage = new PIXI.Container();
@@ -8470,7 +8718,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_11, SVGGraphics_2, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_12, SVGGraphics_2, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -8495,7 +8743,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_11.default();
+            this._tween = new Tween_12.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -8771,7 +9019,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_11.default.Easing.Quartic.Out)
+                        .easing(Tween_12.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -8782,7 +9030,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_11.default.Easing.Quartic.Out)
+                    .easing(Tween_12.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -8797,7 +9045,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_11.default.Easing.Quartic.Out)
+                        .easing(Tween_12.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -8807,7 +9055,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_11.default.Easing.Quartic.Out)
+                        .easing(Tween_12.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -8833,7 +9081,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_11.default.Easing.Quartic.Out)
+                .easing(Tween_12.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -9009,7 +9257,7 @@ define("class/pixelCollision", ["require", "exports"], function (require, export
     }
     exports.isCollisionWithRect = isCollisionWithRect;
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_12) {
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_13) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -9024,7 +9272,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_12.default();
+            this.ANI = new Tween_13.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -9058,7 +9306,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_12.default.Easing.Quartic.Out)
+                .easing(Tween_13.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -9169,7 +9417,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_12.default.Easing.Quartic.Out)
+                        .easing(Tween_13.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

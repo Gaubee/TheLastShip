@@ -8,26 +8,63 @@
 			"config": {
 				"size": "pt2px!15",
 				"max_hp": 50,
-				"cur_hp": 50
+				"cur_hp": 50,
+				"bullet_damage": 5,
+				"restore_hp": 5,
+				"force": 80000,
+				"overload_speed": 0.3,
+				"bullet_force": 20000,
+				"bullet_penetrate": 0.5
+			},
+			"level_grow": {
+				"//": "等级成长信息",
+				"size": {
+					"when": "eval!return this.config.level > 0 && this.config.level % 3 === 0",
+					"value": "pt2px!0.5",
+					"then": "eval!this.config.size += info.value"
+				},
+				"bullet_damage": 0.5,
+				"max_hp": 10
+			},
+			"proto_grow": {
+				"//": "加点成长信息",
+				"bullet_damage": 10,
+				"max_hp": 100,
+				"restore_hp": 5,
+				"force": 15000,
+				"overload_speed": 0.3,
+				"bullet_force": 2000
+			},
+			"proto_grow_config": {
+				"//": "加点成长配置",
+				"bullet_damage": {
+					"title":"子弹伤害",
+					"max": 5
+				},
+				"max_hp": {
+					"title":"最大生命值",
+					"max": 5
+				},
+				"restore_hp": {
+					"title":"生命回复速度/秒",
+					"max": 5
+				},
+				"force": {
+					"title":"推进力（飞船加速度、最大速度）",
+					"max": 5
+				},
+				"overload_speed": {
+					"title":"枪支重载速度（攻速）",
+					"max": 5
+				},
+				"bullet_force": {
+					"title":"导弹推进力（导弹速度）",
+					"max": 5
+				}
 			}
 		},
 		"guns": [{
-			"type": "long",
-			"overload_speed": "mix@1"
-		},{
-			"type": "long",
-			"overload_speed": "mix@2",
-			"rotation": "PI!-0.666666666",
-			"args": {
-				"fill" : "0x992233"
-			}
-		},{
-			"type": "long",
-			"overload_speed": "mix@3",
-			"rotation": "PI!0.666666",
-			"args": {
-				"fill" : "0x229933"
-			}
+			"type": "long"
 		}]
 	}
 }

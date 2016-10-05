@@ -97,12 +97,19 @@ export default class Flyer extends P2I {
                 }
             }
         });
+
+        // Nodejs && 浏览器
+        self.once("ember",function (damage_from?:Ship) {
+            if(damage_from) {
+                damage_from.emit("change-experience", self.config.reward_experience)
+            }
+        });
         if(_isNode) {// Nodejs
             self.once("ember",function () {
                 self.emit("destroy");
             });
         }else{// 瀏覽器
-            self.once("ember",function (damage_from?:Ship) {
+            self.once("ember",function () {
                 var ani_time = B_ANI_TIME;
                 var ani_progress = 0;
                 var _update = self.update;
@@ -115,9 +122,6 @@ export default class Flyer extends P2I {
                     self.world = null;
                 }
                 self.emit("stop-flash");
-                if(damage_from) {
-                    damage_from.emit("change-experience", self.config.reward_experience)
-                }
 
                 self.update = (delay) => {
                     ani_progress += delay;

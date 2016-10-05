@@ -56,7 +56,7 @@ export interface ShipConfig {
     // 等级
     level?: number
     // 技能加点信息
-    skill_list_length?: number
+    proto_list_length?: number
     // 飞船基本形状
     type?: string
 }
@@ -106,7 +106,7 @@ export default class Ship extends P2I {
     static level_to_experience = level_to_experience
     guns: Gun[] = []
     // 技能加点
-    skill_list: number[] = []
+    proto_list: any[] = []
     gun: PIXI.Graphics = new PIXI.Graphics()
     body: PIXI.Graphics = new PIXI.Graphics()
     config: ShipConfig = {
@@ -140,8 +140,8 @@ export default class Ship extends P2I {
         level: 0,
         ["__self__"] : this,
         // 只读·技能加点信息
-        get skill_list_length(){
-            return this.__self__.skill_list.length
+        get proto_list_length(){
+            return this.__self__.proto_list.length
         },
         type: "S-1"
     }
@@ -173,24 +173,7 @@ export default class Ship extends P2I {
         mix_options(config, new_config);
 
         // 绘制武器
-        typeInfo.guns.forEach(function (_gun_config,i) {
-            var gun_config = assign({},_gun_config);
-            // 枪支继承飞船的基本配置
-            [
-                "bullet_force",
-                "bullet_damage",
-                "bullet_penetrate",
-                "overload_speed",
-            ].forEach(function (k) {
-                var ship_v = config[k];
-                if(!gun_config.hasOwnProperty(k)){
-                    gun_config[k] = ship_v;
-                }
-            });
-            var gun = new Gun(gun_config, self);
-            // 定死ID
-            gun._id = self._id+"_gun_"+i;
-        });
+        self.loadWeapon();
 
         // 绘制船体
         ShapeDrawer(self, config, typeInfo.body);
@@ -220,6 +203,13 @@ export default class Ship extends P2I {
             }
         });
 
+        // Nodejs && 浏览器
+        self.once("die",function (damage_from?:Ship) {
+            if(damage_from) {
+                // 失去1/2的经验，剩下的1/2用于复活后的基础经验
+                damage_from.emit("change-experience", self.config.experience/2)
+            }
+        });
         if(_isNode) {// Nodejs
             self.once("die",function () {
                 self.emit("destroy");
@@ -228,7 +218,7 @@ export default class Ship extends P2I {
             // 生命回复、攻速限制
             self.once("add-to-world",function () {
                 var acc_time = 0;
-                var restore_hp_ani = 2000;
+                var restore_hp_ani = 1000;
                 self.on("update",function (delay) {
                     if(config.max_hp!==config.cur_hp) {
                         acc_time += delay;
@@ -239,7 +229,6 @@ export default class Ship extends P2I {
                     }
                 });
             });
-
         }else{// 瀏覽器
             self.once("die",function () {
                 var ani_time = B_ANI_TIME;
@@ -289,6 +278,60 @@ export default class Ship extends P2I {
             }
         });
     }
+    // 装载武器
+    loadWeapon(){
+        const self = this;
+        const config = self.config;
+        const typeInfo = shipShape[config.type];
+        typeInfo.guns.forEach(function (_gun_config,i) {
+            var gun_config = assign({},_gun_config);
+            // 枪支继承飞船的基本配置
+            [
+                "bullet_force",
+                "bullet_damage",
+                "bullet_penetrate",
+                "overload_speed",
+            ].forEach(function (k) {
+                var ship_v = config[k];
+                if(!gun_config.hasOwnProperty(k)){
+                    gun_config[k] = ship_v;
+                }
+            });
+            var gun = new Gun(gun_config, self);
+            // 定死ID
+            gun._id = self._id+"_gun_"+i;
+        });
+    }
+    // 卸载武器
+    unloadWeapon(){
+        this.guns.forEach(gun=>{
+            this.removeChild(gun);
+            gun.destroy()
+        });
+    }
+    // 重载武器配置
+    reloadWeapon(){
+        const self = this;
+        const config = self.config;
+        const typeInfo = shipShape[config.type];
+        typeInfo.guns.forEach(function (_gun_config,i) {
+            var gun_config = assign({},_gun_config);
+            // 枪支继承飞船的基本配置
+            [
+                "bullet_force",
+                "bullet_damage",
+                "bullet_penetrate",
+                "overload_speed",
+            ].forEach(function (k) {
+                var ship_v = config[k];
+                if(!gun_config.hasOwnProperty(k)){
+                    gun_config[k] = ship_v;
+                }
+            });
+            var gun = self.guns[i];
+            gun.setConfig(gun_config);
+        });
+    }
     update(delay) {
         super.update(delay);
         this.rotation = this.p2_body["rotation"];
@@ -329,8 +372,55 @@ export default class Ship extends P2I {
             this.rotation =  config.rotation;
         }
     }
-    levelUp(add_proto:"HP"|"SPEED"){
+    // 属性加点
+    addProto(add_proto){
+        const config = this.config;
+        this.proto_list.push(add_proto);
+        if(_isNode) {
+            this._computeConfig();
+            this.reloadWeapon();
+        }
+    }
+    _computeConfig(){
+        const config = this.config;
+        const level = config.level;
+        const typeInfo = shipShape[config.type];
+        const type_config = typeInfo.body.config;
+        const level_grow = typeInfo.body.level_grow;
+        const proto_grow = typeInfo.body.proto_grow;
+        /** 基础的等级带来的属性增长
+         *
+         */
+        mix_options(config, type_config);
+        for(var config_key in level_grow){
+            var level_grow_value = level_grow[config_key];
+            if(isFinite(level_grow_value)) {
+                config[config_key] += level_grow_value * level;
+            }else if(typeof level_grow_value === "object"){
+                if(level_grow_value.when instanceof Function&&level_grow_value.then instanceof Function) {
+                    if(level_grow_value.when.call(this,level_grow_value)){
+                        level_grow_value.then.call(this,level_grow_value);
+                    }
+                }
+            }
+        }
 
+
+        // 加点信息
+        this.proto_list.forEach(proto=>{
+            var proto_grow_value = proto_grow[proto];
+            if(isFinite(proto_grow_value)) {
+                config[proto] += proto_grow_value ;
+            }else if(typeof proto_grow_value === "object"){
+                if(proto_grow_value.when instanceof Function&&proto_grow_value.then instanceof Function) {
+                    if(proto_grow_value.when.call(this,proto_grow_value)){
+                        proto_grow_value.then.call(this,proto_grow_value);
+                    }
+                }
+            }else{
+                throw new TypeError("UNKNOW SKILL UPGREAT: "+proto);
+            }
+        });
     }
     fire(){
         var res_bullets = this.guns.map(gun=>gun.fire());
@@ -340,7 +430,10 @@ export default class Ship extends P2I {
     is_keep_fire = false
     startKeepFire(cb:(bullets:Bullet[])=>void){
         this._fireBind = ()=>{
-            cb(this.fire());
+            var bullets = this.fire();
+            requestAnimationFrame(function () {
+                cb(bullets);
+            });
         }
         this.on("update",this._fireBind);
     }

@@ -12,7 +12,7 @@
 				"bullet_damage": 5,
 				"restore_hp": 5,
 				"force": 80000,
-				"overload_speed": 2.3,
+				"overload_speed": 1,
 				"bullet_force": 20000,
 				"bullet_penetrate": 0.5
 			},
@@ -32,7 +32,7 @@
 				"max_hp": 100,
 				"restore_hp": 5,
 				"force": 15000,
-				"overload_speed": 0.3,
+				"overload_speed": 0.4,
 				"bullet_force": 2000
 			},
 			"proto_grow_config": {

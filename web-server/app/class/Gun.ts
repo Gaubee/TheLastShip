@@ -239,6 +239,8 @@ export default class Gun extends P2I {
 			ship.p2_body.force[0] -= init_x_force * mass_rate;
 			ship.p2_body.force[1] -= init_y_force * mass_rate;
 		});
+		// 通知父级
+		this.owner && this.owner.emit("gun-fire_start", this._id, bullet);
 		return bullet;
 		// config.firing
 	}

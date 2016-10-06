@@ -295,6 +295,21 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 });
             });
         });
+    // 切换属性加点面板的显示隐藏
+    UX.toggleProtoPlan(current_stage_wrap
+        ,current_stage
+        ,()=>my_ship
+        ,ani_tween
+        ,ani_ticker,function (add_proto:string,cb_to_redraw) {
+            my_ship.addProto(add_proto);
+            cb_to_redraw();
+        });
+    // 沙盒工具
+    UX.sandboxTools(current_stage_wrap
+        ,current_stage
+        ,()=>my_ship
+        ,ani_tween
+        ,ani_ticker);
 
     // 动画控制器
     var pre_time
@@ -319,10 +334,22 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var FPS_Text = new PIXI.Text("FPS:0", { font: '24px Arial', fill: 0x00ffff33, align: "right" });
 
     current_stage_wrap.addChild(FPS_Text);
+
     FPS_ticker.add(function () {
         FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + VIEW.WIDTH + " H:" + VIEW.HEIGHT;
+        if (my_ship) {
+            var info = "\n";
+            var config = my_ship.config["toJSON"]();
+            for (var k in config) {
+                var val = config[k];
+                if (typeof val === "number") {
+                    val = val.toFixed(2);
+                }
+                info += `${k}: ${val}\n`;
+            }
+            FPS_Text.text += info;
+        }
     });
-
     // 触发布局计算
     emitReisze(current_stage_wrap);
 

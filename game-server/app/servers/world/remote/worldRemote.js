@@ -17,7 +17,7 @@ var WorldRemote = function(app) {
 		, "change-hp" //飞船、物体血量减少
 		, "die" //飞船死亡
 		, "ember" //物体销毁
-		, "fire_start" // 飞船发射
+		, "gun-fire_start" // 飞船的某个枪支发射
 	].forEach(eventName => {
 		events.on(eventName, function(data) {
 			for (var channel_name in channelService.channels) {
@@ -75,6 +75,14 @@ WorldRemote.prototype.setConfig = function(ship_id, new_ship_config, cb) {
 WorldRemote.prototype.fire = function(ship_id, cb) {
 	try {
 		var bullets = this.world.fire(ship_id);
+		cb(null, bullets);
+	} catch (e) {
+		cb(e);
+	}
+};
+WorldRemote.prototype.autoFire = function(ship_id, cb) {
+	try {
+		var bullets = this.world.autoFire(ship_id);
 		cb(null, bullets);
 	} catch (e) {
 		cb(e);

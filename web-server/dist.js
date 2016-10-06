@@ -2515,6 +2515,8 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 ship.p2_body.force[0] -= init_x_force * mass_rate;
                 ship.p2_body.force[1] -= init_y_force * mass_rate;
             });
+            // 通知父级
+            this.owner && this.owner.emit("gun-fire_start", this._id, bullet);
             return bullet;
             // config.firing
         };
@@ -2563,7 +2565,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 return true;
             }
         });
-        return res;
+        return res || LEVEL_STAGE_3;
     }
     function level_to_experience(level_num) {
         return EXPERIENCE_LEVEL_MAP[level_num | 0];
@@ -2695,6 +2697,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     set: function (new_type) {
                         if (new_type != this.__type) {
                             this.__type = new_type;
+                            this.__GUNS_ID_MAP = null; // 清除枪支缓存
                             this.__self__.reDrawBody();
                         }
                     },
@@ -2713,6 +2716,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 },
                 _a
             );
+            this.__GUNS_ID_MAP = null;
             this.is_keep_fire = false;
             var self = this;
             id && (self._id = id);
@@ -2899,6 +2903,21 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 gun.setConfig(gun_config);
             });
         };
+        Object.defineProperty(Ship.prototype, "GUNS_ID_MAP", {
+            get: function () {
+                var _gun_id_map = this.__GUNS_ID_MAP;
+                if (!_gun_id_map) {
+                    _gun_id_map = this.__GUNS_ID_MAP = {};
+                    var guns = this.guns;
+                    guns.forEach(function (gun) {
+                        _gun_id_map[gun._id] = gun;
+                    });
+                }
+                return _gun_id_map;
+            },
+            enumerable: true,
+            configurable: true
+        });
         Ship.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
             this.rotation = this.p2_body["rotation"];
@@ -5068,7 +5087,7 @@ define("class/TextBuilder", ["require", "exports"], function (require, exports) 
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = TextBuilder;
 });
-define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "class/TextBuilder", "app/engine/Victor", "app/common", "app/const", "./class/shipShape.json"], function (require, exports, Tween_6, FlowLayout_1, TextBuilder_1, Victor_3, common_2, const_9, shipShape) {
+define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "class/TextBuilder", "app/class/Ship", "app/engine/Victor", "app/common", "app/const", "./class/shipShape.json"], function (require, exports, Tween_6, FlowLayout_1, TextBuilder_1, Ship_2, Victor_3, common_2, const_9, shipShape) {
     "use strict";
     /** 移动
      *
@@ -5576,8 +5595,35 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         });
     }
     exports.toggleProtoPlan = toggleProtoPlan;
+    /** 本地沙河模式工具
+     *
+     */
+    function sandboxTools(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker) {
+        common_2.on(listen_stage, "keydown", function (e) {
+            var view_ship = get_view_ship();
+            if (!view_ship) {
+                return;
+            }
+            // 快速升级
+            if (e.keyCode == 75) {
+                var experience = Ship_2.default.level_to_experience(view_ship.config.level + 1);
+                view_ship.emit("change-experience", experience - view_ship.config.experience);
+            }
+        });
+    }
+    exports.sandboxTools = sandboxTools;
 });
-define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_7, When_1, Flyer_2, Ship_2, Wall_2, HP_1, world_1, ediorStage, common_3, const_10, UX) {
+define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_7, When_1, Flyer_2, Ship_3, Wall_2, HP_1, world_1, ediorStage, common_3, const_10, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_7.default();
@@ -5704,7 +5750,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
             }
         })();
         if (ediorStage["myship"]) {
-            var my_ship = new Ship_2.default(const_10.assign({
+            var my_ship = new Ship_3.default(const_10.assign({
                 x: common_3.VIEW.CENTER.x,
                 y: common_3.VIEW.CENTER.y,
                 body_color: 0x366345
@@ -5714,7 +5760,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         }
         if (ediorStage["ships"] instanceof Array) {
             ediorStage["ships"].forEach(function (ship_config) {
-                var ship = new Ship_2.default(const_10.assign({
+                var ship = new Ship_3.default(const_10.assign({
                     x: 100 + (EDGE_WIDTH - 200) * Math.random(),
                     y: 100 + (EDGE_HEIGHT - 200) * Math.random(),
                     body_color: 0xffffff * Math.random()
@@ -5795,6 +5841,13 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                 });
             });
         });
+        // 切换属性加点面板的显示隐藏
+        UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (add_proto, cb_to_redraw) {
+            my_ship.addProto(add_proto);
+            cb_to_redraw();
+        });
+        // 沙盒工具
+        UX.sandboxTools(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker);
         // 动画控制器
         var pre_time;
         ani_ticker.add(function () {
@@ -5817,6 +5870,18 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         exports.current_stage_wrap.addChild(FPS_Text);
         FPS_ticker.add(function () {
             FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(2) + " W:" + common_3.VIEW.WIDTH + " H:" + common_3.VIEW.HEIGHT;
+            if (my_ship) {
+                var info = "\n";
+                var config = my_ship.config["toJSON"]();
+                for (var k in config) {
+                    var val = config[k];
+                    if (typeof val === "number") {
+                        val = val.toFixed(2);
+                    }
+                    info += k + ": " + val + "\n";
+                }
+                FPS_Text.text += info;
+            }
         });
         // 触发布局计算
         common_3.emitReisze(exports.current_stage_wrap);
@@ -7556,11 +7621,11 @@ define("app/engine/shadowWorld", ["require", "exports"], function (require, expo
                 var pre_rotation = pre_config.rotation;
                 var dif_rotation = 0;
                 // 旋转要特殊处理。TODO：包括angle
-                if (cache_rotation <= Math.PI / 2 && pre_rotation >= Math.PI * 3 / 2) {
+                if (cache_rotation <= -Math.PI / 2 && pre_rotation >= Math.PI / 2) {
                     cache_rotation = cache_rotation + Math.PI * 2;
                     dif_rotation = cache_rotation - pre_rotation;
                 }
-                else if (pre_rotation <= Math.PI / 2 && cache_rotation >= Math.PI * 3 / 2) {
+                else if (pre_rotation <= -Math.PI / 2 && cache_rotation >= Math.PI / 2) {
                     pre_rotation = pre_rotation + Math.PI * 2;
                     dif_rotation = cache_rotation - pre_rotation;
                 }
@@ -7894,7 +7959,7 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Button;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Pomelo", "app/common", "app/const", "app/ux"], function (require, exports, Tween_9, When_2, Flyer_3, Wall_3, Ship_3, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_2, FlowLayout_2, shadowWorld_1, Pomelo_1, common_6, const_11, UX) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Pomelo", "app/common", "app/const", "app/ux"], function (require, exports, Tween_9, When_2, Flyer_3, Wall_3, Ship_4, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_2, FlowLayout_2, shadowWorld_1, Pomelo_1, common_6, const_11, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_9.default();
@@ -7931,7 +7996,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         var ObjectMap = {
             "Flyer": Flyer_3.default,
             "Wall": Wall_3.default,
-            "Ship": Ship_3.default,
+            "Ship": Ship_4.default,
             "Bullet": Bullet_3.default,
         };
         var instanceMap = {};
@@ -7962,7 +8027,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         exports.current_stage.addChild(hp_stage);
         var HP_WEAKMAP = {};
         function showViewData(objects) {
-            objects.map(function (obj_info) {
+            objects.forEach(function (obj_info) {
                 if (instanceMap.hasOwnProperty(obj_info.id)) {
                     var _ins = instanceMap[obj_info.id];
                     if (_ins) {
@@ -8069,13 +8134,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         UX.shipFire(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function () {
             Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
                 showViewData(data);
-                var guns_id_map = view_ship["__GUNS_ID_MAP"] || (view_ship["__GUNS_ID_MAP"] = (function (guns) {
-                    var _gun_id_map = {};
-                    guns.forEach(function (gun) {
-                        _gun_id_map[gun._id] = gun;
-                    });
-                    return _gun_id_map;
-                })(view_ship.guns));
+                var guns_id_map = view_ship.GUNS_ID_MAP;
                 // 根据发射的子弹触发发射动画
                 data.forEach(function (bullet_info) {
                     var gun = guns_id_map[bullet_info.owner_id];
@@ -8086,20 +8145,11 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 });
             });
         });
-        // // 飞船切换自动
-        // UX.shipAutoFire(current_stage_wrap
-        //     ,current_stage
-        //     ,()=>view_ship
-        //     ,ani_tween
-        //     ,ani_ticker
-        //     ,()=> {
-        //         view_ship.toggleKeepFire(function (bullets) {
-        //             bullets.forEach(bullet=>{
-        //                 bullet_stage.addChild(bullet);
-        //                 engine.add(bullet);
-        //             });
-        //         });
-        //     });
+        // 飞船切换自动
+        UX.shipAutoFire(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function () {
+            Pomelo_1.pomelo.request("connector.worldHandler.autoFire", {}, function (data) {
+            });
+        });
         // 切换属性加点面板的显示隐藏
         UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function (add_proto, cb_to_redraw) {
             // view_ship._computeConfig();
@@ -8124,14 +8174,19 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 instanceMap[bullet_info.id] = null;
             }
         });
-        Pomelo_1.pomelo.on("fire_start", function (arg) {
-            var bullet_info = arg.data;
-            console.log("fire_start:", bullet_info);
-            var bullet = instanceMap[bullet_info.id];
-            if (bullet) {
-                bullet.setConfig(bullet_info.config);
-                bullet.emit("fire_start");
+        Pomelo_1.pomelo.on("gun-fire_start", function (arg) {
+            var fire_start_info = arg.data;
+            console.log("gun-fire_start:", fire_start_info);
+            var bullet_info = fire_start_info.bullet;
+            var ship_id = fire_start_info.ship_id;
+            var ship = instanceMap[ship_id];
+            if (ship) {
+                var gun = ship.GUNS_ID_MAP[fire_start_info.gun_id];
+                if (gun) {
+                    gun.emit("fire_ani");
+                }
             }
+            showViewData([bullet_info]);
         });
         Pomelo_1.pomelo.on("change-hp", function (arg) {
             var ship_info = arg.data;
@@ -8332,7 +8387,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/world", "app/common", "app/const", "app/ux"], function (require, exports, Tween_10, When_3, Flyer_4, Ship_4, Wall_4, world_2, common_7, const_12, UX) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/world", "app/common", "app/const", "app/ux"], function (require, exports, Tween_10, When_3, Flyer_4, Ship_5, Wall_4, world_2, common_7, const_12, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_10.default();
@@ -8439,14 +8494,14 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
                 }
             }
         })();
-        var my_ship = new Ship_4.default({
+        var my_ship = new Ship_5.default({
             x: common_7.VIEW.CENTER.x,
             y: common_7.VIEW.CENTER.y,
             body_color: 0x366345
         });
         object_stage.addChild(my_ship);
         world_2.engine.add(my_ship);
-        var other_ship = new Ship_4.default({
+        var other_ship = new Ship_5.default({
             x: common_7.VIEW.CENTER.x - 200,
             y: common_7.VIEW.CENTER.y - 100,
             body_color: 0x633645,
@@ -8504,6 +8559,8 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
             my_ship.addProto(add_proto);
             cb_to_redraw();
         });
+        // 沙盒工具
+        UX.sandboxTools(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker);
         // 动画控制器
         ani_ticker.add(function () {
             ani_tween.update();

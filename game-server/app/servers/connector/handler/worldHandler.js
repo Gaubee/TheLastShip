@@ -55,6 +55,18 @@ Handler.prototype = {
 			next(err, res)
 		});
 	},
+	autoFire: function(msg, session, next) {
+		const ship_id = session.get("ship_id");
+		if (!ship_id) {
+			return next({
+				code: 500,
+				error: "No Found Ship Id."
+			});
+		}
+		this.app.rpc.world.worldRemote.autoFire(session, ship_id, function(err, res) {
+			next(err, res)
+		});
+	},
 	addProto: function(msg, session, next) {
 		const ship_id = session.get("ship_id");
 		if (!ship_id) {

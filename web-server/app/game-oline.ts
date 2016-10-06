@@ -123,7 +123,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     const HP_WEAKMAP: { [key: string]: HP } = {};
 
     function showViewData(objects) {
-        objects.map(obj_info => {
+        objects.forEach(obj_info => {
             if (instanceMap.hasOwnProperty(obj_info.id)) {
                 var _ins = instanceMap[obj_info.id];
                 if (_ins) {
@@ -246,13 +246,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , () => {
             pomelo.request("connector.worldHandler.fire", {}, function (data) {
                 showViewData(data);
-                var guns_id_map = view_ship["__GUNS_ID_MAP"] || (view_ship["__GUNS_ID_MAP"] = ((guns) => {
-                    var _gun_id_map = {};
-                    guns.forEach(gun => {
-                        _gun_id_map[gun._id] = gun;
-                    });
-                    return _gun_id_map;
-                })(view_ship.guns));
+                var guns_id_map = view_ship.GUNS_ID_MAP;
                 // 根据发射的子弹触发发射动画
                 data.forEach(function (bullet_info) {
                     var gun = guns_id_map[bullet_info.owner_id];
@@ -263,20 +257,16 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 });
             });
         });
-    // // 飞船切换自动
-    // UX.shipAutoFire(current_stage_wrap
-    //     ,current_stage
-    //     ,()=>view_ship
-    //     ,ani_tween
-    //     ,ani_ticker
-    //     ,()=> {
-    //         view_ship.toggleKeepFire(function (bullets) {
-    //             bullets.forEach(bullet=>{
-    //                 bullet_stage.addChild(bullet);
-    //                 engine.add(bullet);
-    //             });
-    //         });
-    //     });
+    // 飞船切换自动
+    UX.shipAutoFire(current_stage_wrap
+        ,current_stage
+        ,()=>view_ship
+        ,ani_tween
+        ,ani_ticker
+        ,()=> {
+            pomelo.request("connector.worldHandler.autoFire", {}, function (data) {
+            });
+        });
 
     // 切换属性加点面板的显示隐藏
     UX.toggleProtoPlan(current_stage_wrap
@@ -308,14 +298,19 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             instanceMap[bullet_info.id] = null;
         }
     });
-    pomelo.on("fire_start", function (arg) {
-        var bullet_info = arg.data;
-        console.log("fire_start:", bullet_info);
-        var bullet = instanceMap[bullet_info.id];
-        if (bullet) {
-            bullet.setConfig(bullet_info.config);
-            bullet.emit("fire_start");
+    pomelo.on("gun-fire_start", function (arg) {
+        var fire_start_info = arg.data;
+        console.log("gun-fire_start:", fire_start_info);
+        var bullet_info = fire_start_info.bullet;
+        var ship_id  = fire_start_info.ship_id;
+        var ship = <Ship>instanceMap[ship_id];
+        if(ship) {
+            var gun = ship.GUNS_ID_MAP[fire_start_info.gun_id];
+            if(gun) {
+                gun.emit("fire_ani");
+            }
         }
+        showViewData([bullet_info]);
     });
 
     pomelo.on("change-hp", function (arg) {

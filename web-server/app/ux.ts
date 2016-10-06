@@ -600,3 +600,30 @@ export function toggleProtoPlan(
 		});
 	});
 }
+
+/** 本地沙河模式工具
+ *	
+ */
+export function sandboxTools(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker){
+	on(listen_stage, "keydown", e=>{
+		const view_ship = get_view_ship();
+		if(!view_ship) {
+			return
+		}
+		// 快速升级
+		if (e.keyCode == 75) {
+			var experience = Ship.level_to_experience(view_ship.config.level + 1);
+			view_ship.emit("change-experience", experience-view_ship.config.experience);
+		}
+	});
+}

@@ -250,7 +250,12 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             my_ship.addProto(add_proto);
             cb_to_redraw();
         });
-
+    // 沙盒工具
+    UX.sandboxTools(current_stage_wrap
+        ,current_stage
+        ,()=>my_ship
+        ,ani_tween
+        ,ani_ticker);
 
     // 动画控制器
     ani_ticker.add(() => {

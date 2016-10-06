@@ -119,9 +119,17 @@ export const engine = {
                 });
             })
         }else if(item instanceof Ship){
-            ["die", "change-hp", "fire_start"].forEach(eventName=>{
+            ["die", "change-hp"].forEach(eventName=>{
                 item.on(eventName,function () {
                     engine.emit(eventName, this);
+                });
+            });
+            // 来自于枪支冒泡的发射动画
+            item.on("gun-fire_start",function(gun_id, bullet) {
+                engine.emit("gun-fire_start", {
+                    gun_id: gun_id,
+                    bullet: bullet,
+                    ship_id: this._id
                 });
             })
             item.on("destroy",function () {
@@ -201,6 +209,17 @@ export const engine = {
             });
         }
         return bullets;
+    },
+    autoFire(ship_id){
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!(current_ship instanceof Ship)) {
+            throw `SHIP ID NO REF INSTANCE:${ship_id}`;
+        }
+        current_ship.toggleKeepFire(function (bullets) {
+            bullets.forEach(bullet => {
+                engine.add(bullet);
+            });
+        });
     },
     addProto(ship_id, add_proto){
         var current_ship = <Ship>All_id_map.get(ship_id);

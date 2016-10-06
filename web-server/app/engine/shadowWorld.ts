@@ -68,10 +68,10 @@ const world = {
             var dif_rotation = 0;
 
             // 旋转要特殊处理。TODO：包括angle
-            if (cache_rotation <= Math.PI / 2 && pre_rotation >= Math.PI * 3 / 2) {
+            if (cache_rotation <= -Math.PI / 2 && pre_rotation >= Math.PI / 2) {
                 cache_rotation = cache_rotation + Math.PI * 2;
                 dif_rotation = cache_rotation - pre_rotation;
-            } else if (pre_rotation <= Math.PI / 2 && cache_rotation >= Math.PI * 3 / 2) {
+            } else if (pre_rotation <= -Math.PI / 2 && cache_rotation >= Math.PI / 2) {
                 pre_rotation = pre_rotation + Math.PI * 2;
                 dif_rotation = cache_rotation - pre_rotation;
             } else {

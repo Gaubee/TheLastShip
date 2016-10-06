@@ -94,7 +94,7 @@ function experience_to_level(experience_num) {
             return true;
         }
     });
-    return res
+    return res || LEVEL_STAGE_3
 }
 function level_to_experience(level_num) {
     return EXPERIENCE_LEVEL_MAP[level_num | 0];
@@ -192,6 +192,7 @@ export default class Ship extends P2I {
         set [FIX_GETTER_SETTER_BUG_KEYS_MAP.type](new_type: string) {
             if (new_type != this.__type) {
                 this.__type = new_type
+                this.__GUNS_ID_MAP = null;// 清除枪支缓存
                 this.__self__.reDrawBody()
             }
         },
@@ -397,6 +398,18 @@ export default class Ship extends P2I {
             });
             gun.setConfig(gun_config);
         });
+    }
+    private __GUNS_ID_MAP:{[key:string]:Gun} = null
+    get GUNS_ID_MAP(){
+        var _gun_id_map = this.__GUNS_ID_MAP;
+        if(!_gun_id_map) {
+            _gun_id_map = this.__GUNS_ID_MAP = {};
+            var guns = this.guns;
+            guns.forEach(gun => {
+                _gun_id_map[gun._id] = gun;
+            });
+        }
+        return _gun_id_map;
     }
     update(delay) {
         super.update(delay);

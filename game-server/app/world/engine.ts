@@ -226,7 +226,11 @@ export const engine = {
          if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
-        current_ship.addProto(add_proto);
+        try{
+            current_ship.addProto(add_proto);
+        }catch(e){
+            // console.log(e);
+        }
         return current_ship.proto_list;
     }
 };

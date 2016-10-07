@@ -37,6 +37,7 @@ export interface GunConfig {
 
 	// 战斗相关的属性
 	bullet_size ?: number 
+	bullet_density ?: number
 	bullet_force ? : number
 	bullet_damage ? : number
 	bullet_penetrate ? : number // 穿透，意味着子弹存在时间
@@ -57,6 +58,7 @@ export default class Gun extends P2I {
 
 		// 战斗相关的属性
 		bullet_size: pt2px(5),
+		bullet_density: pt2px(1),
 		bullet_force : 1,
 		bullet_damage : 1,
 		bullet_penetrate : 1, // 穿透，意味着子弹存在时间
@@ -74,7 +76,7 @@ export default class Gun extends P2I {
 
 		if (owner) {
 			owner.guns.push(self);
-			owner.addChild(self);
+			owner.addChildAt(self, 0);
 		}
 
 		// if (_isBorwser) {
@@ -210,11 +212,13 @@ export default class Gun extends P2I {
 		}
 		this.emit("fire_start");
 		var bullet_size = config.bullet_size;
+		var bullet_density = config.bullet_density;
 		var bullet_force = new Victor(ship_config.bullet_force, 0);
-		var bullet_start = new Victor(ship_config.size + bullet_size / 2, 0);
+		// var bullet_start = new Victor(ship_config.size + bullet_size / 2, 0);
+		var bullet_start = new Victor(this.x - ship_config.size, this.y - ship_config.size);
 		var bullet_dir = ship_config.rotation + config.rotation;
 		bullet_force.rotate(bullet_dir);
-		bullet_start.rotate(bullet_dir);
+		bullet_start.rotate(ship_config.rotation);
 		var bullet = new Bullet({
 			team_tag: ship_config.team_tag,
 			x: ship_config.x + bullet_start.x,
@@ -222,6 +226,7 @@ export default class Gun extends P2I {
 			x_force: bullet_force.x,
 			y_force: bullet_force.y,
 			size: bullet_size,
+			density: bullet_density,
 			damage: config.bullet_damage,
 			penetrate: config.bullet_penetrate,
 		}, this);

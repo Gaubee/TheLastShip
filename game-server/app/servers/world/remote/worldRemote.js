@@ -96,6 +96,14 @@ WorldRemote.prototype.addProto = function(ship_id, add_proto, cb) {
 		cb(e);
 	}
 };
+WorldRemote.prototype.changeType = function(ship_id, new_type, cb) {
+	try {
+		var proto_list = this.world.changeType(ship_id, new_type);
+		cb(null, proto_list);
+	} catch (e) {
+		cb(e);
+	}
+};
 /**
  * Get user from chat channel.
  *

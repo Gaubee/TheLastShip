@@ -75,7 +75,7 @@ export default class Bullet extends P2I {
         mix_options(config, new_config);
 
         const body = self.body;
-        body.lineStyle(pt2px(1), 0x000000, 1);
+        body.lineStyle(config.density, 0x000000, 1);
         body.beginFill(config.body_color);
         body.drawCircle(config.size / 2, config.size / 2, config.size);
         body.endFill();

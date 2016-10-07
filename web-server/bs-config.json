@@ -4,9 +4,11 @@
 		"./class/**/*.{js}",
 		"./app/**/*.{js}",
 		"./js/**/*.{json}",
+		"./css/**/*.{css}",
 		"./js/*.{js}",
 		"./dist.js",
-		"./*.html"
+		"./*.html",
+		"./pages/**/*.html"
 	],
 	"server": {
 		"baseDir": "./"

@@ -96,6 +96,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         [key: string]: Flyer | Wall | Ship
     } = {};
     var view_ship: Ship;
+    function set_view_ship(ship) {
+        view_ship = ship;
+        current_stage_wrap.emit("view_ship-changed",view_ship);
+    }
     // 子弹绘图层
     const bullet_stage = new PIXI.Container();
     bullet_stage["update"] = function (delay) {
@@ -138,7 +142,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
                 ins._id = obj_info.id;
                 if (view_ship_info.id === obj_info.id) {
-                    view_ship = ins;
+                    // view_ship = ins;
+                    set_view_ship(ins);
                 }
                 if (obj_info.type === "Bullet") {
                     bullet_stage.addChild(ins);
@@ -284,6 +289,19 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             });
         });
 
+    // 切换形态变化面板的显示隐藏
+    UX.toggleShapePlan(current_stage_wrap
+        ,current_stage
+        ,()=>view_ship
+        ,ani_tween
+        ,ani_ticker,function (new_shape:string,cb_to_redraw) {
+            pomelo.request("connector.worldHandler.changeType", {
+                type: new_shape
+            }, function (data) {
+                view_ship.setConfig(data.config);
+                cb_to_redraw();
+            });
+        });
 
     /**响应服务端事件
      *
@@ -408,7 +426,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             instanceMap[ship_info.id] = null;
             if (ship._id === view_ship._id) {
                 // 玩家死亡
-                view_ship = null;//TODO，镜头使用击杀者
+                // view_ship = null;//TODO，镜头使用击杀者
+                set_view_ship(null);
                 is_my_ship_live = false;
                 // 打开对话框
                 die_dialog.open(current_stage_wrap, current_stage, renderer);
@@ -448,9 +467,48 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     });
 
     current_stage_wrap.addChild(FPS_Text);
+    const _native_log = console.log;
+    const _noop_log = function noop() { };
+    console.log = _noop_log;
+    var _is_debug = false;
+    var _is_ctrl_down = false;
+    var _is_alt_down = false;
+    var _is_f_down = false;
+    on(current_stage_wrap,"keydown",function (e) {
+             if(e.keyCode === 17){_is_ctrl_down = true;}
+        else if(e.keyCode === 18){_is_alt_down = true;}
+        else if(e.keyCode === 70){_is_f_down = true;}
+        if(_is_ctrl_down&&_is_alt_down&&_is_f_down) {
+            _is_debug = !_is_debug;
+            if(_is_debug) {
+                console.log = _native_log
+            }else{
+                console.log = _noop_log
+            }
+        }
+    });
+    on(current_stage_wrap,"keyup",function (e) {
+        if(_is_ctrl_down&&e.keyCode === 17) {
+            _is_ctrl_down = false;
+        }
+        if(_is_alt_down&&e.keyCode === 18) {
+            _is_alt_down = false;
+        }
+        if(_is_f_down&&e.keyCode === 70) {
+            _is_f_down = false;
+        }
+    });
     FPS_ticker.add(function () {
-        FPS_Text.text = `FPS:${FPS_ticker.FPS.toFixed(0)}/${(1 / timeSinceLastCalled).toFixed(0)} W:${VIEW.WIDTH} H:${VIEW.HEIGHT} Ping:${ping.toFixed(2)}`;
-        if (view_ship) {
+        var ping_info = ping.toFixed(2);
+        if(ping_info.length < 6) {
+            ping_info = ("000"+ping_info).substr(-6);
+        }
+        var net_fps = (1 / timeSinceLastCalled).toFixed(0);
+        if(net_fps.length < 2) {
+            ping_info = ("00"+ping_info).substr(-2);
+        }
+        FPS_Text.text = `FPS:${FPS_ticker.FPS.toFixed(0)}/${net_fps} W:${VIEW.WIDTH} H:${VIEW.HEIGHT} Ping:${ping_info}`;
+        if (view_ship&&_is_debug) {
             var info = "\n";
             var config = view_ship.config["toJSON"]();
             for (var k in config) {
@@ -461,7 +519,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 info += `${k}: ${val}\n`;
             }
             FPS_Text.text += info;
-        }
+        }/*else{
+            FPS_Text.text += `
+_is_ctrl_down:${_is_ctrl_down}
+_is_alt_down:${_is_alt_down}
+_is_f_down:${_is_f_down}
+            `
+        }*/
     });
 
     // 触发布局计算

@@ -27,8 +27,8 @@ export default function GunDrawer(self: Gun, config, typeInfo) {
 		body.beginFill(0x666666);
 	}
 
+	// 绘制外观形状
 	if (typeInfo.type === "rect") {
-		// 绘制外观形状
 		const gun_height = typeInfoArgs.height;
 		const gun_width = typeInfoArgs.width;
 
@@ -36,10 +36,30 @@ export default function GunDrawer(self: Gun, config, typeInfo) {
 
 		var dir = new Victor(ship.config.size,0);
 		var offset = new Victor(isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0,isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
-		// self.x = ship.config.size * 2 + (isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0);
-		// self.y = ship.config.size * 1 - gun_height / 2 + (isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
-		// self.pivot.set(-gun_width / 2, gun_height / 2);
-		// self.rotation = config.rotation;
+
+        self.pivot.set(0, gun_height/2);
+        self.rotation = config.rotation;
+        
+		dir.rotate(config.rotation);
+		offset.rotate(config.rotation);
+		self.x = dir.x+offset.x+ship.config.size;
+		self.y = dir.y+offset.y+ship.config.size;
+	}else if(typeInfo.type === "trapezoid"){
+		const gun_height = typeInfoArgs.height;
+		const gun_width = typeInfoArgs.width;
+		const gun_end_height = typeInfoArgs.endHeight;
+		const gun_dif_height = (gun_height - gun_end_height) /2;
+
+		body.drawPolygon([
+			0, 0, 
+			gun_width, gun_dif_height, 
+			gun_width, gun_dif_height + gun_end_height, 
+			0, gun_height
+		]);
+
+		var dir = new Victor(ship.config.size,0);
+		var offset = new Victor(isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0,isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
+
         self.pivot.set(0, gun_height/2);
         self.rotation = config.rotation;
         

@@ -36,6 +36,7 @@ import {
 	M_ANI_TIME,
 	S_ANI_TIME,
 	pt2px,
+	assign,
 	mix_options,
 	_isBorwser,
 	_isNode,
@@ -407,7 +408,7 @@ export function shipAutoFire(
  */
 import * as shipShape from "./class/shipShape.json";
 const proto_plan = new FlowLayout();
-var close_ti = null;
+var close_ProtoPlan_ti = null;
 export function showProtoPlan(
 	/*事件监听层*/
 	listen_stage: PIXI.Container,
@@ -427,7 +428,7 @@ export function showProtoPlan(
 	if(proto_plan["is_opened"]||proto_plan["is_ani"]){
 		return
 	}
-	clearTimeout(close_ti);
+	clearTimeout(close_ProtoPlan_ti);
 	proto_plan["is_opened"] = true;
 	proto_plan["is_ani"] = true;
 	drawProtoPlan(listen_stage,
@@ -496,13 +497,13 @@ function drawProtoPlan(
 							changeProto_cb);
 						if(view_ship.config.level <= view_ship.config.proto_list_length) {
 							var delay_close = function () {
-								close_ti = setTimeout(function () {
+								close_ProtoPlan_ti = setTimeout(function () {
 									hideProtoPlan(listen_stage,
 										view_stage,
 										get_view_ship,
 										ani_tween,
 										ani_ticker);
-									close_ti = null;
+									close_ProtoPlan_ti = null;
 								}, B_ANI_TIME);	
 							}
 							// if(_isMobile) {
@@ -590,15 +591,28 @@ export function toggleProtoPlan(
 			}
 		}
 
-		view_ship.on("level-changed",function () {
-			showProtoPlan(listen_stage,
-				view_stage,
-				get_view_ship,
-				ani_tween,
-				ani_ticker,
-				changeProto_cb);
-		});
 	});
+	const view_ship = get_view_ship();
+	function _init(view_ship) {
+		view_ship.on("level-changed",function () {
+			// 有可用属性点
+			if(view_ship.config.proto_list_length < view_ship.config.level) {
+				showProtoPlan(listen_stage,
+					view_stage,
+					get_view_ship,
+					ani_tween,
+					ani_ticker,
+					changeProto_cb);
+			}
+		});
+	}
+	if(view_ship) {
+		_init(view_ship);
+	}else{
+		listen_stage.on("view_ship-changed",function (view_ship) {
+			_init(view_ship);
+		})
+	}
 }
 
 /** 本地沙河模式工具
@@ -626,4 +640,201 @@ export function sandboxTools(
 			view_ship.emit("change-experience", experience-view_ship.config.experience);
 		}
 	});
+}
+/** 显示形态加点面板
+ *
+ */
+// import * as shipShape from "./class/shipShape.json";
+
+const shape_plan = new FlowLayout();
+var close_ShapePlan_ti = null;
+export function showShapePlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	changeable_shapes: string[],
+	changeShape_cb: (new_shape:string,cb_to_redraw:()=>void) => void) {
+	const view_ship = get_view_ship();
+	if(!view_ship){
+		return
+	}
+	drawShapePlan(listen_stage,
+		view_stage,
+		get_view_ship,
+		ani_tween,
+		ani_ticker,
+		changeable_shapes,
+		changeShape_cb);
+	if(shape_plan["is_opened"]||shape_plan["is_ani"]){
+		return
+	}
+	clearTimeout(close_ShapePlan_ti);
+	shape_plan["is_opened"] = true;
+	shape_plan["is_ani"] = true;
+	ani_tween.Tween(shape_plan)
+		.set({
+			x:VIEW.WIDTH,
+			y: pt2px(10)
+		})
+		.to({
+			x:VIEW.WIDTH - shape_plan.width
+		}, B_ANI_TIME)
+		.easing(TWEEN.Easing.Quadratic.Out)
+		.start()
+		.onComplete(()=>{
+			shape_plan["is_ani"] = false
+		});
+	listen_stage.addChild(shape_plan);
+}
+/** 重绘形态加点面板
+ *
+ */
+function drawShapePlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	changeable_shapes: string[],
+	changeShape_cb: (new_shape:string,cb_to_redraw:()=>void) => void) {
+	const view_ship = get_view_ship();
+	// 销毁重绘
+	shape_plan.children.slice().forEach(child=>{
+		shape_plan.removeChild(child);
+		child.destroy();
+	});
+	// 先放到缓存中，计算出合适的布局后再搞事
+	var items = [];
+	var max_width = 0;
+	changeable_shapes.forEach(type_name=>{
+		var typeInfo = shipShape[type_name]
+		var image_info = new Ship(assign(assign({},view_ship.config["toJSON"]()),{type:type_name}));
+		image_info.x = image_info.width/2
+		image_info.y = image_info.height
+		var text_info = new TextBuilder(typeInfo.name,{
+			fontFamily:"微软雅黑",
+			align: "center",
+			fontSize:pt2px(10)
+		});
+		var item_info = new FlowLayout();
+		item_info.max_width = Math.max(image_info.width,text_info.width);
+		max_width = Math.max(item_info.max_width,max_width);
+		item_info.addChildToFlow({float:"center"},image_info,text_info);
+
+		items.push(item_info);
+
+		item_info.interactive = true;
+		on(item_info,"click|tap",function () {
+			changeShape_cb(type_name,function () {
+				view_ship.emit("level-changed");
+			});
+		});
+	});
+	shape_plan.max_width = max_width * 2 + pt2px(10+10+20);
+	items.forEach((item_info,i)=>{
+		var item_info_bg = new PIXI.Graphics();
+		// item_info_bg.lineStyle(1,0xff0000,1);
+		item_info_bg.beginFill(0xffff00,0.0);
+		item_info_bg.drawRect(0,0,max_width+pt2px(10*(i%2)),item_info.height+pt2px(10));
+		item_info_bg.endFill();
+		item_info.addChild(item_info_bg);
+		item_info.width+item_info.height// 强制调用计算属性，动态计算布局
+
+		// 强行调用私有属性，到后面才统一计算布局绘制。
+		shape_plan["_addFlowChildItem"](item_info, {float:"left"});
+	});
+    shape_plan.reDrawFlow();
+
+	var bg = new PIXI.Graphics();
+	bg.beginFill(0xffffff,0.5);
+	bg.drawRoundedRect(-10,-10,shape_plan.width+20,shape_plan.height+20,5);
+	shape_plan.addChildAt(bg,0);
+}
+/** 关闭形态加点面板
+ *
+ */
+export function hideShapePlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker) {
+	if(!shape_plan["is_opened"]||shape_plan["is_ani"]){
+		return
+	}
+	shape_plan["is_opened"] = false;
+	shape_plan["is_ani"] = true;
+	ani_tween.Tween(shape_plan)
+		.to({
+			x:VIEW.WIDTH
+		}, B_ANI_TIME)
+		.easing(TWEEN.Easing.Quadratic.Out)
+		.start()
+		.onComplete(()=>{
+			shape_plan["is_ani"] = false
+			listen_stage.removeChild(shape_plan);
+		});
+}
+/** 切换形态加点面板的显示隐藏
+ *
+ */
+export function toggleShapePlan(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	changeShape_cb: (new_shape:string,cb_to_redraw:()=>void) => void) {
+	const view_ship = get_view_ship();
+	function _init(view_ship) {
+		view_ship.on("level-changed",function () {
+			// 有可用形态
+			var changeable_shapes = view_ship.CHANGEABLE_SHAPES;
+			if(changeable_shapes.length > 0) {
+				showShapePlan(listen_stage,
+					view_stage,
+					get_view_ship,
+					ani_tween,
+					ani_ticker,
+					changeable_shapes,
+					changeShape_cb);
+			}else{
+				hideShapePlan(listen_stage,
+					view_stage,
+					get_view_ship,
+					ani_tween,
+					ani_ticker);
+			}
+		});
+	}
+	if(view_ship) {
+		_init(view_ship);
+	}else{
+		listen_stage.on("view_ship-changed",view_ship=>{
+			view_ship&&_init(view_ship);
+		})
+	}
+
 }

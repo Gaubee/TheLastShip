@@ -1466,7 +1466,7 @@ define("app/const", ["require", "exports"], function (require, exports) {
         for (var key in from_obj) {
             if (from_obj.hasOwnProperty(key)) {
                 var value = from_obj[key];
-                if (from_obj[key] instanceof Object) {
+                if (value instanceof Object && typeof value !== "function") {
                     assign(to_obj[key] || (to_obj[key] = new value.constructor()), value);
                 }
                 else {
@@ -1478,13 +1478,39 @@ define("app/const", ["require", "exports"], function (require, exports) {
     }
     exports.assign = assign;
     function transformJSON(JSON_str) {
-        return JSON.parse(JSON_str, function (key, value) {
-            // 对配置文件中的数量进行基本的单位换算
-            return transformValue(value);
+        var root;
+        return JSON.parse(JSON_str, function (s_key, s_value) {
+            root || (root = this);
+            // 处理key-value的引用继承等关系
+            var _a = transformKey(s_key, s_value, root), key = _a.key, value = _a.value;
+            // 对配置文件中的数量进行基本的单位换算以及动态运算
+            var res = transformValue(value);
+            if (key !== s_key) {
+                delete this[s_key];
+                this[key] = res;
+            }
+            else {
+                return res;
+            }
         });
     }
     exports.transformJSON = transformJSON;
-    function transformValue(value) {
+    var _EXTEND_KEY_REG = /(.+?)\<EXTENDS\@(.+?)\>/;
+    function transformKey(key, value, root) {
+        var key_info = key.match(_EXTEND_KEY_REG);
+        if (key_info) {
+            key = key_info[1];
+            var extend_key_list = key_info[2].split(".");
+            var extend_value = root;
+            extend_key_list.forEach(function (key) {
+                extend_value = extend_value[key];
+            });
+            value = assign(assign({}, extend_value), value);
+        }
+        return { key: key, value: value };
+    }
+    exports.transformKey = transformKey;
+    function transformValue(value, pre_value) {
         if (typeof value === "string") {
             if (value.indexOf("pt2px!") === 0) {
                 return exports.pt2px(+value.substr(6));
@@ -1497,6 +1523,19 @@ define("app/const", ["require", "exports"], function (require, exports) {
             }
             if (value.indexOf("eval!") === 0) {
                 return new Function("info", value.substr(5));
+            }
+            // 简单表达式模式，需要两数字值
+            if (value.indexOf("exp!") === 0) {
+                pre_value = parseFloat(pre_value) || 0;
+                value = value.substr(4);
+                var exp_type = value.charAt(0);
+                var nex_value = +value.substr(1);
+                if (exp_type === "*") {
+                    return pre_value * nex_value;
+                }
+                if (exp_type === "/") {
+                    return pre_value / nex_value;
+                }
             }
         }
         return value;
@@ -1517,7 +1556,7 @@ define("app/const", ["require", "exports"], function (require, exports) {
                 if (!parent_config.hasOwnProperty(owner_key)) {
                     throw new SyntaxError("\u5C5E\u6027\uFF1A" + owner_key + " \u4E0D\u53EF\u7528");
                 }
-                return parent_config[owner_key] + parseFloat(transformValue(value));
+                return parseFloat(transformValue(value, parent_config[owner_key]));
             }
             return value;
         });
@@ -1614,17 +1653,33 @@ define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/en
         else {
             body.beginFill(0x666666);
         }
+        // 绘制外观形状
         if (typeInfo.type === "rect") {
-            // 绘制外观形状
             var gun_height = typeInfoArgs.height;
             var gun_width = typeInfoArgs.width;
             body.drawRect(0, 0, gun_width, gun_height);
             var dir = new Victor_1.default(ship.config.size, 0);
             var offset = new Victor_1.default(isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0, isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
-            // self.x = ship.config.size * 2 + (isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0);
-            // self.y = ship.config.size * 1 - gun_height / 2 + (isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
-            // self.pivot.set(-gun_width / 2, gun_height / 2);
-            // self.rotation = config.rotation;
+            self.pivot.set(0, gun_height / 2);
+            self.rotation = config.rotation;
+            dir.rotate(config.rotation);
+            offset.rotate(config.rotation);
+            self.x = dir.x + offset.x + ship.config.size;
+            self.y = dir.y + offset.y + ship.config.size;
+        }
+        else if (typeInfo.type === "trapezoid") {
+            var gun_height = typeInfoArgs.height;
+            var gun_width = typeInfoArgs.width;
+            var gun_end_height = typeInfoArgs.endHeight;
+            var gun_dif_height = (gun_height - gun_end_height) / 2;
+            body.drawPolygon([
+                0, 0,
+                gun_width, gun_dif_height,
+                gun_width, gun_dif_height + gun_end_height,
+                0, gun_height
+            ]);
+            var dir = new Victor_1.default(ship.config.size, 0);
+            var offset = new Victor_1.default(isFinite(typeInfoArgs.x) ? +typeInfoArgs.x : 0, isFinite(typeInfoArgs.y) ? +typeInfoArgs.y : 0);
             self.pivot.set(0, gun_height / 2);
             self.rotation = config.rotation;
             dir.rotate(config.rotation);
@@ -2348,6 +2403,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 ison_BTAR: false,
                 // 战斗相关的属性
                 bullet_size: const_3.pt2px(5),
+                bullet_density: const_3.pt2px(1),
                 bullet_force: 1,
                 bullet_damage: 1,
                 bullet_penetrate: 1,
@@ -2361,7 +2417,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             self.setConfig(new_config);
             if (owner) {
                 owner.guns.push(self);
-                owner.addChild(self);
+                owner.addChildAt(self, 0);
             }
             // if (_isBorwser) {
             // 	self.gun.cacheAsBitmap = true;
@@ -2489,11 +2545,13 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             }
             this.emit("fire_start");
             var bullet_size = config.bullet_size;
+            var bullet_density = config.bullet_density;
             var bullet_force = new Victor_2.default(ship_config.bullet_force, 0);
-            var bullet_start = new Victor_2.default(ship_config.size + bullet_size / 2, 0);
+            // var bullet_start = new Victor(ship_config.size + bullet_size / 2, 0);
+            var bullet_start = new Victor_2.default(this.x - ship_config.size, this.y - ship_config.size);
             var bullet_dir = ship_config.rotation + config.rotation;
             bullet_force.rotate(bullet_dir);
-            bullet_start.rotate(bullet_dir);
+            bullet_start.rotate(ship_config.rotation);
             var bullet = new Bullet_1.default({
                 team_tag: ship_config.team_tag,
                 x: ship_config.x + bullet_start.x,
@@ -2501,6 +2559,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 x_force: bullet_force.x,
                 y_force: bullet_force.y,
                 size: bullet_size,
+                density: bullet_density,
                 damage: config.bullet_damage,
                 penetrate: config.bullet_penetrate,
             }, this);
@@ -2673,7 +2732,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length, {
                     // 只读·技能加点信息
                     get: function () {
-                        return this.__self__.proto_list.length;
+                        return this.__self__.proto_list.length * 3;
                     },
                     enumerable: true,
                     configurable: true
@@ -2697,7 +2756,6 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     set: function (new_type) {
                         if (new_type != this.__type) {
                             this.__type = new_type;
-                            this.__GUNS_ID_MAP = null; // 清除枪支缓存
                             this.__self__.reDrawBody();
                         }
                     },
@@ -2730,8 +2788,8 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             const_4.mix_options(cache_config, typeInfo.body.config);
             const_4.mix_options(cache_config, new_config);
             const_4.mix_options(config, cache_config);
-            // 绘制武器
-            self.loadWeapon();
+            // // 绘制武器
+            // self.reloadWeapon();
             // 绘制船体
             self.reDrawBody();
             self.body_shape["ship_team_tag"] = config.team_tag;
@@ -2833,41 +2891,12 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype.reDrawBody = function () {
             var config = this.config;
             var typeInfo = shipShape[config.type];
-            if (const_4._isBorwser) {
-                this.body.cacheAsBitmap = false;
-                // 绘制船体
-                ShapeDrawer_1.default(this, config, typeInfo.body);
-                this.reloadWeapon();
-                this.body.cacheAsBitmap = true;
-            }
-            else {
-                // 绘制船体
-                ShapeDrawer_1.default(this, config, typeInfo.body);
-            }
-        };
-        // 装载武器
-        Ship.prototype.loadWeapon = function () {
-            var self = this;
-            var config = self.config;
-            var typeInfo = shipShape[config.type];
-            typeInfo.guns.forEach(function (_gun_config, i) {
-                var gun_config = const_4.assign({}, _gun_config);
-                // 枪支继承飞船的基本配置
-                [
-                    "bullet_force",
-                    "bullet_damage",
-                    "bullet_penetrate",
-                    "overload_speed",
-                ].forEach(function (k) {
-                    var ship_v = config[k];
-                    if (!gun_config.hasOwnProperty(k)) {
-                        gun_config[k] = ship_v;
-                    }
-                });
-                var gun = new Gun_1.default(gun_config, self);
-                // 定死ID
-                gun._id = self._id + "_gun_" + i;
-            });
+            const_4._isBorwser && (this.body.cacheAsBitmap = false);
+            // 绘制船体
+            ShapeDrawer_1.default(this, config, typeInfo.body);
+            // 绘制枪支位置
+            this.reloadWeapon();
+            const_4._isBorwser && (this.body.cacheAsBitmap = true);
         };
         // 卸载武器
         Ship.prototype.unloadWeapon = function () {
@@ -2877,16 +2906,13 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 gun.destroy();
             });
         };
-        // 重载武器配置
+        // 装载武器配置
         Ship.prototype.reloadWeapon = function () {
             var self = this;
             var config = self.config;
             var typeInfo = shipShape[config.type];
             typeInfo.guns.forEach(function (_gun_config, i) {
                 var gun = self.guns[i];
-                if (!gun) {
-                    return;
-                }
                 var gun_config = const_4.assign({}, _gun_config);
                 // 枪支继承飞船的基本配置
                 [
@@ -2900,8 +2926,23 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                         gun_config[k] = ship_v;
                     }
                 });
-                gun.setConfig(gun_config);
+                if (gun) {
+                    gun.setConfig(gun_config);
+                }
+                else {
+                    self.__GUNS_ID_MAP = null; // 清除枪支缓存
+                    var gun = new Gun_1.default(gun_config, self);
+                }
+                // 定死ID
+                gun._id = self._id + "_gun_" + i;
             });
+            if (self.guns.length > typeInfo.guns.length) {
+                self.guns.splice(typeInfo.guns.length, self.guns.length - typeInfo.guns.length).forEach(function (gun) {
+                    self.removeChild(gun);
+                    gun.destroy();
+                });
+                self.__GUNS_ID_MAP = null; // 清除枪支缓存
+            }
         };
         Object.defineProperty(Ship.prototype, "GUNS_ID_MAP", {
             get: function () {
@@ -2914,6 +2955,22 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     });
                 }
                 return _gun_id_map;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(Ship.prototype, "CHANGEABLE_SHAPES", {
+            get: function () {
+                var res = [];
+                for (var type in shipShape) {
+                    var typeInfo = shipShape[type];
+                    if (typeInfo.required &&
+                        typeInfo.required.base_on.indexOf(this.config.type) !== -1 &&
+                        typeInfo.required.level <= this.config.level) {
+                        res.push(type);
+                    }
+                }
+                return res;
             },
             enumerable: true,
             configurable: true
@@ -2975,14 +3032,22 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             this._computeConfig();
             this.reloadWeapon();
         };
-        Ship.prototype._computeConfig = function () {
+        Ship.prototype.changeType = function (new_type) {
+            if (this.CHANGEABLE_SHAPES.indexOf(new_type) === -1) {
+                return;
+            }
+            this._computeConfig(new_type);
+            this.config.type = new_type;
+        };
+        Ship.prototype._computeConfig = function (type) {
             var _this = this;
             var config = this.config;
+            type || (type = config.type);
             // 用于临时替代config的对象，避免计算属性重复计算/
             var cache_config = config[FIX_GETTER_SETTER_BUG_KEYS_MAP.toJSON]();
             this.config = cache_config;
             var level = config.level;
-            var typeInfo = shipShape[config.type];
+            var typeInfo = shipShape[type];
             var type_config = typeInfo.body.config;
             var level_grow = typeInfo.body.level_grow;
             var proto_grow = typeInfo.body.proto_grow;
@@ -3271,7 +3336,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             var config = self.config;
             const_7.mix_options(config, new_config);
             var body = self.body;
-            body.lineStyle(const_7.pt2px(1), 0x000000, 1);
+            body.lineStyle(config.density, 0x000000, 1);
             body.beginFill(config.body_color);
             body.drawCircle(config.size / 2, config.size / 2, config.size);
             body.endFill();
@@ -4972,6 +5037,7 @@ define("class/FlowLayout", ["require", "exports"], function (require, exports) {
             var pre_item = childs[0];
             var per_style = (pre_item["_flow_style"] || default_flow_style);
             var pre_bounds = pre_item.getBounds();
+            // pre_item.position.set(0, 0);
             var current_line_width = pre_bounds.width; //当前行累计使用的宽度
             var current_line_childs = [pre_item];
             for (var i = 1, len = childs.length; i < len; i += 1) {
@@ -5431,7 +5497,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
     }
     exports.shipAutoFire = shipAutoFire;
     var proto_plan = new FlowLayout_1.default();
-    var close_ti = null;
+    var close_ProtoPlan_ti = null;
     function showProtoPlan(
         /*事件监听层*/
         listen_stage, 
@@ -5450,7 +5516,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         if (proto_plan["is_opened"] || proto_plan["is_ani"]) {
             return;
         }
-        clearTimeout(close_ti);
+        clearTimeout(close_ProtoPlan_ti);
         proto_plan["is_opened"] = true;
         proto_plan["is_ani"] = true;
         drawProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
@@ -5508,9 +5574,9 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                             drawProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
                             if (view_ship.config.level <= view_ship.config.proto_list_length) {
                                 var delay_close = function () {
-                                    close_ti = setTimeout(function () {
+                                    close_ProtoPlan_ti = setTimeout(function () {
                                         hideProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker);
-                                        close_ti = null;
+                                        close_ProtoPlan_ti = null;
                                     }, const_9.B_ANI_TIME);
                                 };
                                 // if(_isMobile) {
@@ -5589,10 +5655,24 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                     showProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
                 }
             }
-            view_ship.on("level-changed", function () {
-                showProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
-            });
         });
+        var view_ship = get_view_ship();
+        function _init(view_ship) {
+            view_ship.on("level-changed", function () {
+                // 有可用属性点
+                if (view_ship.config.proto_list_length < view_ship.config.level) {
+                    showProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeProto_cb);
+                }
+            });
+        }
+        if (view_ship) {
+            _init(view_ship);
+        }
+        else {
+            listen_stage.on("view_ship-changed", function (view_ship) {
+                _init(view_ship);
+            });
+        }
     }
     exports.toggleProtoPlan = toggleProtoPlan;
     /** 本地沙河模式工具
@@ -5622,6 +5702,181 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         });
     }
     exports.sandboxTools = sandboxTools;
+    /** 显示形态加点面板
+     *
+     */
+    // import * as shipShape from "./class/shipShape.json";
+    var shape_plan = new FlowLayout_1.default();
+    var close_ShapePlan_ti = null;
+    function showShapePlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, changeable_shapes, changeShape_cb) {
+        var view_ship = get_view_ship();
+        if (!view_ship) {
+            return;
+        }
+        drawShapePlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeable_shapes, changeShape_cb);
+        if (shape_plan["is_opened"] || shape_plan["is_ani"]) {
+            return;
+        }
+        clearTimeout(close_ShapePlan_ti);
+        shape_plan["is_opened"] = true;
+        shape_plan["is_ani"] = true;
+        ani_tween.Tween(shape_plan)
+            .set({
+            x: common_2.VIEW.WIDTH,
+            y: const_9.pt2px(10)
+        })
+            .to({
+            x: common_2.VIEW.WIDTH - shape_plan.width
+        }, const_9.B_ANI_TIME)
+            .easing(Tween_6.default.Easing.Quadratic.Out)
+            .start()
+            .onComplete(function () {
+            shape_plan["is_ani"] = false;
+        });
+        listen_stage.addChild(shape_plan);
+    }
+    exports.showShapePlan = showShapePlan;
+    /** 重绘形态加点面板
+     *
+     */
+    function drawShapePlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, changeable_shapes, changeShape_cb) {
+        var view_ship = get_view_ship();
+        // 销毁重绘
+        shape_plan.children.slice().forEach(function (child) {
+            shape_plan.removeChild(child);
+            child.destroy();
+        });
+        // 先放到缓存中，计算出合适的布局后再搞事
+        var items = [];
+        var max_width = 0;
+        changeable_shapes.forEach(function (type_name) {
+            var typeInfo = shipShape[type_name];
+            var image_info = new Ship_2.default(const_9.assign(const_9.assign({}, view_ship.config["toJSON"]()), { type: type_name }));
+            image_info.x = image_info.width / 2;
+            image_info.y = image_info.height;
+            var text_info = new TextBuilder_1.default(typeInfo.name, {
+                fontFamily: "微软雅黑",
+                align: "center",
+                fontSize: const_9.pt2px(10)
+            });
+            var item_info = new FlowLayout_1.default();
+            item_info.max_width = Math.max(image_info.width, text_info.width);
+            max_width = Math.max(item_info.max_width, max_width);
+            item_info.addChildToFlow({ float: "center" }, image_info, text_info);
+            items.push(item_info);
+            item_info.interactive = true;
+            common_2.on(item_info, "click|tap", function () {
+                changeShape_cb(type_name, function () {
+                    view_ship.emit("level-changed");
+                });
+            });
+        });
+        shape_plan.max_width = max_width * 2 + const_9.pt2px(10 + 10 + 20);
+        items.forEach(function (item_info, i) {
+            var item_info_bg = new PIXI.Graphics();
+            // item_info_bg.lineStyle(1,0xff0000,1);
+            item_info_bg.beginFill(0xffff00, 0.0);
+            item_info_bg.drawRect(0, 0, max_width + const_9.pt2px(10 * (i % 2)), item_info.height + const_9.pt2px(10));
+            item_info_bg.endFill();
+            item_info.addChild(item_info_bg);
+            item_info.width + item_info.height; // 强制调用计算属性，动态计算布局
+            // 强行调用私有属性，到后面才统一计算布局绘制。
+            shape_plan["_addFlowChildItem"](item_info, { float: "left" });
+        });
+        shape_plan.reDrawFlow();
+        var bg = new PIXI.Graphics();
+        bg.beginFill(0xffffff, 0.5);
+        bg.drawRoundedRect(-10, -10, shape_plan.width + 20, shape_plan.height + 20, 5);
+        shape_plan.addChildAt(bg, 0);
+    }
+    /** 关闭形态加点面板
+     *
+     */
+    function hideShapePlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker) {
+        if (!shape_plan["is_opened"] || shape_plan["is_ani"]) {
+            return;
+        }
+        shape_plan["is_opened"] = false;
+        shape_plan["is_ani"] = true;
+        ani_tween.Tween(shape_plan)
+            .to({
+            x: common_2.VIEW.WIDTH
+        }, const_9.B_ANI_TIME)
+            .easing(Tween_6.default.Easing.Quadratic.Out)
+            .start()
+            .onComplete(function () {
+            shape_plan["is_ani"] = false;
+            listen_stage.removeChild(shape_plan);
+        });
+    }
+    exports.hideShapePlan = hideShapePlan;
+    /** 切换形态加点面板的显示隐藏
+     *
+     */
+    function toggleShapePlan(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, changeShape_cb) {
+        var view_ship = get_view_ship();
+        function _init(view_ship) {
+            view_ship.on("level-changed", function () {
+                // 有可用形态
+                var changeable_shapes = view_ship.CHANGEABLE_SHAPES;
+                if (changeable_shapes.length > 0) {
+                    showShapePlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker, changeable_shapes, changeShape_cb);
+                }
+                else {
+                    hideShapePlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker);
+                }
+            });
+        }
+        if (view_ship) {
+            _init(view_ship);
+        }
+        else {
+            listen_stage.on("view_ship-changed", function (view_ship) {
+                view_ship && _init(view_ship);
+            });
+        }
+    }
+    exports.toggleShapePlan = toggleShapePlan;
 });
 define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_7, When_1, Flyer_2, Ship_3, Wall_2, HP_1, world_1, ediorStage, common_3, const_10, UX) {
     "use strict";
@@ -5848,6 +6103,11 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         });
         // 沙盒工具
         UX.sandboxTools(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker);
+        // 切换形态变化面板的显示隐藏
+        UX.toggleShapePlan(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (new_shape, cb_to_redraw) {
+            my_ship.changeType(new_shape);
+            cb_to_redraw();
+        });
         // 动画控制器
         var pre_time;
         ani_ticker.add(function () {
@@ -5880,6 +6140,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                     }
                     info += k + ": " + val + "\n";
                 }
+                info += "speed: " + Array.prototype.slice.call(my_ship.p2_body.velocity).map(function (s) { return s.toFixed(2); }) + "\n";
                 FPS_Text.text += info;
             }
         });
@@ -8001,6 +8262,10 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         };
         var instanceMap = {};
         var view_ship;
+        function set_view_ship(ship) {
+            view_ship = ship;
+            exports.current_stage_wrap.emit("view_ship-changed", view_ship);
+        }
         // 子弹绘图层
         var bullet_stage = new PIXI.Container();
         bullet_stage["update"] = function (delay) {
@@ -8043,7 +8308,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
                     ins._id = obj_info.id;
                     if (view_ship_info.id === obj_info.id) {
-                        view_ship = ins;
+                        // view_ship = ins;
+                        set_view_ship(ins);
                     }
                     if (obj_info.type === "Bullet") {
                         bullet_stage.addChild(ins);
@@ -8158,6 +8424,15 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 proto: add_proto
             }, function (data) {
                 view_ship.proto_list = data;
+                cb_to_redraw();
+            });
+        });
+        // 切换形态变化面板的显示隐藏
+        UX.toggleShapePlan(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function (new_shape, cb_to_redraw) {
+            Pomelo_1.pomelo.request("connector.worldHandler.changeType", {
+                type: new_shape
+            }, function (data) {
+                view_ship.setConfig(data.config);
                 cb_to_redraw();
             });
         });
@@ -8281,7 +8556,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 instanceMap[ship_info.id] = null;
                 if (ship._id === view_ship._id) {
                     // 玩家死亡
-                    view_ship = null; //TODO，镜头使用击杀者
+                    // view_ship = null;//TODO，镜头使用击杀者
+                    set_view_ship(null);
                     is_my_ship_live = false;
                     // 打开对话框
                     die_dialog.open(exports.current_stage_wrap, exports.current_stage, common_6.renderer);
@@ -8318,9 +8594,55 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             align: "left"
         });
         exports.current_stage_wrap.addChild(FPS_Text);
+        var _native_log = console.log;
+        var _noop_log = function noop() { };
+        console.log = _noop_log;
+        var _is_debug = false;
+        var _is_ctrl_down = false;
+        var _is_alt_down = false;
+        var _is_f_down = false;
+        common_6.on(exports.current_stage_wrap, "keydown", function (e) {
+            if (e.keyCode === 17) {
+                _is_ctrl_down = true;
+            }
+            else if (e.keyCode === 18) {
+                _is_alt_down = true;
+            }
+            else if (e.keyCode === 70) {
+                _is_f_down = true;
+            }
+            if (_is_ctrl_down && _is_alt_down && _is_f_down) {
+                _is_debug = !_is_debug;
+                if (_is_debug) {
+                    console.log = _native_log;
+                }
+                else {
+                    console.log = _noop_log;
+                }
+            }
+        });
+        common_6.on(exports.current_stage_wrap, "keyup", function (e) {
+            if (_is_ctrl_down && e.keyCode === 17) {
+                _is_ctrl_down = false;
+            }
+            if (_is_alt_down && e.keyCode === 18) {
+                _is_alt_down = false;
+            }
+            if (_is_f_down && e.keyCode === 70) {
+                _is_f_down = false;
+            }
+        });
         FPS_ticker.add(function () {
-            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + (1 / timeSinceLastCalled).toFixed(0) + " W:" + common_6.VIEW.WIDTH + " H:" + common_6.VIEW.HEIGHT + " Ping:" + ping.toFixed(2);
-            if (view_ship) {
+            var ping_info = ping.toFixed(2);
+            if (ping_info.length < 6) {
+                ping_info = ("000" + ping_info).substr(-6);
+            }
+            var net_fps = (1 / timeSinceLastCalled).toFixed(0);
+            if (net_fps.length < 2) {
+                ping_info = ("00" + ping_info).substr(-2);
+            }
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + "/" + net_fps + " W:" + common_6.VIEW.WIDTH + " H:" + common_6.VIEW.HEIGHT + " Ping:" + ping_info;
+            if (view_ship && _is_debug) {
                 var info = "\n";
                 var config = view_ship.config["toJSON"]();
                 for (var k in config) {
@@ -8331,7 +8653,13 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     info += k + ": " + val + "\n";
                 }
                 FPS_Text.text += info;
-            }
+            } /*else{
+                FPS_Text.text += `
+    _is_ctrl_down:${_is_ctrl_down}
+    _is_alt_down:${_is_alt_down}
+    _is_f_down:${_is_f_down}
+                `
+            }*/
         });
         // 触发布局计算
         common_6.emitReisze(exports.current_stage_wrap);
@@ -8561,6 +8889,11 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
         });
         // 沙盒工具
         UX.sandboxTools(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker);
+        // 切换形态变化面板的显示隐藏
+        UX.toggleShapePlan(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (new_shape, cb_to_redraw) {
+            my_ship.changeType(new_shape);
+            cb_to_redraw();
+        });
         // 动画控制器
         ani_ticker.add(function () {
             ani_tween.update();

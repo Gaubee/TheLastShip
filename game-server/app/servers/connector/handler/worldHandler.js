@@ -78,5 +78,17 @@ Handler.prototype = {
 		this.app.rpc.world.worldRemote.addProto(session, ship_id, msg.proto, function(err, res) {
 			next(err, res)
 		});
+	},
+	changeType: function(msg, session, next) {
+		const ship_id = session.get("ship_id");
+		if (!ship_id) {
+			return next({
+				code: 500,
+				error: "No Found Ship Id."
+			});
+		}
+		this.app.rpc.world.worldRemote.changeType(session, ship_id, msg.type, function(err, res) {
+			next(err, res)
+		});
 	}
 }

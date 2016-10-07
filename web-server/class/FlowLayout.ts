@@ -58,6 +58,7 @@ export default class FlowLayout extends PIXI.Container {
         var pre_item = childs[0];
         var per_style = <FlowStyle>(pre_item["_flow_style"] || default_flow_style);
         var pre_bounds = pre_item.getBounds();
+        // pre_item.position.set(0, 0);
         var current_line_width = pre_bounds.width;//当前行累计使用的宽度
         var current_line_childs: PIXI.DisplayObject[] = [pre_item];
         for (var i = 1, len = childs.length; i < len; i += 1) {

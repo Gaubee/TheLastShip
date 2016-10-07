@@ -256,6 +256,15 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,()=>my_ship
         ,ani_tween
         ,ani_ticker);
+    // 切换形态变化面板的显示隐藏
+    UX.toggleShapePlan(current_stage_wrap
+        ,current_stage
+        ,()=>my_ship
+        ,ani_tween
+        ,ani_ticker,function (new_shape:string,cb_to_redraw) {
+            my_ship.changeType(new_shape);
+            cb_to_redraw();
+        });
 
     // 动画控制器
     ani_ticker.add(() => {

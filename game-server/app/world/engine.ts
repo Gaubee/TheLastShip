@@ -232,7 +232,15 @@ export const engine = {
             // console.log(e);
         }
         return current_ship.proto_list;
-    }
+    },
+    changeType(ship_id, new_type){
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!(current_ship instanceof Ship)) {
+            throw `SHIP ID NO REF INSTANCE:${ship_id}`;
+        }
+        current_ship.changeType(new_type);
+        return current_ship;
+    },
 };
 // 材质信息
 // 通用物体与通用物体

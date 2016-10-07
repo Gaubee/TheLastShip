@@ -26,7 +26,7 @@ export function assign(to_obj, from_obj) {
     for (var key in from_obj) {
         if (from_obj.hasOwnProperty(key)) {
             var value = from_obj[key];
-            if (from_obj[key] instanceof Object) {
+            if (value instanceof Object && typeof value !== "function") {
                 assign(to_obj[key] || (to_obj[key] = new value.constructor()), value)
             } else {
                 to_obj[key] = value
@@ -36,12 +36,36 @@ export function assign(to_obj, from_obj) {
     return to_obj
 }
 export function transformJSON(JSON_str) {
-    return JSON.parse(JSON_str, function(key, value) {
-        // 对配置文件中的数量进行基本的单位换算
-        return transformValue(value);
+    var root;
+    return JSON.parse(JSON_str, function(s_key, s_value) {
+        root||(root = this);
+        // 处理key-value的引用继承等关系
+        var {key,value} = transformKey(s_key, s_value, root);
+        // 对配置文件中的数量进行基本的单位换算以及动态运算
+        var res = transformValue(value);
+        if(key !== s_key) {
+            delete this[s_key];
+            this[key] = res;
+        }else{
+            return res;
+        }
     });
 }
-export function transformValue(value) {
+const _EXTEND_KEY_REG = /(.+?)\<EXTENDS\@(.+?)\>/;
+export function transformKey(key, value, root) {
+    var key_info = key.match(_EXTEND_KEY_REG);
+    if(key_info) {
+        key = key_info[1];
+        var extend_key_list = key_info[2].split(".");
+        var extend_value = root;
+        extend_key_list.forEach(key=>{
+            extend_value = extend_value[key]
+        });
+        value = assign(assign({}, extend_value), value);
+    }
+    return {key,value}
+}
+export function transformValue(value, pre_value?) {
     if (typeof value === "string") {
         if (value.indexOf("pt2px!") === 0) {
             return pt2px(+value.substr(6));
@@ -54,6 +78,19 @@ export function transformValue(value) {
         }
         if(value.indexOf("eval!") === 0) {
             return new Function("info",value.substr(5));
+        }
+        // 简单表达式模式，需要两数字值
+        if(value.indexOf("exp!") === 0) {
+            pre_value = parseFloat(pre_value)||0;
+            value = value.substr(4);
+            var exp_type = value.charAt(0);
+            var nex_value = +value.substr(1);
+            if(exp_type === "*") {
+                return pre_value*nex_value
+            }
+            if(exp_type === "/") {
+                return pre_value/nex_value
+            }
         }
     }
     return value;
@@ -74,7 +111,7 @@ export function transformMix(parent_config,cur_config) {
             if(!parent_config.hasOwnProperty(owner_key)) {
                 throw new SyntaxError(`属性：${owner_key} 不可用`);
             }
-            return parent_config[owner_key] + parseFloat(transformValue(value));
+            return parseFloat(transformValue(value, parent_config[owner_key]));
         }
         return value;
     });

@@ -180,7 +180,7 @@ export default class Ship extends P2I {
         ["__self__"]: this,
         // 只读·技能加点信息
         get [FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length]() {
-            return this.__self__.proto_list.length
+            return this.__self__.proto_list.length * 3;
         },
         set [FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length](_){
             // just fix setter throw error
@@ -192,7 +192,6 @@ export default class Ship extends P2I {
         set [FIX_GETTER_SETTER_BUG_KEYS_MAP.type](new_type: string) {
             if (new_type != this.__type) {
                 this.__type = new_type
-                this.__GUNS_ID_MAP = null;// 清除枪支缓存
                 this.__self__.reDrawBody()
             }
         },
@@ -223,8 +222,8 @@ export default class Ship extends P2I {
         mix_options(cache_config, new_config);
         mix_options(config, cache_config);
 
-        // 绘制武器
-        self.loadWeapon();
+        // // 绘制武器
+        // self.reloadWeapon();
 
         // 绘制船体
         self.reDrawBody();
@@ -331,40 +330,12 @@ export default class Ship extends P2I {
     reDrawBody() {
         const config = this.config;
         const typeInfo = shipShape[config.type];
-        if (_isBorwser) {
-            this.body.cacheAsBitmap = false;
-            // 绘制船体
-            ShapeDrawer(this, config, typeInfo.body);
-            this.reloadWeapon();
-            this.body.cacheAsBitmap = true;
-        } else {
-            // 绘制船体
-            ShapeDrawer(this, config, typeInfo.body);
-        }
-    }
-    // 装载武器
-    loadWeapon() {
-        const self = this;
-        const config = self.config;
-        const typeInfo = shipShape[config.type];
-        typeInfo.guns.forEach(function (_gun_config, i) {
-            var gun_config = assign({}, _gun_config);
-            // 枪支继承飞船的基本配置
-            [
-                "bullet_force",
-                "bullet_damage",
-                "bullet_penetrate",
-                "overload_speed",
-            ].forEach(function (k) {
-                var ship_v = config[k];
-                if (!gun_config.hasOwnProperty(k)) {
-                    gun_config[k] = ship_v;
-                }
-            });
-            var gun = new Gun(gun_config, self);
-            // 定死ID
-            gun._id = self._id + "_gun_" + i;
-        });
+        _isBorwser&&(this.body.cacheAsBitmap = false);
+        // 绘制船体
+        ShapeDrawer(this, config, typeInfo.body);
+        // 绘制枪支位置
+        this.reloadWeapon();
+        _isBorwser&&(this.body.cacheAsBitmap = true);
     }
     // 卸载武器
     unloadWeapon() {
@@ -373,16 +344,13 @@ export default class Ship extends P2I {
             gun.destroy()
         });
     }
-    // 重载武器配置
+    // 装载武器配置
     reloadWeapon() {
         const self = this;
         const config = self.config;
         const typeInfo = shipShape[config.type];
         typeInfo.guns.forEach(function (_gun_config, i) {
             var gun = self.guns[i];
-            if(!gun) {
-                return
-            }
             var gun_config = assign({}, _gun_config);
             // 枪支继承飞船的基本配置
             [
@@ -396,8 +364,22 @@ export default class Ship extends P2I {
                     gun_config[k] = ship_v;
                 }
             });
-            gun.setConfig(gun_config);
+            if(gun) {
+                gun.setConfig(gun_config);
+            }else{
+                self.__GUNS_ID_MAP = null;// 清除枪支缓存
+                var gun = new Gun(gun_config, self);
+            }
+            // 定死ID
+            gun._id = self._id + "_gun_" + i;
         });
+        if(self.guns.length > typeInfo.guns.length) {
+            self.guns.splice(typeInfo.guns.length, self.guns.length - typeInfo.guns.length).forEach(gun=>{
+                self.removeChild(gun);
+                gun.destroy();
+            });
+            self.__GUNS_ID_MAP = null;// 清除枪支缓存
+        }
     }
     private __GUNS_ID_MAP:{[key:string]:Gun} = null
     get GUNS_ID_MAP(){
@@ -410,6 +392,18 @@ export default class Ship extends P2I {
             });
         }
         return _gun_id_map;
+    }
+    get CHANGEABLE_SHAPES(){
+        var res = [];
+        for(var type in shipShape){
+            var typeInfo = shipShape[type];
+            if(typeInfo.required &&
+                typeInfo.required.base_on.indexOf(this.config.type) !== -1 &&
+                typeInfo.required.level <= this.config.level) {
+                res.push(type)
+            }
+        }
+        return res;
     }
     update(delay) {
         super.update(delay);
@@ -474,13 +468,21 @@ export default class Ship extends P2I {
         this._computeConfig();
         this.reloadWeapon();
     }
-    _computeConfig() {
+    changeType(new_type){
+        if(this.CHANGEABLE_SHAPES.indexOf(new_type)===-1){
+            return
+        }
+        this._computeConfig(new_type);
+        this.config.type = new_type;
+    }
+    _computeConfig(type?) {
         const config = this.config;
+        type||(type = config.type);
         // 用于临时替代config的对象，避免计算属性重复计算/
         const cache_config = config[FIX_GETTER_SETTER_BUG_KEYS_MAP.toJSON]();
         this.config = cache_config;
         const level = config.level;
-        const typeInfo = shipShape[config.type];
+        const typeInfo = shipShape[type];
         const type_config = typeInfo.body.config;
         const level_grow = typeInfo.body.level_grow;
         const proto_grow = typeInfo.body.proto_grow;

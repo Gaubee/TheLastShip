@@ -2675,7 +2675,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 _a.body_color = 0x2255ff,
                 _a.rotation = 0,
                 _a.max_hp = 100,
-                _a.cur_hp = 100,
+                _a.cur_hp = 0,
                 _a.restore_hp = 1,
                 _a["__density"] = 1,
                 Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.density, {
@@ -2788,8 +2788,9 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             const_4.mix_options(cache_config, typeInfo.body.config);
             const_4.mix_options(cache_config, new_config);
             const_4.mix_options(config, cache_config);
-            // // 绘制武器
-            // self.reloadWeapon();
+            if (config.cur_hp == 0) {
+                config.cur_hp = config.max_hp;
+            }
             // 绘制船体
             self.reDrawBody();
             self.body_shape["ship_team_tag"] = config.team_tag;
@@ -2872,7 +2873,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     config_2.experience += parseFloat(dif_experience);
                     var res_level = experience_to_level(config_2.experience);
                     if (res_level !== config_2.level) {
+                        var pre_max_hp = self.config.max_hp;
                         self.emit("set-level", res_level);
+                        var cur_max_hp = self.config.max_hp;
+                        self.emit("change-hp", cur_max_hp - pre_max_hp);
                     }
                 }
             });

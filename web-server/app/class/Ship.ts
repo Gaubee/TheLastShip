@@ -137,7 +137,7 @@ export default class Ship extends P2I {
         body_color: 0x2255ff,
         rotation: 0,
         max_hp: 100,
-        cur_hp: 100,
+        cur_hp: 0,
         restore_hp: 1,
         ["__density"]: 1,
         get [FIX_GETTER_SETTER_BUG_KEYS_MAP.density]() {
@@ -222,8 +222,9 @@ export default class Ship extends P2I {
         mix_options(cache_config, new_config);
         mix_options(config, cache_config);
 
-        // // 绘制武器
-        // self.reloadWeapon();
+        if(config.cur_hp == 0) {
+            config.cur_hp = config.max_hp;
+        }
 
         // 绘制船体
         self.reDrawBody();
@@ -312,7 +313,11 @@ export default class Ship extends P2I {
                 config.experience += parseFloat(dif_experience);
                 var res_level = experience_to_level(config.experience);
                 if (res_level !== config.level) {
+                    var pre_max_hp = self.config.max_hp;
                     self.emit("set-level", res_level);
+                    var cur_max_hp = self.config.max_hp;
+                    self.emit("change-hp", cur_max_hp - pre_max_hp);
+                    // self.config.cur_hp += ;
                 }
             }
         });

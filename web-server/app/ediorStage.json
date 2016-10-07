@@ -1,8 +1,8 @@
 {
     "myship": {
         "type":"S-1-1",
-        "experience":550,
-        "level":10
+        "experience":0,
+        "level":0
     },
     "ships": [
         {

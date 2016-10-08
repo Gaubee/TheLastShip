@@ -26,6 +26,7 @@ export interface BulletConfig {
     y_force ? : number
     size ? : number
     body_color ? : number
+    delay?:number// 延迟发射
 
     // 生命周期
     lift_time ? : number
@@ -54,6 +55,7 @@ export default class Bullet extends P2I {
         y_force: 0,
         size: pt2px(5),
         body_color: 0x2255ff,
+        delay: 0,
         lift_time: 3500,
         density: 2,
         penetrate : 0,
@@ -101,16 +103,32 @@ export default class Bullet extends P2I {
         self.p2_body.position = [config.x, config.y];
         self.position.set(config.x, config.y);
 
-        self.once("add-to-world", () => {
-            var acc_time = 0
-            self.on("update",function (delay) {
-                // 持续的推进力
-                self.p2_body.force = [config.x_force, config.y_force];
-                acc_time += delay;
-                if(acc_time >= config.lift_time) {
-                    self.emit("explode");
-                }
-            });
+        self.once("add-to-world", (world:p2.World) => {
+            function _go_to_explode() {
+                var acc_time = 0
+                self.on("update",function (delay) {
+                    // 持续的推进力
+                    self.p2_body.force = [config.x_force, config.y_force];
+                    acc_time += delay;
+                    if(acc_time >= config.lift_time) {
+                        self.emit("explode");
+                    }
+                });
+            }
+            if(self.config.delay) {
+                world.removeBody(self.p2_body);
+                var acc_delay = self.config.delay;
+                self.on("update",function _(delay) {
+                    acc_delay-=delay;
+                    if(acc_delay <= 0) {
+                        world.addBody(self.p2_body);
+                        self.off("update", _);
+                        _go_to_explode();
+                    }
+                });
+            }else{
+                _go_to_explode();
+            }
         });
 
         var source_damage = config.damage;

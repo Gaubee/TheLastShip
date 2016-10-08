@@ -82,4 +82,14 @@ export class P2I extends PIXI.Container {
             config:this.config
         }
     }
+    setTimeout(cb, time:number){
+        var self = this;
+        self.on("update", function _(delay) {
+            time -= delay;
+            if(time <= 0){
+                self.off("update", _);
+                cb();
+            }
+        });
+    }
 } 

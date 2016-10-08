@@ -45,6 +45,7 @@ export interface ShipConfig {
 
     // 战斗相关的属性
     bullet_force?: number
+    bullet_size?: number
     bullet_damage?: number
     bullet_penetrate?: number// 穿透，意味着子弹存在时间
     overload_speed?: number// 攻速
@@ -155,6 +156,7 @@ export default class Ship extends P2I {
 
         // 战斗相关的属性
         bullet_force: 30000,//子弹的推进力
+        bullet_size: pt2px(5),
         bullet_damage: 5,
         bullet_penetrate: 0.5,
         overload_speed: 1,
@@ -360,6 +362,7 @@ export default class Ship extends P2I {
             // 枪支继承飞船的基本配置
             [
                 "bullet_force",
+                "bullet_size",
                 "bullet_damage",
                 "bullet_penetrate",
                 "overload_speed",
@@ -370,7 +373,7 @@ export default class Ship extends P2I {
                 }
             });
             if(gun) {
-                gun.setConfig(gun_config);
+                gun.setConfig(gun_config, true);
             }else{
                 self.__GUNS_ID_MAP = null;// 清除枪支缓存
                 var gun = new Gun(gun_config, self);
@@ -385,6 +388,32 @@ export default class Ship extends P2I {
             });
             self.__GUNS_ID_MAP = null;// 清除枪支缓存
         }
+    }
+    getWeaponConfigById(gun_id){
+        const self = this;
+        const config = self.config;
+        const typeInfo = shipShape[config.type];
+        var gunindex = gun_id.substr(gun_id.indexOf("_gun_")+5);
+        var gun = self.guns[gunindex];
+        if(!gun) {
+            return
+        }
+        var _gun_config = typeInfo.guns[gunindex];
+        var gun_config = assign({}, _gun_config);
+        // 枪支继承飞船的基本配置
+        [
+            "bullet_force",
+            "bullet_size",
+            "bullet_damage",
+            "bullet_penetrate",
+            "overload_speed",
+        ].forEach(function (k) {
+            var ship_v = config[k];
+            if (!gun_config.hasOwnProperty(k)) {
+                gun_config[k] = ship_v;
+            }
+        });
+        return gun_config;
     }
     private __GUNS_ID_MAP:{[key:string]:Gun} = null
     get GUNS_ID_MAP(){
@@ -526,18 +555,20 @@ export default class Ship extends P2I {
         this.config = config;
         mix_options(config, cache_config);
     }
-    fire() {
-        var res_bullets = this.guns.map(gun => gun.fire());
-        return res_bullets.filter(bullet => bullet);
+    fire(cb:(bullet:Bullet)=>void) {
+        this.guns.forEach(gun => {
+            gun.fire(function(bullet){
+                requestAnimationFrame(function () {
+                    cb(bullet);
+                });
+            });
+        });
     }
     private _fireBind
     is_keep_fire = false
-    startKeepFire(cb: (bullets: Bullet[]) => void) {
+    startKeepFire(cb: (bullet: Bullet) => void) {
         this._fireBind = () => {
-            var bullets = this.fire();
-            requestAnimationFrame(function () {
-                cb(bullets);
-            });
+            this.fire(cb);
         }
         this.on("update", this._fireBind);
     }
@@ -545,7 +576,7 @@ export default class Ship extends P2I {
         this.off("update", this._fireBind);
         this._fireBind = null;
     }
-    toggleKeepFire(cb: (bullets: Bullet[]) => void) {
+    toggleKeepFire(cb: (bullet: Bullet) => void) {
         if (!this.is_keep_fire) {
             this.is_keep_fire = true;
             this.startKeepFire(cb);

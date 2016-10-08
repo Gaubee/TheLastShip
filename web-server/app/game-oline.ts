@@ -250,16 +250,16 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , ani_ticker
         , () => {
             pomelo.request("connector.worldHandler.fire", {}, function (data) {
-                showViewData(data);
-                var guns_id_map = view_ship.GUNS_ID_MAP;
-                // 根据发射的子弹触发发射动画
-                data.forEach(function (bullet_info) {
-                    var gun = guns_id_map[bullet_info.owner_id];
-                    if (!gun) {
-                        console.error("No Found Gun Id:", bullet_info.owner_id);
-                    }
-                    gun.emit("fire_ani");
-                });
+                // showViewData(data);
+                // var guns_id_map = view_ship.GUNS_ID_MAP;
+                // // 根据发射的子弹触发发射动画
+                // data.forEach(function (bullet_info) {
+                //     var gun = guns_id_map[bullet_info.owner_id];
+                //     if (!gun) {
+                //         console.error("No Found Gun Id:", bullet_info.owner_id);
+                //     }
+                //     gun.emit("fire_ani");
+                // });
             });
         });
     // 飞船切换自动

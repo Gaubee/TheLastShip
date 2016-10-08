@@ -48,5 +48,38 @@
 			"bullet_penetrate": 0.5,
 			"overload_speed": 1
 		}
+	},
+	"auto-turn":{
+		"type":"circle+rect",
+		"args":{
+			"circle_radius":"mix@(size)exp!*0.4",
+			"circle_x": "mix@(size)exp!*-0.1",
+			"circle_config_rotation":0,
+			"circle_y":0,
+			"rect_x": "mix@(size)exp!*0.1",
+			"rect_y":0,
+			"rect_width":"mix@(size)exp!*1",
+			"rect_height":"mix@(size)exp!*0.4"
+		},
+		"config":{
+			"bullet_size":"mix@(size)exp!*0.2",
+			"bullet_density":"pt2px!2"
+		}
+	},
+	"horn":{
+		"type":"rect+trapezoid",
+		"args":{
+			"rect_x": "mix@(size)exp!*-0.1",
+			"rect_y":0,
+			"rect_width":"mix@(size)exp!*0.5",
+			"rect_height":"mix@(size)exp!*1",
+			"trapezoid_width":"mix@(size)exp!*0.5",
+			"trapezoid_endHeight":"mix@(size)exp!*1.8"
+		},
+		"config":{
+			"bullet_type": "Tribulus蒺藜",
+			"bullet_size":"mix@(size)exp!*0.5",
+			"bullet_density":"pt2px!1"
+		}
 	}
 }

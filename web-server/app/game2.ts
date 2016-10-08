@@ -219,13 +219,10 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,ani_tween
         ,ani_ticker
         ,()=> {
-            var bullets = my_ship.fire();
-            if(bullets.length) {
-                bullets.forEach(bullet=>{
-                    bullet_stage.addChild(bullet);
-                    engine.add(bullet);
-                });
-            }
+             my_ship.fire(bullet=>{
+                bullet_stage.addChild(bullet);
+                engine.add(bullet);
+            });
         });
     // 飞船切换自动
     UX.shipAutoFire(current_stage_wrap
@@ -234,11 +231,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,ani_tween
         ,ani_ticker
         ,()=> {
-            my_ship.toggleKeepFire(function (bullets) {
-                bullets.forEach(bullet=>{
-                    bullet_stage.addChild(bullet);
-                    engine.add(bullet);
-                });
+            my_ship.toggleKeepFire(bullet=>{
+                bullet_stage.addChild(bullet);
+                engine.add(bullet);
             });
         });
     // 切换属性加点面板的显示隐藏

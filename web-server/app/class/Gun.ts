@@ -170,6 +170,7 @@ export default class Gun extends P2I {
 				self.on("update", _update);
 				self.once("cancel_fire_ani", function() {
 					self.x = from_gun_x;
+					self.y = from_gun_y;
 					self.once("fire_ani", _fire_ani);
 					self.off("update", _update);
 				});

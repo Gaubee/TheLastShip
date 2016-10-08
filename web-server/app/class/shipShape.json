@@ -677,50 +677,70 @@
 		"guns": [{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			}
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
 			"rotation":"PI!1"
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!0.25"
+			"rotation":"PI!0.25",
+			"delay":0.5
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!-0.25"
+			"rotation":"PI!-0.25",
+			"delay":0.5
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
 			"rotation":"PI!0.5"
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
 			"rotation":"PI!-0.5"
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!0.75"
+			"rotation":"PI!0.75",
+			"delay":0.5
 		},{
 			"type": "long",
 			"args": {
-				"x": "mix@(size)exp!*-0.35"
+				"x": "mix@(size)exp!*-0.35",
+				"width":"mix@(size)exp!*1.2",
+				"height":"mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!-0.75"
+			"rotation":"PI!-0.75",
+			"delay":0.5
 		}]
 	},
 	"X-3-3": {

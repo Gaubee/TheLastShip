@@ -2583,6 +2583,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     self.on("update", _update);
                     self.once("cancel_fire_ani", function () {
                         self.x = from_gun_x;
+                        self.y = from_gun_y;
                         self.once("fire_ani", _fire_ani);
                         self.off("update", _update);
                     });
@@ -2855,7 +2856,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length, {
                     // 只读·技能加点信息
                     get: function () {
-                        return this.__self__.proto_list.length * 3;
+                        return this.__self__.proto_list.length * 2;
                     },
                     enumerable: true,
                     configurable: true

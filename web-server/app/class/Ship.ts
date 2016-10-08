@@ -182,7 +182,7 @@ export default class Ship extends P2I {
         ["__self__"]: this,
         // 只读·技能加点信息
         get [FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length]() {
-            return this.__self__.proto_list.length * 3;
+            return this.__self__.proto_list.length * 2;
         },
         set [FIX_GETTER_SETTER_BUG_KEYS_MAP.proto_list_length](_){
             // just fix setter throw error

@@ -71,7 +71,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
      */
     function drawPlan() {
         current_stage_wrap.clear();
-        current_stage_wrap.beginFill(0x999999, 1);
+        current_stage_wrap.beginFill(0xcdcdcd, 1);
         current_stage_wrap.drawRect(0, 0, VIEW.WIDTH, VIEW.HEIGHT);
         current_stage_wrap.endFill();
     }

@@ -18,7 +18,7 @@ export default function GunDrawer(self: Gun, config, typeInfo) {
 	const typeInfoArgs = typeInfo.args || {};
 	var lineStyle = typeInfoArgs.lineStyle;
     if (!(lineStyle instanceof Array)) {
-        lineStyle = [pt2px(1.5), 0x000000, 1];
+        lineStyle = [pt2px(1.5), 0x5d5d5d, 1];
     }
     var fill = typeInfoArgs.fill;
     if (!isFinite(typeInfoArgs.fill)) {

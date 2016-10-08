@@ -4,7 +4,7 @@
 		"args": {
 			"width": "pt2px!20",
 			"height": "pt2px!10",
-			"lineStyle": ["pt2px!1.5", "0x000000", 1],
+			"lineStyle": ["pt2px!1.5", "0x5d5d5d", 1],
 			"x": "pt2px!-2"
 		},
 		"config": {
@@ -20,7 +20,7 @@
 			"width": "pt2px!20",
 			"height": "pt2px!14",
 			"endHeight": "pt2px!10",
-			"lineStyle": ["pt2px!1.5", "0x000000", 1],
+			"lineStyle": ["pt2px!1.5", "0x5d5d5d", 1],
 			"x": "pt2px!-2"
 		},
 		"config": {
@@ -38,7 +38,7 @@
 			"width": "pt2px!20",
 			"height": "pt2px!24",
 			"endHeight": "pt2px!30",
-			"lineStyle": ["pt2px!1.5", "0x000000", 1],
+			"lineStyle": ["pt2px!1.5", "0x5d5d5d", 1],
 			"x": "pt2px!-5"
 		},
 		"config": {

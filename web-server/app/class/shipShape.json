@@ -5,7 +5,7 @@
 		"body": {
 			"type": "Circle",
 			"args": {
-				"lineStyle": ["pt2px!1.5", "0x000000", 1]
+				"lineStyle": ["pt2px!1.5", "0x5d5d5d", 1]
 			},
 			"config": {
 				"size": "pt2px!15",
@@ -753,7 +753,7 @@
 		"guns": [{
 			"type": "long",
 			"args": {
-				"lineStyle":["pt2px!1","0x000000",1],
+				"lineStyle":["pt2px!1","0x5d5d5d",1],
 				"x": "mix@(size)exp!*-0.35",
 				"width": "mix@(size)exp!*1.4",
 				"height": "mix@(size)exp!*0.4"
@@ -761,7 +761,7 @@
 		},{
 			"type": "long",
 			"args": {
-				"lineStyle":["pt2px!1","0x000000",1],
+				"lineStyle":["pt2px!1","0x5d5d5d",1],
 				"x": "mix@(size)exp!*-0.35",
 				"width": "mix@(size)exp!*2",
 				"height": "mix@(size)exp!*0.65"

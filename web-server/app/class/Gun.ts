@@ -255,6 +255,7 @@ export default class Gun extends P2I {
 			density: bullet_density,
 			damage: config.bullet_damage,
 			penetrate: config.bullet_penetrate,
+			body_color:ship.config.body_color
 			// delay:1000 / config.overload_speed * before_the_attack_roll_ani
 		}, this);
 

@@ -1653,7 +1653,7 @@ define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/en
         var typeInfoArgs = typeInfo.args || {};
         var lineStyle = typeInfoArgs.lineStyle;
         if (!(lineStyle instanceof Array)) {
-            lineStyle = [const_2.pt2px(1.5), 0x000000, 1];
+            lineStyle = [const_2.pt2px(1.5), 0x5d5d5d, 1];
         }
         var fill = typeInfoArgs.fill;
         if (!isFinite(typeInfoArgs.fill)) {
@@ -2663,6 +2663,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 density: bullet_density,
                 damage: config.bullet_damage,
                 penetrate: config.bullet_penetrate,
+                body_color: ship.config.body_color
             }, this);
             bullet.p2_body.velocity = ship.p2_body.velocity.slice();
             // 一旦发射，飞船受到后座力
@@ -3494,7 +3495,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             var config = self.config;
             const_7.mix_options(config, new_config);
             var body = self.body;
-            body.lineStyle(config.density, 0x000000, 1);
+            body.lineStyle(config.density, 0x5d5d5d, 1);
             body.beginFill(config.body_color);
             body.drawCircle(config.size / 2, config.size / 2, config.size);
             body.endFill();
@@ -6074,7 +6075,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
          */
         function drawPlan() {
             exports.current_stage_wrap.clear();
-            exports.current_stage_wrap.beginFill(0x999999, 1);
+            exports.current_stage_wrap.beginFill(0xcdcdcd, 1);
             exports.current_stage_wrap.drawRect(0, 0, common_3.VIEW.WIDTH, common_3.VIEW.HEIGHT);
             exports.current_stage_wrap.endFill();
         }

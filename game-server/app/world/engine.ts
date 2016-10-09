@@ -1,3 +1,4 @@
+declare const require;
 import p2 from "./lib/p2";
 import {
     P2I
@@ -6,6 +7,10 @@ import {
 import Wall from "../../../web-server/app/class/Wall";
 import Flyer from "../../../web-server/app/class/Flyer";
 import Bullet from "../../../web-server/app/class/Bullet";
+import {
+    _isBorwser,
+    _isNode,
+} from "../../../web-server/app/const";
 
 import Ship, {
     ShipConfig
@@ -105,6 +110,26 @@ const ship_md5_id_map = new Map<string,string>();
 const ship_id_md5_map = new Map<string,string>();
 
 const p2is = [];
+// if(_isNode) {
+//     const cache = require('node-shared-cache');
+//     const p2i_objs_cahce = new cache.Cache("p2is", 557056);
+//     const PUSH = "push"
+//     const SPLICE = "splice"
+//     p2is[PUSH] = function(){
+//         for(var i = 0,len = arguments.length,pre = this[this.length-1]; i < len; i+=1){
+//             var cache_obj = arguments[i];
+//             pre["__NEXT__"]  = cache_obj;
+//             pre = this[this.length] = cache_obj;
+//         }
+//     }
+//     const _splice = p2is[SPLICE];
+//     p2is[SPLICE] = function(start_index, num){
+//         if(start_index>=0) {
+//             _splice.call(this,start_index,num);
+//             this[start_index]["__NEXT__"] = 
+//         }
+//     }
+// }
 export const engine = {
     world: world,
     listener:null,
@@ -162,6 +187,8 @@ export const engine = {
             rank: [],
         }
     },
+    items: p2is,
+    refreshShareCache(){},
     getRectangleObjects(x: number, y: number, width: number, height: number) {
         return p2is;
     },

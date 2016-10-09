@@ -1,4 +1,5 @@
 declare const global;
+declare const require;
 import PIXI from "./lib/PIXI";
 import p2 from "./lib/p2";
 import {

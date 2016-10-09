@@ -1,16 +1,26 @@
 const EventEmitter = require("events");
-const utils =
-	module.exports = function(app) {
-		return new WorldRemote(app);
-	};
+// require("fs").readFileSync("../../../../../web-server/app/engine/QuadTreeWorld.ts")
+const worldConfig = require("../../../../config/world.json")
+const QuadTreeWorld = require("../../../../../web-server/app/engine/QuadTreeWorld").default;
+module.exports = function(app) {
+	return new WorldRemote(app);
+};
+
+function WorldObj(info){
+	this.id = info.id;
+	this.info = info;
+	this.position = {x:info.config.x,y:info.config.y};
+}
+WorldObj.prototype.setInfo = function (new_info) {
+	this.info = new_info;
+	this.position.x = new_info.config.x;
+	this.position.y = new_info.config.y;
+}
 
 var WorldRemote = function(app) {
 	const events = this.events = new EventEmitter();
 	this.app = app;
 	const world = this.world = app.world;
-	if (world) {
-		world.listener = events;
-	}
 	const channelService = this.channelService = app.get('channelService');
 	[
 		"explode" //子弹爆炸
@@ -30,6 +40,60 @@ var WorldRemote = function(app) {
 		});
 	});
 
+	if (world) {
+		world.listener = events;
+		const quadtree = this.quadtree = new QuadTreeWorld({
+			width: worldConfig.width,
+			height: worldConfig.height,
+			x: 0,
+			y: 0,
+		});
+		const WORLD_OBJS = new Map();
+		const STATIC_OBJS = new Map();
+		const STATIC_OBJS_list = [];
+		setInterval(function() {
+			const p2is = world.items;
+			console.log(p2is.length)
+			p2is.forEach(info => {
+				if (info.type === "Wall") {
+					if (STATIC_OBJS.has(info.id)) {
+						var obj = STATIC_OBJS.get(info.id);
+						obj.setInfo(info);
+					} else {
+						obj = new WorldObj(info);
+						STATIC_OBJS.set(info.id, obj);
+						STATIC_OBJS_list.push(obj);
+					}
+				}
+				if (WORLD_OBJS.has(info.id)) {
+					var obj = WORLD_OBJS.get(info.id);
+					obj.setInfo(info);
+				} else {
+					obj = new WorldObj(info);
+					WORLD_OBJS.set(info.id, obj);
+					quadtree.insert(obj);
+				}
+				obj.__is_hit = true;
+			});
+			// 删除已经不纯在的东西
+			for (var obj of WORLD_OBJS.values()) {
+				if (obj.__is_hit) {
+					obj.__is_hit = false
+				} else {
+					quadtree.remove(obj);
+					WORLD_OBJS.delete(obj.id);
+				}
+			}
+			// 更新物体坐标
+			quadtree.refresh();
+		}, 1000 / 60);
+		this.getRectViewItems = function (left,top,width,height) {
+			const objs = quadtree.getRectViewItems(left-width/2, top-height/2, width, height);
+			return {
+				objects: objs.concat(STATIC_OBJS_list).map(obj=>obj.info)
+			}
+		}
+	}
 };
 
 /**
@@ -59,10 +123,8 @@ WorldRemote.prototype.add = function(uid, sid, name, ship_md5_id, cb) {
 	});
 };
 WorldRemote.prototype.getRectangleObjects = function(view_x, view_y, view_width, view_height, cb) {
-	var objects = this.world.getRectangleObjects(view_x, view_y, view_width, view_height);
-	cb(null, {
-		objects: objects,
-	});
+	var res = this.getRectViewItems(view_x, view_y, view_width, view_height);
+	cb(null, res);
 }
 WorldRemote.prototype.setConfig = function(ship_id, new_ship_config, cb) {
 	try {
@@ -104,15 +166,19 @@ WorldRemote.prototype.changeType = function(ship_id, new_type, cb) {
 		cb(e);
 	}
 };
-/**
- * Get user from chat channel.
- *
- * @param {Object} opts parameters for request
- * @param {String} name channel name
- * @param {boolean} flag channel parameter
- * @return {Array} users uids in channel
- *
- */
+WorldRemote.prototype.refreshShareCache = function(cb) {
+		this.world.refreshShareCache();
+		cb();
+	}
+	/**
+	 * Get user from chat channel.
+	 *
+	 * @param {Object} opts parameters for request
+	 * @param {String} name channel name
+	 * @param {boolean} flag channel parameter
+	 * @return {Array} users uids in channel
+	 *
+	 */
 WorldRemote.prototype.get = function(name, flag) {
 	var users = [];
 	var channel = this.channelService.getChannel(name, flag);

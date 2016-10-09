@@ -31,20 +31,31 @@ for(let i = 0;i < flyerTypes.length;i+=1){
     var cur_score = flyer_typeinfo.config.reward_experience
     var cur_num = max_num*max_score/cur_score;
     var position_rate = (Math.cos(cur_score/max_score*Math.PI)+1)/2;
-    var range_width = position_rate * VIEW.WIDTH;
-    var range_height = position_rate * VIEW.HEIGHT;
+    var range_width = position_rate * VIEW.WIDTH / 2;
+    var range_height = position_rate * VIEW.HEIGHT / 2;
     console.log(flyer_typename,cur_num)
 
     for(let j = 0; j < cur_num; j += 1){
         var deg = j/cur_num*Math.PI*2;
+        let x = (1+Math.cos(deg))*range_width;
+        let y = (1+Math.sin(deg))*range_height;
+        if(y < range_height) {
+            y+=100*Math.random()
+        }else{
+            y-=100*Math.random()
+        }
+        if(x < range_width) {
+            x+=100*Math.random()
+        }else{
+            x-=100*Math.random()
+        }
         let flyer = new Flyer({
-            x: Math.cos(deg)*range_width*Math.random(),
-            y: Math.sin(deg)*range_width*Math.random(),
-            x_speed: 10 * 2 * (Math.random() - 0.5),
-            y_speed: 10 * 2 * (Math.random() - 0.5),
+            x: x,
+            y: y,
             body_color: 0xffffff * Math.random(),
             type:flyerTypes[i%flyerTypes.length]
         });
+        // console.log(x,y)
         engine.add(flyer); 
     }
 }

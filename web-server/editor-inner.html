@@ -60,7 +60,7 @@ define('json', ["app/const"], function (const_1) {
 		load: function(resourceId, parentRequire, load) {
 			var cache_content = localStorage.getItem(resourceId);
 			if (cache_content) {
-				parser(cache_content);
+				load(const_1.transformJSON(cache_content));
 			} else {
 				var xhr = new XMLHttpRequest;
 				xhr.open("GET", resourceId)
@@ -68,26 +68,8 @@ define('json', ["app/const"], function (const_1) {
 				xhr.send();
 				xhr.onload = function() {
 					localStorage.setItem(resourceId, xhr.responseText);
-					parser(xhr.responseText);
+					load(const_1.transformJSON(xhr.responseText));
 				}
-			}
-			function parser(JSON_str) {
-				var data = JSON.parse(JSON_str, function(key, value) {
-					// 对配置文件中的数量进行基本的单位换算
-					if (typeof value === "string") {
-						if (value.indexOf("pt2px!") === 0) {
-							return const_1.pt2px(+value.substr(6));
-						}
-						if (value.indexOf("0x") === 0) {
-							return parseInt(value, 16);
-						}
-						if (value.indexOf("PI!") === 0) {
-							return Math.PI * value.substr(3);
-						}
-					}
-					return value;
-				});
-				load(data);
 			}
 		}
 	};

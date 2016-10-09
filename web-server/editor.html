@@ -52,7 +52,7 @@ var _isMobile = isMobile();
 <!-- <script src="js/lib/ace/ace.js"></script> -->
 <!--<script src="js/lib/esl.nocache.js"></script>-->
 <script src="js/lib/esl.full.js"></script>
-<script src="js/lib/es6-map-shim.js"></script>
+<script src="js/lib/jsoneditor.min.js"></script>
 <script>
 define('json', ["app/const"], function (const_1) {
 	var ready = false;
@@ -60,7 +60,7 @@ define('json', ["app/const"], function (const_1) {
 		load: function(resourceId, parentRequire, load) {
 			var cache_content = localStorage.getItem(resourceId);
 			if (cache_content) {
-				parser(cache_content);
+				load(const_1.transformJSON(cache_content));
 			} else {
 				var xhr = new XMLHttpRequest;
 				xhr.open("GET", resourceId)
@@ -68,217 +68,95 @@ define('json', ["app/const"], function (const_1) {
 				xhr.send();
 				xhr.onload = function() {
 					localStorage.setItem(resourceId, xhr.responseText);
-					parser(xhr.responseText);
+					load(const_1.transformJSON(xhr.responseText));
 				}
-			}
-			function parser(JSON_str) {
-				var data = JSON.parse(JSON_str, function(key, value) {
-					// 对配置文件中的数量进行基本的单位换算
-					if (typeof value === "string") {
-						if (value.indexOf("pt2px!") === 0) {
-							return const_1.pt2px(+value.substr(6));
-						}
-						if (value.indexOf("0x") === 0) {
-							return parseInt(value, 16);
-						}
-						if (value.indexOf("PI!") === 0) {
-							return Math.PI * value.substr(3);
-						}
-					}
-					return value;
-				});
-				load(data);
 			}
 		}
 	};
 });
 </script>
-<style>
-	html,body,#body{
-		width: 100%;
-		height: 100%;
-		margin: 0;
-		padding: 0;
-		border: 0;
-		box-sizing: border-box;
-	}
-	#body{
-		/*overflow-y: scroll;*/
-		/*background-color: gray;*/
-
-		-webkit-touch-callout: none;
-		-webkit-overflow-scrolling: touch;
-
-		-webkit-transform: translateZ(0);
-		transform: translateZ(0);
-
-		-webkit-user-select: none;
-		user-select: none;
-
-		-webkit-text-size-adjust: none;
-		text-size-adjust: none;
-	}
-	#frame_res{
-		width: 50%;
-		height: 100%;
-		padding-left: 50%;
-	}
-	.uploader-wrap{
-		position: fixed;
-		width: 50%;
-		height: 100%;
-		box-sizing: border-box;
-		background-color: rgba(0,55,0,0.2);
-		overflow-y: auto;
-		z-index: 2;
-	}
-	.uploader-wrap h2{
-		text-shadow: 0 0 2px #FFF;
-	}
-	.config-uploader{
-		/*background-color: rgba(255,255,255,0.2);*/
-		font-size: 14px!important;
-		/*text-shadow: 0 0 2px #FFF;*/
-		width: 100%;
-		/*position: absolute;*/
-        min-width: 200px;
-        height: 400px;
-	}
-	#mark{
-		position: fixed;
-		top: 0;
-		left: 0;
-		z-index: 10000000;
-		width: 0;
-		height: 0;
-	}
-	#mark>.wrap{
-		position: fixed;
-		left: 50%;
-		width: 50%;
-		height: 100%;
-		box-sizing: border-box;
-		background-color: rgba(0,0,0,0.5);
-/*		
-		pointer-events: none;*/
-	}
-	code{
-		background-color: #DDD;
-		color:#333;
-		border: 1px solid #666;
-		padding: 0 2px;
-		border-radius: 2px;
-	}
-</style>
+<link rel="stylesheet" href="css/editor.css">
+<link rel="stylesheet" href="css/foundation.min.css">
+<link rel='stylesheet' href='//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.0.3/css/font-awesome.css'>
 </head>
 <script src="./dist.js"></script>
+<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="//cdn.jsdelivr.net/select2/3.4.8/select2.min.js"></script>
+<link rel="stylesheet" href="//cdn.jsdelivr.net/select2/3.4.8/select2.css">
 <body>
 	<div id="mark">
 		<div id="mark_wrap" class="wrap">
 		</div>
 	</div>
 	<div id="body">
-		<div class="uploader-wrap">
-			<div data-path="app/ediorStage.json">
-				<h2>场景配置
-					<button class="reset-button">重置</button>
-					<button class="upload-button">校验并上传</button>
-				</h2>
-				<p>表达式帮助：
-					<p><code>pt2px!</code>绘制大小时应该添加的前缀，后面跟一个简单的数字</p>
-					<p><code>PI!</code>数学PI值，后面跟一个简单的数字，小数不可用分数表达式表示（ 除法表达式）</p>
-				</p>
-				<div class="config-uploader">初始化中……</div>
+		<div class="uploader-wrap tabs">
+			<div class="tab-selector">
+				<h4 class="tab-selector-item active" data-tab="0">场景配置</h4>
+				<h4 class="tab-selector-item" data-tab="1">飞船配置</h4>
+				<h4 class="tab-selector-item" data-tab="2">枪支配置</h4>
+				<h4 class="tab-selector-item" data-tab="3">物体配置</h4>
+				<h4 class="tab-selector-item" data-tab="4">帮助</h4>
 			</div>
-			<div data-path="app/class/shipShape.json">
-				<h2>飞船配置
-					<button class="reset-button">重置</button>
-					<button class="upload-button">校验并上传</button>
-				</h2>
-				<p>混合式帮助：
-					<p><code>mix@</code>在guns中使用，可用在
-						<code>bullet_force</code>
-		                <code>bullet_damage</code>
-		                <code>bullet_penetrate</code>
-		                <code>overload_speed</code>
-		                <code>size</code>
-		                中，代表混合ship本身的属性值，后可跟<code>pt2px!</code>、<code>PI!</code>等表达式
-		            </p>
-					<p><code>PI!</code>数学PI值，后面跟一个简单的数字，小数不可用分数表达式表示（ 除法表达式）</p>
-				</p>
-				<div class="config-uploader">初始化中……</div>
+			<div class="tab-item active" data-path="app/ediorStage.json">
+				<div class="content-view">
+					<div class="ace config-uploader">初始化中……</div>
+					<div data-schema="js/editor_schema/ship.json" class="json-editor-view"></div>
+				</div>
+				<div class="button-list">
+					<button class="button warning reset-button">重置</button>
+					<button class="button json-editor" data-status1="可视化编辑" data-status2="编辑源文件"></button>
+					<button class="button success upload-button">校验并上传</button>
+				</div>
 			</div>
-			<div data-path="app/class/gunShape.json">
-				<h2>枪支配置
-					<button class="reset-button">重置</button>
-					<button class="upload-button">校验并上传</button>
-				</h2>
-				<div class="config-uploader">初始化中……</div>
+			<div class="tab-item" data-path="app/class/shipShape.json">
+				<div class="content-view">
+					<div class="ace config-uploader">初始化中……</div>
+					<div class="json-editor-view"></div>
+				</div>
+				<div class="button-list">
+					<button class="button warning reset-button">重置</button>
+					<button class="button json-editor" data-status1="可视化编辑" data-status2="编辑源文件"></button>
+					<button class="button success upload-button">校验并上传</button>
+				</div>
 			</div>
-			<div data-path="app/class/flyerShape.json">
-				<h2>物体配置
-					<button class="reset-button">重置</button>
-					<button class="upload-button">校验并上传</button>
-				</h2>
-				<div class="config-uploader">初始化中……</div>
+			<div class="tab-item" data-path="app/class/gunShape.json">
+				<div class="content-view">
+					<div class="ace config-uploader">初始化中……</div>
+					<div class="json-editor-view"></div>
+				</div>
+				<div class="button-list">
+					<button class="button warning reset-button">重置</button>
+					<button class="button json-editor" data-status1="可视化编辑" data-status2="编辑源文件"></button>
+					<button class="button success upload-button">校验并上传</button>
+				</div>
 			</div>
+			<div class="tab-item" data-path="app/class/flyerShape.json">
+				<div class="content-view">
+					<div class="ace config-uploader">初始化中……</div>
+					<div class="json-editor-view"></div>
+				</div>
+				<div class="button-list">
+					<button class="button warning reset-button">重置</button>
+					<button class="button json-editor" data-status1="可视化编辑" data-status2="编辑源文件"></button>
+					<button class="button success upload-button">校验并上传</button>
+				</div>
+			</div>
+			<div class="tab-item">
+				<div class="ace help"># 表达式帮助：
+
+* `pt2px!`绘制大小时应该添加的前缀，后面跟一个简单的数字。
+
+* `PI!`数学PI值，后面跟一个简单的数字，小数不可用分数表达式表示（ 除法表达式）
+
+# 混合式帮助：
+
+* `mix@`在guns中使用，可用在 `bullet_force` `bullet_damage` `bullet_penetrate` `overload_speed`等属性中，代表混合ship本身的**同名属性值**，后可跟`pt2px!`、`PI!`等表达式。
+
+* `mix@(xxxx)`中的`xxxx`可指定要使用的ship属性名来进行混合。</div>
+			</div>
+
 		</div>
 		<iframe id="frame_res" src="./editor-inner.html" frameborder="0"></iframe>
 	</div>
-	<script>
-var resetButtons = [].slice.call(document.getElementsByClassName("reset-button"));
-var uploadButtons = [].slice.call(document.getElementsByClassName("upload-button"));
-
-define("init_ace",["js/lib/ace/ace","js/lib/ace/theme/monokai","js/lib/ace/mode/json"],function (ace) {
-	var editorNodes = [].slice.call(document.getElementsByClassName("config-uploader"));
-	editorNodes.forEach(function (editorNode,i) {
-		var path = editorNode.parentElement.dataset.path;
-		var editor = ace.edit(editorNode);
-		editor.setTheme("js/lib/ace/theme/monokai");
-		var JsonMode = ace.require("js/lib/ace/mode/json").Mode;
-		editor.session.setMode(new JsonMode());
-		editor.setValue(localStorage.getItem(path));
-		uploadButtons[i].addEventListener("click",function () {
-			// 校验
-			var json_value = editor.getValue();
-			try{
-				var res = eval("("+json_value+")");
-				json_value = JSON.stringify(res,null,4);
-				localStorage.setItem(path, json_value);
-				frame_res.contentWindow.location.reload();
-				editor.setValue(json_value);
-			}catch(e){
-				console.log(e);
-				alert("解析出错！自己检查再问Gaubee");
-			}
-		});
-		resetButtons[i].addEventListener("click",function () {
-			localStorage.removeItem(path);
-			frame_res.contentWindow.location.reload();
-			editor.setValue("已请求重置，请稍等……");
-			
-			frame_res.addEventListener('load',function _reset(){
-				require(["json!"+path],function (res) {
-					editor.setValue(JSON.stringify(res,null,4));
-				});
-				frame_res.removeEventListener("load",_reset);
-			});
-		});
-	});
-});
-frame_res.onload = function () {
-	frame_res.onload = null;
-	require(["init_ace"])
-}
-mark_wrap.onclick =function () {
-	frame_res.focus();
-	mark_wrap.style.pointerEvents = "none";
-	mark_wrap.style.backgroundColor = "rgba(0,0,0,0.01)";
-}
-frame_res.onblur = function () {
-	console.log("blur frame");
-	mark_wrap.style.pointerEvents = "all";
-	mark_wrap.style.backgroundColor = "rgba(0,0,0,0.5)";
-}
-	</script>
+	<script src="js/editor.js"></script>
 </body>

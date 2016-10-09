@@ -8548,7 +8548,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
          */
         function drawPlan() {
             exports.current_stage_wrap.clear();
-            exports.current_stage_wrap.beginFill(0x333ddd, 0.5);
+            exports.current_stage_wrap.beginFill(0xcdcdcd, 1);
             exports.current_stage_wrap.drawRect(0, 0, common_6.VIEW.WIDTH, common_6.VIEW.HEIGHT);
             exports.current_stage_wrap.endFill();
         }

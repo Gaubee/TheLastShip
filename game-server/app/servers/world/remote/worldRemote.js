@@ -55,7 +55,7 @@ var WorldRemote = function(app) {
 			const p2is = world.items;
 			console.log(p2is.length)
 			p2is.forEach(p2i => {
-				info = p2i.toJSON();
+				const info = p2i.toJSON();
 				if (info.type === "Wall") {
 					if (STATIC_OBJS.has(info.id)) {
 						var obj = STATIC_OBJS.get(info.id);

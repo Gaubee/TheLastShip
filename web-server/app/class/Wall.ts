@@ -73,6 +73,7 @@ export default class Wall extends P2I {
         self.rotation = config.rotation;
     }
     setConfig(new_config) {
+        super.setConfig(new_config);
         var config = this.config;
         mix_options(config, new_config);
 

@@ -134,7 +134,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 });
         });
 
-        var ui_wrap =current_stage_wrap["ui_wrap"];
+        var ui_wrap = current_stage_wrap["ui_wrap"];
         if(!ui_wrap) {
             ui_wrap = document.createElement("div");
             ui_wrap.style.cssText = `

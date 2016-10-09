@@ -3,12 +3,16 @@ import {current_stage_wrap as g_stage} from "./game2";
 import {current_stage_wrap as e_stage} from "./editor";
 import {current_stage_wrap as ol_stage} from "./game-oline";
 import {current_stage_wrap as l_stage} from "./loader";
+import {current_stage_wrap as t_stage} from "./test-quadtree-world";
+
 import {pomelo} from "./engine/Pomelo";
 
 stageManager.add(l_stage, g_stage);
 
 stageManager.set(l_stage);
-if(location.hash==="#game") {
+if(location.hash==="#test") {
+    stageManager.set(t_stage);
+}else if(location.hash==="#game") {
     stageManager.set(g_stage);
 }else if(location.hash==="#editor") {
     stageManager.set(e_stage);
@@ -21,29 +25,41 @@ if(location.hash==="#game") {
         log: true
     }, function () {
 
-        // 随机选择服务器
-        pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
-            if (data.code === 200) {
-                pomelo.init({
-                    host: data.host,
-                    port: data.port,
-                    log: true
-                }, function () {
-                    l_stage.emit("connected",function _(username) {
-                        ol_stage.emit("enter",username,function (err,game_info) {
-                            if(err) {
-                                l_stage.emit("connected",_,err);
-                            }else{
-                                ol_stage.emit("before-active", game_info);
-                                stageManager.set(ol_stage);
-                            }
-                        })
+        var time_out = 2000;
+        var _is_load = false;
+        function queryEntry(){
+            setTimeout(function(){
+                if(!_is_load) {// 重试
+                    l_stage.emit("connect-retry");
+                    queryEntry();
+                }
+            }, time_out)
+            // 随机选择服务器
+            pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
+                if (data.code === 200) {
+                    _is_load = true;
+                    pomelo.init({
+                        host: data.host,
+                        port: data.port,
+                        log: true
+                    }, function () {
+                        l_stage.emit("connected",function _(username) {
+                            ol_stage.emit("enter",username,function (err,game_info) {
+                                if(err) {
+                                    l_stage.emit("connected",_,err);
+                                }else{
+                                    ol_stage.emit("before-active", game_info);
+                                    stageManager.set(ol_stage);
+                                }
+                            })
+                        });
                     });
-                });
-            } else {
-                console.error(data);
-            }
-        });
+                } else {
+                    console.error(data);
+                }
+            });
+        };
+        queryEntry();
     });
 }
 

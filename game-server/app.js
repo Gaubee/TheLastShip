@@ -3,6 +3,7 @@ require('ts-node').register({
   fast: true
 });
 var pomelo = require('pomelo');
+var worldConfig = require("./config/world.json");
 
 /**
  * Init app for client.
@@ -12,6 +13,13 @@ app.set('name', 'TheLastShip');
 // app configuration
 app.configure('production|development', 'connector', function() {
   console.log("CONNECTOR!!!")
+  var QuadTreeWorld = require("../web-server/app/engine/QuadTreeWorld").default;
+  app.quadtree = new QuadTreeWorld({
+    width:worldConfig.width,
+    height:worldConfig.height,
+    x:0,
+    y:0,
+  });
   app.set('connectorConfig', {
     connector: pomelo.connectors.hybridconnector,
     // heartbeat: 3,

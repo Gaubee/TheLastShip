@@ -18,19 +18,34 @@ const flyers: Flyer[] = []
 export default engine;
 
 var bullets = new PIXI.Container();
-// current_stage.addChild(bullets);
 
+// 根据积分的多少，依次由周围往中心生成物品
 var flyerTypes = Object.keys(Flyer.TYPES);
-for(let i = 0;i < flyerTypes.length*2;i+=1){
-    let flyer = new Flyer({
-        x: 50+Math.random()*(VIEW.WIDTH-100),
-        y: 50+Math.random()*(VIEW.HEIGHT-100),
-        x_speed: 10 * 2 * (Math.random() - 0.5),
-        y_speed: 10 * 2 * (Math.random() - 0.5),
-        body_color: 0xffffff * Math.random(),
-        type:flyerTypes[i%flyerTypes.length]
-    });
-    engine.add(flyer);
+var max_num = 1;
+var max_score = 1000;
+
+for(let i = 0;i < flyerTypes.length;i+=1){
+    var flyer_typename = flyerTypes[i];
+    var flyer_typeinfo = Flyer.TYPES[flyer_typename];
+    var cur_score = flyer_typeinfo.config.reward_experience
+    var cur_num = max_num*max_score/cur_score;
+    var position_rate = (Math.cos(cur_score/max_score*Math.PI)+1)/2;
+    var range_width = position_rate * VIEW.WIDTH;
+    var range_height = position_rate * VIEW.HEIGHT;
+    console.log(flyer_typename,cur_num)
+
+    for(let j = 0; j < cur_num; j += 1){
+        var deg = j/cur_num*Math.PI*2;
+        let flyer = new Flyer({
+            x: Math.cos(deg)*range_width*Math.random(),
+            y: Math.sin(deg)*range_width*Math.random(),
+            x_speed: 10 * 2 * (Math.random() - 0.5),
+            y_speed: 10 * 2 * (Math.random() - 0.5),
+            body_color: 0xffffff * Math.random(),
+            type:flyerTypes[i%flyerTypes.length]
+        });
+        engine.add(flyer); 
+    }
 }
 
 // 四边限制

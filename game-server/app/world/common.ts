@@ -1,7 +1,9 @@
 import * as _const from "../../../web-server/app/const";
+import * as worldConfig from "../../config/world.json";
+console.log(worldConfig)
 export const VIEW = {
-    WIDTH: 1000,
-    HEIGHT: 600,
+    WIDTH: worldConfig["width"]||1000,
+    HEIGHT:  worldConfig["height"]||600,
     CENTER: {
         get x() {
             return VIEW.WIDTH / 2

@@ -467,6 +467,7 @@ export default class Ship extends P2I {
         this.setConfig(limit_config);
     }
     setConfig(new_config) {
+        super.setConfig(new_config);
         var config = this.config;
 
         mix_options(config, new_config);

@@ -145,6 +145,7 @@ export default class Flyer extends P2I {
         // this.p2_body.force = [this.config.x_speed, this.config.y_speed];
     }
     setConfig(new_config) {
+        super.setConfig(new_config);
         var config = this.config;
         mix_options(config, new_config);
 

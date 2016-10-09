@@ -202,23 +202,17 @@ export const engine = {
          if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
-        var bullets = current_ship.fire();
-        if(bullets.length) {
-            bullets.forEach(function (bullet) {
-                engine.add(bullet)
-            });
-        }
-        return bullets;
+        current_ship.fire(function (bullet) {
+            engine.add(bullet)
+        });
     },
     autoFire(ship_id){
         var current_ship = <Ship>All_id_map.get(ship_id);
          if(!(current_ship instanceof Ship)) {
             throw `SHIP ID NO REF INSTANCE:${ship_id}`;
         }
-        current_ship.toggleKeepFire(function (bullets) {
-            bullets.forEach(bullet => {
-                engine.add(bullet);
-            });
+        current_ship.toggleKeepFire(function (bullet) {
+            engine.add(bullet)
         });
     },
     addProto(ship_id, add_proto){

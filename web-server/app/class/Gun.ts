@@ -178,6 +178,7 @@ export default class Gun extends P2I {
 		}());
 	}
 	setConfig(new_config, is_from_owner?){
+		super.setConfig(new_config);
 		const self = this;
 		const config = self.config;
 		// const cache_config = assign({},config);

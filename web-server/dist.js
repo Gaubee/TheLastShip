@@ -2591,6 +2591,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             }());
         }
         Gun.prototype.setConfig = function (new_config, is_from_owner) {
+            _super.prototype.setConfig.call(this, new_config);
             var self = this;
             var config = self.config;
             // const cache_config = assign({},config);
@@ -3157,6 +3158,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             this.setConfig(limit_config);
         };
         Ship.prototype.setConfig = function (new_config) {
+            _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
             const_4.mix_options(config, new_config);
             this.p2_body.position[0] = config.x;
@@ -3388,6 +3390,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
             // this.p2_body.force = [this.config.x_speed, this.config.y_speed];
         };
         Flyer.prototype.setConfig = function (new_config) {
+            _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
             const_5.mix_options(config, new_config);
             this.rotation = this.p2_body.angle = config.rotation;
@@ -3449,6 +3452,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
             self.rotation = config.rotation;
         }
         Wall.prototype.setConfig = function (new_config) {
+            _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
             const_6.mix_options(config, new_config);
             this.p2_body.position = [config.x, config.y];
@@ -5033,9 +5037,17 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
                 });
             }
             else if (item instanceof Ship_1.default) {
-                ["die", "change-hp", "fire_start"].forEach(function (eventName) {
+                ["die", "change-hp"].forEach(function (eventName) {
                     item.on(eventName, function () {
                         exports.engine.emit(eventName, this);
+                    });
+                });
+                // 来自于枪支冒泡的发射动画
+                item.on("gun-fire_start", function (gun_id, bullet) {
+                    exports.engine.emit("gun-fire_start", {
+                        gun_id: gun_id,
+                        bullet: bullet,
+                        ship_id: this._id
                     });
                 });
                 item.on("destroy", function () {
@@ -5111,7 +5123,36 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             current_ship.fire(function (bullet) {
                 exports.engine.add(bullet);
             });
-        }
+        },
+        autoFire: function (ship_id) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!(current_ship instanceof Ship_1.default)) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            current_ship.toggleKeepFire(function (bullet) {
+                exports.engine.add(bullet);
+            });
+        },
+        addProto: function (ship_id, add_proto) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!(current_ship instanceof Ship_1.default)) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            try {
+                current_ship.addProto(add_proto);
+            }
+            catch (e) {
+            }
+            return current_ship.proto_list;
+        },
+        changeType: function (ship_id, new_type) {
+            var current_ship = All_id_map.get(ship_id);
+            if (!(current_ship instanceof Ship_1.default)) {
+                throw "SHIP ID NO REF INSTANCE:" + ship_id;
+            }
+            current_ship.changeType(new_type);
+            return current_ship;
+        },
     };
     // 材质信息
     // 通用物体与通用物体
@@ -7985,6 +8026,97 @@ define("app/engine/QuadTree", ["require", "exports"], function (require, exports
     }(Node));
     exports.BoundsNode = BoundsNode;
 });
+define("app/engine/QuadTreeWorld", ["require", "exports", "app/engine/QuadTree"], function (require, exports, QuadTree_1) {
+    "use strict";
+    /** 四叉树世界管理器
+     *	工作原理：将所有对象抽象成一个点，然后给出足够的预留空间
+     *	空间采用3*3=>(1100px*1100px)的构造，固定提供2000px*2000px的视野
+     *	在视野点移动到下一个单位区域的时候，改变提供的视野区域，即便切换视野区域，也能有200px的预留空间来确保以外物体的出现
+     *
+     *	所以初步视野定位：35200*35200，就是2^5
+     */
+    var POS_P2I_WM = new WeakMap();
+    var P2I_S = new Set();
+    var QuadTreeWorld = (function (_super) {
+        __extends(QuadTreeWorld, _super);
+        function QuadTreeWorld(bounds) {
+            if (bounds === void 0) { bounds = { width: 35200, height: 35200, x: 0, y: 0 }; }
+            _super.call(this, bounds, true, Math.log2(Math.max(bounds.width, bounds.height) / QuadTreeWorld.UNIT_SIZE));
+            this.WIDTH = bounds.width;
+            this.HEIGHT = bounds.height;
+        }
+        Object.defineProperty(QuadTreeWorld, "UNIT_VIEW_SIZE", {
+            /**一个单位视野区域的单位大小，确保大于常用的计算机屏幕*/
+            get: function () {
+                return this.UNIT_SIZE * 3;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        QuadTreeWorld.prototype.insert = function (item) {
+            P2I_S.add(item);
+            POS_P2I_WM.set(item.position, item);
+        };
+        QuadTreeWorld.prototype.remove = function (item) {
+            P2I_S.delete(item);
+            POS_P2I_WM.delete(item.position);
+        };
+        QuadTreeWorld.prototype.refresh = function () {
+            var entries = P2I_S.entries();
+            var next = entries.next();
+            this.clear();
+            while (!next.done) {
+                var _a = next.value, _ = _a[0], item = _a[1];
+                _super.prototype.insert.call(this, item.position);
+                next = entries.next();
+            }
+        };
+        QuadTreeWorld.prototype._getRectViewNodes = function (x, y, end_x, end_y, node, res_nodes) {
+            var _this = this;
+            var node_bounds = node._bounds;
+            var node_bounds_end_x = node_bounds.x + node_bounds.width;
+            var node_bounds_end_y = node_bounds.y + node_bounds.height;
+            if (((node_bounds.x <= x && node_bounds_end_x >= x)
+                ||
+                    (node_bounds.x >= x && node_bounds_end_x <= end_x)
+                ||
+                    (node_bounds.x <= end_x && node_bounds_end_x >= end_x))
+                &&
+                    ((node_bounds.y <= y && node_bounds_end_y >= y)
+                        ||
+                            (node_bounds.y >= y && node_bounds_end_y <= end_y)
+                        ||
+                            (node_bounds.y <= end_y && node_bounds_end_y >= end_y))) {
+                if (node.nodes.length) {
+                    node.nodes.forEach(function (child_node) { return _this._getRectViewNodes(x, y, end_x, end_y, child_node, res_nodes); });
+                }
+                else {
+                    res_nodes.push(node);
+                }
+            }
+        };
+        QuadTreeWorld.prototype.getRectView = function (x, y, width, height) {
+            var res_nodes = [];
+            this._getRectViewNodes(x, y, x + width, y + height, this.root, res_nodes);
+            return res_nodes;
+        };
+        QuadTreeWorld.prototype.getRectViewItems = function (x, y, width, height) {
+            var nodes = this.getRectView(x, y, width, height);
+            var res = [];
+            nodes.forEach(function (node) {
+                node.children.forEach(function (position) {
+                    res.push(POS_P2I_WM.get(position));
+                });
+            });
+            return res;
+        };
+        /**一个单位计算区域的单位大小*/
+        QuadTreeWorld.UNIT_SIZE = 1100;
+        return QuadTreeWorld;
+    }(QuadTree_1.default));
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = QuadTreeWorld;
+});
 define("app/engine/shadowWorld", ["require", "exports"], function (require, exports) {
     "use strict";
     var worldStep = 1 / 60;
@@ -8517,8 +8649,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 can_next = false;
                 var start_ping = performance.now();
                 Pomelo_1.pomelo.request("connector.worldHandler.getWorld", {
-                    x: 0,
-                    y: 0,
+                    x: (view_ship || view_ship_info).config.x,
+                    y: (view_ship || view_ship_info).config.y,
                     width: common_6.VIEW.WIDTH,
                     height: common_6.VIEW.HEIGHT
                 }, function (data) {
@@ -9289,15 +9421,169 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     }
     exports.initStage = initStage;
 });
-define("app/main", ["require", "exports", "app/common", "app/game2", "app/editor", "app/game-oline", "app/loader", "app/engine/Pomelo"], function (require, exports, common_9, game2_1, editor_1, game_oline_1, loader_1, Pomelo_2) {
+define("app/test-quadtree-world", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/engine/QuadTreeWorld", "app/common", "app/const"], function (require, exports, Tween_12, When_5, Flyer_5, QuadTreeWorld_1, common_9, const_13) {
     "use strict";
-    common_9.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
-    common_9.stageManager.set(loader_1.current_stage_wrap);
-    if (location.hash === "#game") {
-        common_9.stageManager.set(game2_1.current_stage_wrap);
+    var ani_ticker = new PIXI.ticker.Ticker();
+    var ani_tween = new Tween_12.default();
+    var jump_tween = new Tween_12.default();
+    var FPS_ticker = new PIXI.ticker.Ticker();
+    exports.current_stage_wrap = new PIXI.Graphics();
+    exports.current_stage = new PIXI.Container();
+    exports.current_stage_wrap.addChild(exports.current_stage);
+    // current_stage_wrap["keep_direction"] = "horizontal";
+    //加载图片资源
+    exports.loader = new PIXI.loaders.Loader();
+    exports.loader.add("button", "./res/game_res.png");
+    exports.loader.load();
+    var loading_text = new PIXI.Text("游戏加载中……", {
+        font: const_13.pt2px(25) + "px 微软雅黑",
+        fill: "#FFF"
+    });
+    exports.current_stage.addChild(loading_text);
+    function renderInit(loader, resource) {
+        for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
+            exports.current_stage.removeChildAt(0);
+        }
+        /**素材加载
+         * 初始化场景
+         */
+        function drawPlan() {
+            exports.current_stage_wrap.clear();
+            exports.current_stage_wrap.beginFill(0xd5d5d5, 1);
+            exports.current_stage_wrap.drawRect(0, 0, common_9.VIEW.WIDTH, common_9.VIEW.HEIGHT);
+            exports.current_stage_wrap.endFill();
+        }
+        exports.current_stage_wrap.on("resize", drawPlan);
+        drawPlan();
+        var qtw = new QuadTreeWorld_1.default({
+            width: 4400,
+            height: 4400,
+            x: 0,
+            y: 0
+        });
+        var unit_size = 200;
+        for (var i = 0; i <= qtw.WIDTH; i += unit_size) {
+            for (var j = 0; j <= qtw.WIDTH; j += unit_size) {
+                var fly = new Flyer_5.default({
+                    x: i,
+                    y: j
+                });
+                (function (fly, i, j) {
+                    var ani_time = 1000;
+                    var ani_size = 200;
+                    var acc_time = 0;
+                    ani_ticker.add(function (delay) {
+                        fly.x = i + ani_size * Math.cos(Math.PI * 2 * acc_time / ani_time);
+                        fly.y = j + ani_size * Math.sin(Math.PI * 2 * acc_time / ani_time);
+                        acc_time += delay;
+                    });
+                })(fly, i, j);
+                qtw.insert(fly);
+                fly.cacheAsBitmap = true;
+                exports.current_stage.addChild(fly);
+            }
+        }
+        ani_ticker.add(function () {
+            qtw.refresh();
+            var len = exports.current_stage.children.length;
+            while (len > 0) {
+                len -= 1;
+                exports.current_stage.children[len].alpha = 0.2;
+            }
+            qtw.getRectViewItems(view.x, view.y, view_width, view_height).forEach(function (fly) {
+                // current_stage.addChild(fly)
+                fly.alpha = 1;
+            });
+            exports.current_stage.position.set(-view.x + common_9.VIEW.CENTER.x - view_width / 2, -view.y + common_9.VIEW.CENTER.y - view_height / 2);
+        });
+        var qtw_mash = new PIXI.Graphics();
+        exports.current_stage.addChild(qtw_mash);
+        function drawNode(node) {
+            var node_bounds = node._bounds;
+            qtw_mash.lineStyle(2, 0x0033ff, 1);
+            qtw_mash.drawRect(node_bounds.x, node_bounds.y, node_bounds.width, node_bounds.height);
+            node.nodes.forEach(function (c_node) { return drawNode(c_node); });
+        }
+        ani_ticker.add(function () {
+            qtw_mash.clear();
+            drawNode(qtw.root);
+        });
+        common_9.on(exports.current_stage_wrap, "keydown", function (e) {
+            if (e.keyCode === 37) {
+                view.x -= 10;
+            }
+            else if (e.keyCode === 39) {
+                view.x += 10;
+            }
+            else if (e.keyCode === 38) {
+                view.y -= 10;
+            }
+            else if (e.keyCode === 40) {
+                view.y += 10;
+            }
+        });
+        var view_x = qtw.WIDTH / 2;
+        var view_y = qtw.HEIGHT / 2;
+        var view_width = 2500;
+        var view_height = 2500;
+        var view = new PIXI.Graphics();
+        view.position.set(view_x, view_y);
+        view.lineStyle(4, 0xff0000, 0.87);
+        view.drawRect(0, 0, view_width, view_height);
+        exports.current_stage.addChild(view);
+        exports.current_stage.pivot.set(-qtw.WIDTH, -qtw.HEIGHT);
+        exports.current_stage.scale.set(0.4, 0.4);
+        // 触发布局计算
+        common_9.emitReisze(exports.current_stage_wrap);
+        ani_tween.start();
+        jump_tween.start();
+        ani_ticker.start();
+        FPS_ticker.start();
+        /**帧率
+         *
+         */
+        var pre_ti;
+        var FPS_Text = new PIXI.Text("FPS:0", {
+            font: '24px Arial',
+            fill: 0x00ffff33,
+            align: "left"
+        });
+        exports.current_stage_wrap.addChild(FPS_Text);
+        FPS_ticker.add(function () {
+            FPS_Text.text = "FPS:" + FPS_ticker.FPS.toFixed(0) + " W:" + common_9.VIEW.WIDTH + " H:" + common_9.VIEW.HEIGHT + " \n        VIEW-X:" + view.x + "\n        VIEW-Y:" + view.y;
+        });
+    }
+    exports.loader.once("complete", function () {
+        init_w.ok(2, []);
+    });
+    exports.current_stage_wrap.on("init", function () {
+        init_w.ok(1, []);
+    });
+    exports.current_stage_wrap.on("active", function () {
+        init_w.ok(0, []);
+    });
+    exports.current_stage_wrap["_has_custom_resize"] = true;
+    exports.current_stage_wrap.on("resize", function () {
+        jump_tween.clear();
+        ani_tween.clear();
+        common_9.emitReisze(this);
+    });
+    var init_w = new When_5.default(3, function () {
+        renderInit(exports.loader, exports.loader.resources);
+    });
+});
+define("app/main", ["require", "exports", "app/common", "app/game2", "app/editor", "app/game-oline", "app/loader", "app/test-quadtree-world", "app/engine/Pomelo"], function (require, exports, common_10, game2_1, editor_1, game_oline_1, loader_1, test_quadtree_world_1, Pomelo_2) {
+    "use strict";
+    common_10.stageManager.add(loader_1.current_stage_wrap, game2_1.current_stage_wrap);
+    common_10.stageManager.set(loader_1.current_stage_wrap);
+    if (location.hash === "#test") {
+        common_10.stageManager.set(test_quadtree_world_1.current_stage_wrap);
+    }
+    else if (location.hash === "#game") {
+        common_10.stageManager.set(game2_1.current_stage_wrap);
     }
     else if (location.hash === "#editor") {
-        common_9.stageManager.set(editor_1.current_stage_wrap);
+        common_10.stageManager.set(editor_1.current_stage_wrap);
     }
     else {
         var host = location.hostname;
@@ -9307,35 +9593,48 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/editor
             port: port,
             log: true
         }, function () {
-            // 随机选择服务器
-            Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
-                if (data.code === 200) {
-                    Pomelo_2.pomelo.init({
-                        host: data.host,
-                        port: data.port,
-                        log: true
-                    }, function () {
-                        loader_1.current_stage_wrap.emit("connected", function _(username) {
-                            game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
-                                if (err) {
-                                    loader_1.current_stage_wrap.emit("connected", _, err);
-                                }
-                                else {
-                                    game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                                    common_9.stageManager.set(game_oline_1.current_stage_wrap);
-                                }
+            var time_out = 2000;
+            var _is_load = false;
+            function queryEntry() {
+                setTimeout(function () {
+                    if (!_is_load) {
+                        loader_1.current_stage_wrap.emit("connect-retry");
+                        queryEntry();
+                    }
+                }, time_out);
+                // 随机选择服务器
+                Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
+                    if (data.code === 200) {
+                        _is_load = true;
+                        Pomelo_2.pomelo.init({
+                            host: data.host,
+                            port: data.port,
+                            log: true
+                        }, function () {
+                            loader_1.current_stage_wrap.emit("connected", function _(username) {
+                                game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
+                                    if (err) {
+                                        loader_1.current_stage_wrap.emit("connected", _, err);
+                                    }
+                                    else {
+                                        game_oline_1.current_stage_wrap.emit("before-active", game_info);
+                                        common_10.stageManager.set(game_oline_1.current_stage_wrap);
+                                    }
+                                });
                             });
                         });
-                    });
-                }
-                else {
-                    console.error(data);
-                }
-            });
+                    }
+                    else {
+                        console.error(data);
+                    }
+                });
+            }
+            ;
+            queryEntry();
         });
     }
     function animate() {
-        common_9.renderer.render(common_9.stageManager.get());
+        common_10.renderer.render(common_10.stageManager.get());
         requestAnimationFrame(animate);
     }
     animate();
@@ -9481,7 +9780,7 @@ define("class/ZoomBlur", ["require", "exports"], function (require, exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ZoomBlur;
 });
-define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_12, SVGGraphics_2, ZoomBlur_1) {
+define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "class/ZoomBlur"], function (require, exports, Tween_13, SVGGraphics_2, ZoomBlur_1) {
     "use strict";
     var log2 = Math["log2"] || function (x) {
         return Math.log(x) / Math.LN2;
@@ -9506,7 +9805,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
             this.max_width = 512;
             this.max_height = 512;
             this.texZoomBlur = new ZoomBlur_1.default();
-            this._tween = new Tween_12.default();
+            this._tween = new Tween_13.default();
             /**存储背景贴图的容器 */
             this._path_img = new PIXI.Container();
             /**存储路线的容器 */
@@ -9782,7 +10081,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (point["_source_x"] - viewtopleft.x) * viewscale,
                         y: (point["_source_y"] - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_12.default.Easing.Quartic.Out)
+                        .easing(Tween_13.default.Easing.Quartic.Out)
                         .start();
                 });
                 var bgImage = path.pixi_img;
@@ -9793,7 +10092,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                     width: path.width * viewscale,
                     height: path.height * viewscale
                 }, animateTime)
-                    .easing(Tween_12.default.Easing.Quartic.Out)
+                    .easing(Tween_13.default.Easing.Quartic.Out)
                     .start();
                 if (bgImage instanceof PIXI.extras.TilingSprite) {
                     var tileBgImage = bgImage;
@@ -9808,7 +10107,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale - tileBgImage.x,
                         y: (path.left_top.y - viewtopleft.y) * viewscale,
                     }, animateTime)
-                        .easing(Tween_12.default.Easing.Quartic.Out)
+                        .easing(Tween_13.default.Easing.Quartic.Out)
                         .start();
                 }
                 else {
@@ -9818,7 +10117,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                         x: (path.left_top.x - viewtopleft.x) * viewscale,
                         y: (path.left_top.y - viewtopleft.y) * viewscale
                     }, animateTime)
-                        .easing(Tween_12.default.Easing.Quartic.Out)
+                        .easing(Tween_13.default.Easing.Quartic.Out)
                         .start();
                 }
                 //绘制基础lineSprite
@@ -9844,7 +10143,7 @@ define("class/Map", ["require", "exports", "class/Tween", "class/SVGGraphics", "
                 .to({
                 p: 1
             }, animateTime)
-                .easing(Tween_12.default.Easing.Quartic.Out)
+                .easing(Tween_13.default.Easing.Quartic.Out)
                 .onUpdate(function (_v_2) {
                 _tp_2 = performance.now();
                 var t = _tp_2 - _tp_1; //花费的时间
@@ -10020,7 +10319,7 @@ define("class/pixelCollision", ["require", "exports"], function (require, export
     }
     exports.isCollisionWithRect = isCollisionWithRect;
 });
-define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_13) {
+define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/MouseWheel", "class/Tween"], function (require, exports, SVGGraphics_3, MouseWheel_1, Tween_14) {
     "use strict";
     var S_ANI_TIME = 195;
     var B_ANI_TIME = 375;
@@ -10035,7 +10334,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             _super.call(this);
             /**外层容器，用来保存this以及scroll_bar */
             this.wrap = new PIXI.Container();
-            this.ANI = new Tween_13.default();
+            this.ANI = new Tween_14.default();
             this.speedText = new PIXI.Text("", {
                 font: "16px 微软雅黑",
                 fill: "#FFF",
@@ -10069,7 +10368,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
             });
             /**内容部分的滚动配置 */
             this.ANI.Tween("scroll_content", this.position)
-                .easing(Tween_13.default.Easing.Quartic.Out)
+                .easing(Tween_14.default.Easing.Quartic.Out)
                 .onUpdate(function () {
                 _this.emit("scrolling");
             })
@@ -10180,7 +10479,7 @@ define("class/ScrollAble", ["require", "exports", "class/SVGGraphics", "class/Mo
                         .to({
                         y: res_y
                     }, B_ANI_TIME)
-                        .easing(Tween_13.default.Easing.Quartic.Out)
+                        .easing(Tween_14.default.Easing.Quartic.Out)
                         .start();
                 };
                 scroll_bar.addChild(scroll_handle);

@@ -6,10 +6,7 @@
         "body_color":"0x00b2e1"
     },
     "ships": [
-        {
-            "x": 200,
-            "y": 200
-        }
+   
     ],
     "flyers": [
         {

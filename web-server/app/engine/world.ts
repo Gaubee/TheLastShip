@@ -112,9 +112,17 @@ export const engine = {
                 });
             })
         }else if(item instanceof Ship){
-            ["die", "change-hp", "fire_start"].forEach(eventName=>{
+            ["die", "change-hp"].forEach(eventName=>{
                 item.on(eventName,function () {
                     engine.emit(eventName, this);
+                });
+            });
+            // 来自于枪支冒泡的发射动画
+            item.on("gun-fire_start",function(gun_id, bullet) {
+                engine.emit("gun-fire_start", {
+                    gun_id: gun_id,
+                    bullet: bullet,
+                    ship_id: this._id
                 });
             })
             item.on("destroy",function () {
@@ -190,7 +198,36 @@ export const engine = {
         current_ship.fire(function (bullet) {
             engine.add(bullet)
         });
-    }
+    },
+    autoFire(ship_id){
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!(current_ship instanceof Ship)) {
+            throw `SHIP ID NO REF INSTANCE:${ship_id}`;
+        }
+        current_ship.toggleKeepFire(function (bullet) {
+            engine.add(bullet)
+        });
+    },
+    addProto(ship_id, add_proto){
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!(current_ship instanceof Ship)) {
+            throw `SHIP ID NO REF INSTANCE:${ship_id}`;
+        }
+        try{
+            current_ship.addProto(add_proto);
+        }catch(e){
+            // console.log(e);
+        }
+        return current_ship.proto_list;
+    },
+    changeType(ship_id, new_type){
+        var current_ship = <Ship>All_id_map.get(ship_id);
+         if(!(current_ship instanceof Ship)) {
+            throw `SHIP ID NO REF INSTANCE:${ship_id}`;
+        }
+        current_ship.changeType(new_type);
+        return current_ship;
+    },
 };
 // 材质信息
 // 通用物体与通用物体

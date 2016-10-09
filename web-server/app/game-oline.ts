@@ -181,8 +181,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             can_next = false;
             var start_ping = performance.now();
             pomelo.request("connector.worldHandler.getWorld", {
-                x: 0,
-                y: 0,
+                x: (view_ship||view_ship_info).config.x,
+                y: (view_ship||view_ship_info).config.y,
                 width: VIEW.WIDTH,
                 height: VIEW.HEIGHT
             }, function (data) {

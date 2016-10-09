@@ -87,7 +87,7 @@ var WorldRemote = function(app) {
 			}
 			// 更新物体坐标
 			quadtree.refresh();
-		}, 1000 / 30);
+		}, 1000 / 10);
 		this.getRectViewItems = function (left,top,width,height) {
 			const objs = quadtree.getRectViewItems(left-width/2, top-height/2, width, height);
 			return {

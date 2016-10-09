@@ -6,15 +6,14 @@ module.exports = function(app) {
 	return new WorldRemote(app);
 };
 
-function WorldObj(info){
-	this.id = info.id;
-	this.info = info;
-	this.position = {x:info.config.x,y:info.config.y};
+function WorldObj(p2i){
+	this.id = p2i._id;
+	this.ins = p2i;
+	this.position = {x:p2i.config.x,y:p2i.config.y};
 }
-WorldObj.prototype.setInfo = function (new_info) {
-	this.info = new_info;
-	this.position.x = new_info.config.x;
-	this.position.y = new_info.config.y;
+WorldObj.prototype.setInfo = function () {
+	this.position.x = this.ins.config.x;
+	this.position.y = this.ins.config.y;
 }
 
 var WorldRemote = function(app) {
@@ -52,26 +51,26 @@ var WorldRemote = function(app) {
 		const STATIC_OBJS = new Map();
 		const STATIC_OBJS_list = [];
 		setInterval(function() {
+			console.time("refresh")
 			const p2is = world.items;
-			console.log(p2is.length)
 			p2is.forEach(p2i => {
-				const info = p2i.toJSON();
-				if (info.type === "Wall") {
-					if (STATIC_OBJS.has(info.id)) {
-						var obj = STATIC_OBJS.get(info.id);
-						obj.setInfo(info);
+				const info_type = p2i.constructor.name;
+				if (info_type === "Wall") {
+					if (STATIC_OBJS.has(p2i._id)) {
+						var obj = STATIC_OBJS.get(p2i._id);
+						obj.setInfo();
 					} else {
-						obj = new WorldObj(info);
-						STATIC_OBJS.set(info.id, obj);
+						obj = new WorldObj(p2i);
+						STATIC_OBJS.set(p2i._id, obj);
 						STATIC_OBJS_list.push(obj);
 					}
 				}
-				if (WORLD_OBJS.has(info.id)) {
-					var obj = WORLD_OBJS.get(info.id);
-					obj.setInfo(info);
+				if (WORLD_OBJS.has(p2i._id)) {
+					var obj = WORLD_OBJS.get(p2i._id);
+					obj.setInfo();
 				} else {
-					obj = new WorldObj(info);
-					WORLD_OBJS.set(info.id, obj);
+					obj = new WorldObj(p2i);
+					WORLD_OBJS.set(p2i._id, obj);
 					quadtree.insert(obj);
 				}
 				obj.__is_hit = true;
@@ -87,11 +86,14 @@ var WorldRemote = function(app) {
 			}
 			// 更新物体坐标
 			quadtree.refresh();
-		}, 1000 / 10);
+			console.timeEnd("refresh")
+		}, 1000);
 		this.getRectViewItems = function (left,top,width,height) {
+			console.time("getRectViewItems")
 			const objs = quadtree.getRectViewItems(left-width/2, top-height/2, width, height);
+			console.timeEnd("getRectViewItems")
 			return {
-				objects: objs.concat(STATIC_OBJS_list).map(obj=>obj.info)
+				objects: objs.concat(STATIC_OBJS_list).map(obj=>obj.ins)
 			}
 		}
 	}
@@ -126,6 +128,7 @@ WorldRemote.prototype.add = function(uid, sid, name, ship_md5_id, cb) {
 WorldRemote.prototype.getRectangleObjects = function(view_x, view_y, view_width, view_height, cb) {
 	var res = this.getRectViewItems(view_x, view_y, view_width, view_height);
 	cb(null, res);
+	// cb(null, {objects:this.world.items})
 }
 WorldRemote.prototype.setConfig = function(ship_id, new_ship_config, cb) {
 	try {

@@ -8111,7 +8111,7 @@ define("app/engine/QuadTreeWorld", ["require", "exports", "app/engine/QuadTree"]
             return res;
         };
         /**一个单位计算区域的单位大小*/
-        QuadTreeWorld.UNIT_SIZE = 1100;
+        QuadTreeWorld.UNIT_SIZE = 550;
         return QuadTreeWorld;
     }(QuadTree_1.default));
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -8652,7 +8652,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     x: (view_ship || view_ship_info).config.x,
                     y: (view_ship || view_ship_info).config.y,
                     width: common_6.VIEW.WIDTH,
-                    height: common_6.VIEW.HEIGHT
+                    height: common_6.VIEW.HEIGHT,
+                    min: !!view_ship
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;

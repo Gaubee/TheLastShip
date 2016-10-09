@@ -18,7 +18,7 @@ const POS_P2I_WM = new WeakMap();
 const P2I_S = new Set();
 export default class QuadTreeWorld extends QuadTree {
 	/**一个单位计算区域的单位大小*/
-	static UNIT_SIZE = 1100
+	static UNIT_SIZE = 550
 	/**一个单位视野区域的单位大小，确保大于常用的计算机屏幕*/
 	static get UNIT_VIEW_SIZE(){
 		return this.UNIT_SIZE*3

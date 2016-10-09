@@ -184,7 +184,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 x: (view_ship||view_ship_info).config.x,
                 y: (view_ship||view_ship_info).config.y,
                 width: VIEW.WIDTH,
-                height: VIEW.HEIGHT
+                height: VIEW.HEIGHT,
+                min:!!view_ship
             }, function (data) {
                 var cur_time = performance.now();
                 var dif_time = cur_time - pre_time;

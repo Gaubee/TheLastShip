@@ -72,7 +72,6 @@ function Handler(app) {
 		if (!ids) {
 			return
 		}
-		ids = ids.split(",");
 		var objects = [];
 		var no_found = [];
 		ids.forEach(function(id) {

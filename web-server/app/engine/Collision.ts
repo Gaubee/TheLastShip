@@ -1,7 +1,15 @@
+declare const require;
+declare const process;
+
 var uuid = 0;
 
 // import TWEEN from "../../class/Tween";
 // const Easing = TWEEN.Easing;
+import {
+    assign,
+    _isNode,
+} from "../const";
+
 
 export class P2I extends PIXI.Container {
     _id = "ID_" + ((uuid++) / 1000000).toFixed(6).substr(2)
@@ -59,6 +67,26 @@ export class P2I extends PIXI.Container {
                 self.once("flash", _flash);
             });
         });
+
+        if(_isNode) {
+            const cache = require("node-shared-cache");
+            var _id;
+            var shared_config;
+            const assign_share_config = function (){
+                assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
+            }
+            this.on("update",function(){
+                if(_id !== this._id) {
+                    if(shared_config) {
+                        cache.release(_id);
+                    }
+                    _id = this._id
+                    shared_config = new cache.Cache(_id, 524288, cache.SIZE_128);
+                    shared_config.__TYPE__ = self.constructor.name;
+                }
+                process.nextTick(assign_share_config);
+            })
+        }
     }
     update(delay: number) {
         var p2_body = this.p2_body;

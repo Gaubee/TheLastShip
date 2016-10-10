@@ -50,8 +50,7 @@ var WorldRemote = function(app) {
 		const WORLD_OBJS = new Map();
 		const STATIC_OBJS = new Map();
 		const STATIC_OBJS_list = [];
-		setInterval(function() {
-			console.time("refresh")
+		setTimeout(function() {
 			const p2is = world.items;
 			p2is.forEach(p2i => {
 				const info_type = p2i.constructor.name;
@@ -86,12 +85,9 @@ var WorldRemote = function(app) {
 			}
 			// 更新物体坐标
 			quadtree.refresh();
-			console.timeEnd("refresh")
-		}, 1000);
+		}, 1000/5);
 		this.getRectViewItems = function (left,top,width,height) {
-			console.time("getRectViewItems")
 			const objs = quadtree.getRectViewItems(left-width/2, top-height/2, width, height);
-			console.timeEnd("getRectViewItems")
 			return {
 				objects: objs.concat(STATIC_OBJS_list).map(obj=>obj.ins)
 			}
@@ -171,9 +167,10 @@ WorldRemote.prototype.changeType = function(ship_id, new_type, cb) {
 	}
 };
 WorldRemote.prototype.refreshShareCache = function(cb) {
-		this.world.refreshShareCache();
-		cb();
-	}
+	// this.world.refreshShareCache();
+	var ids = this.world.items.map(item=>item._id);
+	cb(null, ids);
+}
 	/**
 	 * Get user from chat channel.
 	 *

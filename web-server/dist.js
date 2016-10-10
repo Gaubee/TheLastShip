@@ -203,6 +203,11 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                     }
                     process.nextTick(assign_share_config_1);
                 });
+                this.on("destroy", function () {
+                    if (_id && shared_config) {
+                        cache_1.release(_id);
+                    }
+                });
             }
         }
         P2I.prototype.update = function (delay) {

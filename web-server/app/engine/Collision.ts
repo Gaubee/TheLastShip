@@ -86,6 +86,11 @@ export class P2I extends PIXI.Container {
                 }
                 process.nextTick(assign_share_config);
             })
+            this.on("destroy",function(){
+                if(_id && shared_config) {
+                    cache.release(_id);
+                }
+            })
         }
     }
     update(delay: number) {

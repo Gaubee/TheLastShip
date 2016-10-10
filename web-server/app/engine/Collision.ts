@@ -15,6 +15,10 @@ if(_isNode) {
     var share_remover_ids = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
     var remover_ids = []
     setInterval(function(){
+        if(share_remover_ids.is_cleared) {
+            remover_ids.splice(0, share_remover_ids.list.length);
+            share_remover_ids.is_cleared = false;
+        }
         share_remover_ids.list = remover_ids;
     },1000/30);
 }
@@ -86,10 +90,7 @@ export class P2I extends PIXI.Container {
                 if(_id !== this._id) {
                     if(shared_config) {
                         console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
-                        // cache.clear(shared_config);
-                        // shared_config.__DEL__ = true;
                         remover_ids.push(_id)
-                        // cache.release(_id);
                     }
                     _id = this._id
                     shared_config = new cache.Cache(_id, 524288, cache.SIZE_128);
@@ -102,13 +103,8 @@ export class P2I extends PIXI.Container {
             })
             this.on("destroy",function(){
                 if(_id && shared_config) {
-                    // process.nextTick(function(){
-                        console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
-                        // cache.clear(shared_config);
-                        // shared_config.__DEL__ = true;
-                        remover_ids.push(_id)
-                        // cache.release(_id);
-                    // });
+                    console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
+                    remover_ids.push(_id)
                 }
             })
         }

@@ -190,7 +190,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 y: (view_ship||view_ship_info).config.y,
                 width: VIEW.WIDTH,
                 height: VIEW.HEIGHT,
-                min:!is_force_no_min&&!!view_ship
+                min:!is_force_no_min&&!!view_ship&&false
             }, function (data) {
                 var cur_time = performance.now();
                 var dif_time = cur_time - pre_time;

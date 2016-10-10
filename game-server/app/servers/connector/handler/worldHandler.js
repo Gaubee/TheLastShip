@@ -25,6 +25,28 @@ const WALL_OBJS = new Map();
 const WALL_OBJS_list = [];
 
 const SHARED_CACHE = new Map();
+const is_linux = os.platform() === "linux";
+
+function getCache(id) {
+	if (SHARED_CACHE.has(id)) {
+		return SHARED_CACHE.get(id)
+	}
+	var res = new cache.Cache(id, 524288, cache.SIZE_128);
+	SHARED_CACHE.set(id, res);
+	return res;
+}
+const removeCache = is_linux ? function(id) {
+	if (SHARED_CACHE.get(id)) {
+		SHARED_CACHE.set(id, null); // 不使用delete，确保不会被重新创建
+		cache.release(id); // Linux需要清空/dev/shm下的文件
+	}
+} : function(id) {
+	var obj = SHARED_CACHE.get(id);
+	if (obj) {
+		cache.clear(SHARED_CACHE.get(id));
+	}
+	SHARED_CACHE.set(id, null);
+}
 
 function Handler(app) {
 	this.app = app
@@ -35,8 +57,6 @@ function Handler(app) {
 		y: 0,
 	});
 	const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
-
-	var is_linux = os.platform() === "linux";
 
 	setInterval(function() {
 		// console.time("refreshShareCache")
@@ -50,17 +70,16 @@ function Handler(app) {
 		if (!ids) {
 			return
 		}
-		if(SHARE_REMOVER_IDS.list){//回收垃圾
-			if (is_linux) {
-				SHARE_REMOVER_IDS.list.forEach(id => {
-					// 删除SHARE缓冲区
-					SHARED_CACHE.delete(id);
-					if (is_linux) { // Linux需要清空/dev/shm下的文件
-						cache.release(id);
-					}
-				});
-			}
+		// ID索引，避免未知问题
+		var remover_map = {};
+		// 进行垃圾回收
+		if (SHARE_REMOVER_IDS.list && SHARE_REMOVER_IDS.list.length) { //回收垃圾
+			// SHARE_REMOVER_IDS.list.forEach(id => {
+			// 	console.log("REMOVE:",WORLD_OBJS.get(id))
+			// });
 			SHARE_REMOVER_IDS.list.forEach(id => {
+				remover_map[id] = true;//
+				removeCache(id);
 				// 删除Obj缓存
 				var obj = WORLD_OBJS.get(id);
 				if (obj) {
@@ -68,18 +87,18 @@ function Handler(app) {
 					quadtree.remove(obj);
 				}
 			});
+			SHARE_REMOVER_IDS.is_cleared = true;
 		}
 
 		var objects = [];
 		var no_found = [];
 		ids.forEach(function(id) {
-			var info_config = SHARED_CACHE.get(id);
-			if (!info_config) {
-				info_config = new cache.Cache(id, 524288, cache.SIZE_128);
-				SHARED_CACHE.set(id, info_config);
+			if (remover_map[id]) {
+				return
 			}
-			if (info_config.__TYPE__) {
-				objects.push({
+			var info_config = getCache(id); // 获取共享内存对象作为config
+			if (info_config && info_config.__TYPE__) {
+				objects.push({ // 包装成toJSON后的数据
 					id: id,
 					config: info_config,
 					type: info_config.__TYPE__
@@ -89,41 +108,32 @@ function Handler(app) {
 			}
 		});
 		// no_found.length&&console.log("NO FOUND:", no_found)
-
 		NO_FOUND.list = no_found;
-		// console.log(ids.length,objects.length)
+
 		objects.forEach(info => {
 			if (info.type === "Wall") {
-				if (WALL_OBJS.has(info.id)) {
-					var obj = WALL_OBJS.get(info.id);
-					obj.setInfo(info);
-				} else {
+				if (!WALL_OBJS.has(info.id)) { //墙对象默认不更新，只进行初始化生成
+					// 	var obj = WALL_OBJS.get(info.id);
+					// 	obj.setInfo(info);
+					// } else {
 					obj = new WorldObj(info);
 					WALL_OBJS.set(info.id, obj);
 					WALL_OBJS_list.push(obj);
 				}
-			}
-			if (WORLD_OBJS.has(info.id)) {
-				var obj = WORLD_OBJS.get(info.id);
-				obj.setInfo(info);
 			} else {
-				obj = new WorldObj(info);
-				WORLD_OBJS.set(info.id, obj);
-				quadtree.insert(obj);
+				if (WORLD_OBJS.has(info.id)) {
+					var obj = WORLD_OBJS.get(info.id);
+					obj.setInfo(info);
+				} else {
+					obj = new WorldObj(info);
+					WORLD_OBJS.set(info.id, obj);
+					quadtree.insert(obj);
+				}
 			}
-			obj.__is_hit = true;
 		});
-		// 删除已经不纯在的东西
-		for (var obj of WORLD_OBJS.values()) {
-			if (obj.__is_hit) {
-				obj.__is_hit = false
-			} else {
-				quadtree.remove(obj);
-				WORLD_OBJS.delete(obj.id);
-			}
-		}
 		// 更新物体坐标
 		quadtree.refresh();
+
 		// console.timeEnd("refreshShareCache")
 		// })
 	}, 1000 / 30)
@@ -160,7 +170,7 @@ Handler.prototype = {
 		function handle_res(res) {
 
 			var pre_res
-			// console.log("msg.min:", msg.min)
+				// console.log("msg.min:", msg.min)
 			if (msg.min && (pre_res = session.get("PRE_getRectangleObjects"))) {
 				var min_res = {
 					objects: []

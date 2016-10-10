@@ -137,6 +137,10 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
         var share_remover_ids = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
         var remover_ids = [];
         setInterval(function () {
+            if (share_remover_ids.is_cleared) {
+                remover_ids.splice(0, share_remover_ids.list.length);
+                share_remover_ids.is_cleared = false;
+            }
             share_remover_ids.list = remover_ids;
         }, 1000 / 30);
     }
@@ -203,8 +207,6 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                     if (_id !== this._id) {
                         if (shared_config) {
                             console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
-                            // cache.clear(shared_config);
-                            // shared_config.__DEL__ = true;
                             remover_ids.push(_id);
                         }
                         _id = this._id;
@@ -218,10 +220,7 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 });
                 this.on("destroy", function () {
                     if (_id && shared_config) {
-                        // process.nextTick(function(){
                         console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
-                        // cache.clear(shared_config);
-                        // shared_config.__DEL__ = true;
                         remover_ids.push(_id);
                     }
                 });
@@ -3630,9 +3629,12 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 self.once("explode", function () {
                     console.log("explode", self._id);
                     // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
-                    self.update = function (delay) {
+                    // self.update = (delay) => {
+                    //     self.emit("destroy");
+                    // }
+                    self.once("update", function () {
                         self.emit("destroy");
-                    };
+                    });
                 });
             }
             else {
@@ -8703,7 +8705,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     y: (view_ship || view_ship_info).config.y,
                     width: common_6.VIEW.WIDTH,
                     height: common_6.VIEW.HEIGHT,
-                    min: !is_force_no_min && !!view_ship
+                    min: !is_force_no_min && !!view_ship && false
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;

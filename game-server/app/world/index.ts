@@ -82,7 +82,7 @@ function genFlyer(){
 const TYPE_NUM_MAP = {};
 genFlyer();
 
-setInterval(genFlyer, 16e3);// 每16秒进行一波刷新
+setInterval(genFlyer, 30e3);// 每30秒进行一波刷新
 
 
 // 四边限制

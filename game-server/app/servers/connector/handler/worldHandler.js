@@ -33,6 +33,7 @@ function Handler(app) {
 		x: 0,
 		y: 0,
 	});
+	const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
 
 	setInterval(function() {
 		// console.time("refreshShareCache")
@@ -41,11 +42,12 @@ function Handler(app) {
 				return
 			}
 			var objects = [];
+			var no_found = [];
 			ids.forEach(function(id) {
 				var info_config = SHARED_CACHE.get(id);
 				if (!info_config) {
 					info_config = new cache.Cache(id, 524288, cache.SIZE_128);
-					 SHARED_CACHE.set(id, info_config);
+					SHARED_CACHE.set(id, info_config);
 				}
 				if (info_config.__TYPE__) {
 					objects.push({
@@ -54,9 +56,12 @@ function Handler(app) {
 						type: info_config.__TYPE__
 					});
 				}else{
-					// console.log("NO FOUND:", id)
+					no_found.push(id);
 				}
 			});
+			// no_found.length&&console.log("NO FOUND:", no_found)
+
+			NO_FOUND.list = no_found;
 			// console.log(ids.length,objects.length)
 			objects.forEach(info => {
 				if (info.type === "Wall") {

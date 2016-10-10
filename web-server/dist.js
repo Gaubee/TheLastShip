@@ -196,19 +196,22 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                     if (_id !== this._id) {
                         if (shared_config) {
                             // cache.release(_id);
-                            cache_1.clear(shared_config);
+                            console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
                         }
                         _id = this._id;
                         shared_config = new cache_1.Cache(_id, 524288, cache_1.SIZE_128);
+                    }
+                    if (!shared_config.__TYPE__) {
                         shared_config.__TYPE__ = self.constructor.name;
                     }
                     process.nextTick(assign_share_config_1);
                 });
                 this.on("destroy", function () {
                     if (_id && shared_config) {
-                        // cache.release(_id);
                         process.nextTick(function () {
-                            cache_1.clear(shared_config);
+                            // cache.release(_id);
+                            console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
+                            // cache.clear(shared_config);
                         });
                     }
                 });

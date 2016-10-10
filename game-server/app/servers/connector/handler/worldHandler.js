@@ -160,8 +160,8 @@ Handler.prototype = {
 		function handle_res(res) {
 
 			var pre_res
-			console.log("msg.min:", msg.min)
-			if (msg.min && (pre_res = session.get("PRE_getRectangleObjects")) && false) {
+			// console.log("msg.min:", msg.min)
+			if (msg.min && (pre_res = session.get("PRE_getRectangleObjects"))) {
 				var min_res = {
 					objects: []
 				};

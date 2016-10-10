@@ -35,6 +35,7 @@ export function assign(to_obj, from_obj) {
     }
     return to_obj
 }
+
 export function transformJSON(JSON_str) {
     var root;
     return JSON.parse(JSON_str, function(s_key, s_value) {

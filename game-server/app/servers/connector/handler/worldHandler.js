@@ -98,6 +98,19 @@ function getRectViewItems(quadtree, left, top, width, height) {
 		objects: objs.concat(WALL_OBJS_list).map(obj => obj.info)
 	}
 }
+function fastAssign(to_obj, from_obj) {
+    for (var key in from_obj) {
+        var value = from_obj[key];
+        if(value instanceof Array) {
+            to_obj[key] = value.map(item=>fastAssign({}, item))
+        }else if(value instanceof Object){
+            fastAssign((to_obj[key] = {}), value);
+        }else{
+            to_obj[key] = value
+        }
+    }
+    return to_obj
+}
 Handler.prototype = {
 	getWorld: function(msg, session, next) {
 		const view_x = parseFloat(msg.x) || 0;
@@ -141,8 +154,8 @@ Handler.prototype = {
 					}
 				});
 			}
-			// session.set("PRE_getRectangleObjects", JSON.parse(JSON.stringify(res)));
-			// session.push("PRE_getRectangleObjects");
+			session.set("PRE_getRectangleObjects", fastAssign({}, res));
+			session.push("PRE_getRectangleObjects");
 			// console.log(min_res&&min_res.objects.length,res.objects.length);
 			// TODO: 移除res.objects里头的ID，除了在初始化战场时候需要用ID判断一下视角的跟随者。这里是有优化空间的
 			next(null, min_res || res);

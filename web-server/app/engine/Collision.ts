@@ -72,9 +72,9 @@ export class P2I extends PIXI.Container {
             const cache = require("node-shared-cache");
             var _id;
             var shared_config;
-            const assign_share_config = function (){
-                assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
-            }
+            // const assign_share_config = function (){
+            //     assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
+            // }
             this.on("update",function(){
                 if(_id !== this._id) {
                     if(shared_config) {
@@ -88,15 +88,16 @@ export class P2I extends PIXI.Container {
                 if(!shared_config.__TYPE__) {
                     shared_config.__TYPE__ = self.constructor.name;
                 }
-                process.nextTick(assign_share_config);
+                // process.nextTick(assign_share_config);
+                assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
             })
             this.on("destroy",function(){
                 if(_id && shared_config) {
-                    process.nextTick(function(){
+                    // process.nextTick(function(){
                         // cache.release(_id);
                         console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
                         cache.clear(shared_config);
-                    });
+                    // });
                 }
             })
         }

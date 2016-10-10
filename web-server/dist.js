@@ -189,9 +189,9 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 var cache_1 = require("node-shared-cache");
                 var _id;
                 var shared_config;
-                var assign_share_config_1 = function () {
-                    const_1.assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
-                };
+                // const assign_share_config = function (){
+                //     assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
+                // }
                 this.on("update", function () {
                     if (_id !== this._id) {
                         if (shared_config) {
@@ -205,15 +205,15 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                     if (!shared_config.__TYPE__) {
                         shared_config.__TYPE__ = self.constructor.name;
                     }
-                    process.nextTick(assign_share_config_1);
+                    // process.nextTick(assign_share_config);
+                    const_1.assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
                 });
                 this.on("destroy", function () {
                     if (_id && shared_config) {
-                        process.nextTick(function () {
-                            // cache.release(_id);
-                            console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
-                            cache_1.clear(shared_config);
-                        });
+                        // process.nextTick(function(){
+                        // cache.release(_id);
+                        console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
+                        cache_1.clear(shared_config);
                     }
                 });
             }
@@ -5115,7 +5115,8 @@ define("app/engine/world", ["require", "exports", "app/engine/Collision", "app/c
             return p2is;
         },
         update: function (delay) {
-            world.step(worldStep, delay / 100, 10);
+            // world.step(worldStep, delay / 100, 10);
+            world.step(delay / 1000, delay / 100, 10);
             p2is.forEach(function (p2i) { return p2i.update(delay); });
         },
         newShip: function (ship_config) {

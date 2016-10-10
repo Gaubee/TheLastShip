@@ -76,6 +76,7 @@ export default class Flyer extends P2I {
         }
 
         self.p2_body.angularVelocity = Math.PI*Math.random();
+        self.p2_body.angle = config.rotation;
         self.p2_body.force = [config.x_speed, config.y_speed];
         self.p2_body.position = [config.x, config.y];
         self.position.set(config.x, config.y);

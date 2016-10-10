@@ -36,34 +36,7 @@ function Handler(app) {
 	});
 	const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
 
-	if (os.platform() === "linux") { // Linux需要清空/dev/shm下的文件
-		var CG_second = 3;
-		setInterval(function() {
-			var total_num = SHARED_CACHE.size;
-			var unit_num = total_num / (CG_second - 1) + 1;
-			var remover = [];
-			// console.log(SHARED_CACHE.entries())
-			var entries = SHARED_CACHE.entries();
-			do {
-				var info = entries.next()
-				if (info.done) {
-					break;
-				}
-				var shared_cache = info.value[1];
-				// console.log("shared_cache:",info)
-				if (shared_cache.__DEL__) {
-					var id = info.value[0];
-					remover.push(id);
-				}
-			} while (info);
-
-			console.log("釋放共享内存：", remover, total_num, unit_num)
-			remover.forEach(id => {
-				SHARED_CACHE.delete(id);
-				cache.release(id);
-			});
-		}, CG_second * 1000); // 进行一次垃圾清理
-	}
+	var is_linux = os.platform() === "linux";
 
 	setInterval(function() {
 		// console.time("refreshShareCache")
@@ -72,10 +45,31 @@ function Handler(app) {
 		// 	return
 		// }
 		const IDS = new cache.Cache("ids", 524288, cache.SIZE_128);
+		const SHARE_REMOVER_IDS = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
 		var ids = IDS.list;
 		if (!ids) {
 			return
 		}
+		if(SHARE_REMOVER_IDS.list){//回收垃圾
+			if (is_linux) {
+				SHARE_REMOVER_IDS.list.forEach(id => {
+					// 删除SHARE缓冲区
+					SHARED_CACHE.delete(id);
+					if (is_linux) { // Linux需要清空/dev/shm下的文件
+						cache.release(id);
+					}
+				});
+			}
+			SHARE_REMOVER_IDS.list.forEach(id => {
+				// 删除Obj缓存
+				var obj = WORLD_OBJS.get(id);
+				if (obj) {
+					WORLD_OBJS.delete(id);
+					quadtree.remove(obj);
+				}
+			});
+		}
+
 		var objects = [];
 		var no_found = [];
 		ids.forEach(function(id) {
@@ -166,7 +160,8 @@ Handler.prototype = {
 		function handle_res(res) {
 
 			var pre_res
-			if (msg.min && (pre_res = session.get("PRE_getRectangleObjects"))) {
+			console.log("msg.min:", msg.min)
+			if (msg.min && (pre_res = session.get("PRE_getRectangleObjects")) && false) {
 				var min_res = {
 					objects: []
 				};
@@ -198,11 +193,10 @@ Handler.prototype = {
 					}
 				});
 			}
+
+			next(null, min_res || res);
 			session.set("PRE_getRectangleObjects", fastAssign({}, res));
 			session.push("PRE_getRectangleObjects");
-			// console.log(min_res&&min_res.objects.length,res.objects.length);
-			// TODO: 移除res.objects里头的ID，除了在初始化战场时候需要用ID判断一下视角的跟随者。这里是有优化空间的
-			next(null, min_res || res);
 		}
 		const res = getRectViewItems(this.quadtree, view_x, view_y, view_width, view_height);
 		handle_res(res);

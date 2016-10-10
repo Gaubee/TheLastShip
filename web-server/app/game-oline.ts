@@ -167,6 +167,9 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var isNewDataFrame = false;
     var can_next = true;;
     function getViewData() {
+        setInterval(function(){
+            is_force_no_min = true;
+        },1000);
         var pre_time = performance.now();
         ani_ticker.add(function () {
             var p_now = performance.now();

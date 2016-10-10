@@ -132,12 +132,20 @@ define("app/const", ["require", "exports"], function (require, exports) {
 define("app/engine/Collision", ["require", "exports", "app/const"], function (require, exports, const_1) {
     "use strict";
     var uuid = 0;
+    if (const_1._isNode) {
+        var cache = require("node-shared-cache");
+        var share_remover_ids = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
+        var remover_ids = [];
+        setInterval(function () {
+            share_remover_ids.list = remover_ids;
+        }, 1000 / 30);
+    }
     var P2I = (function (_super) {
         __extends(P2I, _super);
         function P2I(world) {
             var _this = this;
             _super.call(this);
-            this._id = "ID_" + ((uuid++) / 1000000).toFixed(6).substr(2);
+            this._id = "I" + ((uuid++) / 1000000).toFixed(6).substr(2);
             this.p2_body = new p2.Body({ mass: 1 });
             this.world = null;
             this.config = {
@@ -186,7 +194,6 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 });
             });
             if (const_1._isNode) {
-                var cache_1 = require("node-shared-cache");
                 var _id;
                 var shared_config;
                 // const assign_share_config = function (){
@@ -197,10 +204,11 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                         if (shared_config) {
                             console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
                             // cache.clear(shared_config);
-                            shared_config.__DEL__ = true;
+                            // shared_config.__DEL__ = true;
+                            remover_ids.push(_id);
                         }
                         _id = this._id;
-                        shared_config = new cache_1.Cache(_id, 524288, cache_1.SIZE_128);
+                        shared_config = new cache.Cache(_id, 524288, cache.SIZE_128);
                     }
                     if (!shared_config.__TYPE__) {
                         shared_config.__TYPE__ = self.constructor.name;
@@ -213,7 +221,8 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                         // process.nextTick(function(){
                         console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
                         // cache.clear(shared_config);
-                        shared_config.__DEL__ = true;
+                        // shared_config.__DEL__ = true;
+                        remover_ids.push(_id);
                     }
                 });
             }
@@ -8670,6 +8679,9 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         var can_next = true;
         ;
         function getViewData() {
+            setInterval(function () {
+                is_force_no_min = true;
+            }, 1000);
             var pre_time = performance.now();
             ani_ticker.add(function () {
                 var p_now = performance.now();

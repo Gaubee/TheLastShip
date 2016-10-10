@@ -22,7 +22,7 @@ var bullets = new PIXI.Container();
 
 // 根据积分的多少，依次由周围往中心生成物品
 var flyerTypes = Object.keys(Flyer.TYPES);
-var max_num = 2;
+var max_num = 1;
 var max_score = 1000;
 
 for(let i = 0;i < flyerTypes.length;i+=1){
@@ -139,8 +139,10 @@ engine.add(right_edge);
  * 
  */
 
+// var fps = 0;
 var pre_time;
 ani_ticker.add(() => {
+    // fps+=1;
     pre_time || (pre_time = performance.now() - 1000/60);
     var cur_time = performance.now();
     var dif_time = cur_time - pre_time;
@@ -149,6 +151,11 @@ ani_ticker.add(() => {
     // 物理引擎运作
     engine.update(dif_time);
 });
+setInterval(function(){
+
+// console.log("fps:",fps)
+//     fps=0;
+// },1000);
 
 ani_ticker.start();
 

@@ -22,6 +22,7 @@ import {
 const world: p2.World = new p2.World({
     gravity: [0, 0]
 });
+world.sleepMode = p2.World.BODY_SLEEPING;
 const worldStep = 1 / 60;
 
 const _runNarrowphase = world.runNarrowphase;

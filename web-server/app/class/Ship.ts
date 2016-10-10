@@ -234,6 +234,7 @@ export default class Ship extends P2I {
         self.body_shape["ship_team_tag"] = config.team_tag;
         self.p2_body.force = [config.x_speed, config.y_speed];
         self.p2_body.position = [config.x, config.y];
+        self.p2_body.allowSleep = false;
         self.position.set(config.x, config.y);
 
         self.on("change-hp", function (dif_hp) {

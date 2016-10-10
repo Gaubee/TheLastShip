@@ -80,7 +80,7 @@ export class P2I extends PIXI.Container {
                     if(shared_config) {
                         // cache.release(_id);
                         console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
-                        // cache.clear(shared_config);
+                        cache.clear(shared_config);
                     }
                     _id = this._id
                     shared_config = new cache.Cache(_id, 524288, cache.SIZE_128);
@@ -95,7 +95,7 @@ export class P2I extends PIXI.Container {
                     process.nextTick(function(){
                         // cache.release(_id);
                         console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
-                        // cache.clear(shared_config);
+                        cache.clear(shared_config);
                     });
                 }
             })

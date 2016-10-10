@@ -208,7 +208,9 @@ export default class Bullet extends P2I {
         super.setConfig(new_config);
         var config = this.config;
         mix_options(config, new_config);
-
+        if(!this.scale) {
+            return
+        }
         this.scale.set(config.scale, config.scale);
         var old_radius = this.body_shape.radius;
         var new_radius = config.scale*config.size;

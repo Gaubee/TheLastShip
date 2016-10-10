@@ -151,9 +151,8 @@ ani_ticker.add(() => {
     // 物理引擎运作
     engine.update(dif_time);
 });
-setInterval(function(){
-
-// console.log("fps:",fps)
+// setInterval(function(){
+//     console.log("fps:",fps)
 //     fps=0;
 // },1000);
 

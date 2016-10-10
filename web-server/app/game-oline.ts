@@ -126,6 +126,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     current_stage.addChild(hp_stage);
     const HP_WEAKMAP: { [key: string]: HP } = {};
 
+    var is_force_no_min = false;
     function showViewData(objects) {
         objects.forEach(obj_info => {
             if (instanceMap.hasOwnProperty(obj_info.id)) {
@@ -136,7 +137,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             } else {
                 const Con = ObjectMap[obj_info.type];
                 if (!Con) {
-                    console.error("UNKONW TYPE:", obj_info);
+                    // console.error("UNKONW TYPE:", obj_info);
+                    is_force_no_min = true;
                     return
                 }
                 var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
@@ -185,7 +187,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 y: (view_ship||view_ship_info).config.y,
                 width: VIEW.WIDTH,
                 height: VIEW.HEIGHT,
-                min:!!view_ship
+                min:!is_force_no_min&&!!view_ship
             }, function (data) {
                 var cur_time = performance.now();
                 var dif_time = cur_time - pre_time;

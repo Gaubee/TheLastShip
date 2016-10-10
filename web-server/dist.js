@@ -8616,6 +8616,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         };
         exports.current_stage.addChild(hp_stage);
         var HP_WEAKMAP = {};
+        var is_force_no_min = false;
         function showViewData(objects) {
             objects.forEach(function (obj_info) {
                 if (instanceMap.hasOwnProperty(obj_info.id)) {
@@ -8627,7 +8628,8 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                 else {
                     var Con = ObjectMap[obj_info.type];
                     if (!Con) {
-                        console.error("UNKONW TYPE:", obj_info);
+                        // console.error("UNKONW TYPE:", obj_info);
+                        is_force_no_min = true;
                         return;
                     }
                     var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
@@ -8679,7 +8681,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     y: (view_ship || view_ship_info).config.y,
                     width: common_6.VIEW.WIDTH,
                     height: common_6.VIEW.HEIGHT,
-                    min: !!view_ship
+                    min: !is_force_no_min && !!view_ship
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;

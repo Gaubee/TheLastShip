@@ -25,40 +25,65 @@ var flyerTypes = Object.keys(Flyer.TYPES);
 var max_num = 1;
 var max_score = 1000;
 
-for(let i = 0;i < flyerTypes.length;i+=1){
-    var flyer_typename = flyerTypes[i];
-    var flyer_typeinfo = Flyer.TYPES[flyer_typename];
-    var cur_score = flyer_typeinfo.config.reward_experience
-    var cur_num = max_num*max_score/cur_score;
-    var position_rate = (Math.cos(cur_score/max_score*Math.PI)+1)/2;
-    var range_width = position_rate * VIEW.WIDTH / 2;
-    var range_height = position_rate * VIEW.HEIGHT / 2;
-    console.log(flyer_typename,cur_num)
+function genFlyer(){
+    for(let i = 0;i < flyerTypes.length;i+=1){
+        var flyer_typename = flyerTypes[i];
+        var flyer_typeinfo = Flyer.TYPES[flyer_typename];
+        var cur_score = flyer_typeinfo.config.reward_experience
+        var cur_num = max_num*max_score/cur_score;
+        var position_rate = 1-cur_score/max_score;
+        var half_width = VIEW.WIDTH / 2;
+        var half_height = VIEW.HEIGHT / 2;
+        var range_width = position_rate * half_width;
+        var range_height = position_rate * half_height;
+        var type_num_info = TYPE_NUM_MAP[flyer_typename] || (TYPE_NUM_MAP[flyer_typename] = {
+            cur:0,
+            max:cur_num,
+            range_width:range_width,
+            range_height:range_height,
+        })
 
-    for(let j = 0; j < cur_num; j += 1){
-        var deg = j/cur_num*Math.PI*2;
-        let x = (1+Math.cos(deg))*range_width;
-        let y = (1+Math.sin(deg))*range_height;
-        if(y < range_height) {
-            y+=100*Math.random()
-        }else{
-            y-=100*Math.random()
+        var gen_num = type_num_info.max - type_num_info.cur;
+        console.log(flyer_typename,cur_num,gen_num)
+
+        for(let j = 0; j < gen_num; j += 1){
+            type_num_info.cur+=1
+            var deg = j/cur_num*Math.PI*2;
+            let x = Math.cos(deg)*range_width+half_width;
+            let y = Math.sin(deg)*range_height+half_height;
+
+            var wave_x = range_width
+            var wave_y = range_height
+            if(y < range_height) {
+                y+=wave_y*Math.random()
+            }else{
+                y-=wave_y*Math.random()
+            }
+            if(x < range_width) {
+                x+=wave_x*Math.random()
+            }else{
+                x-=wave_x*Math.random()
+            }
+            let flyer = new Flyer({
+                x: x,
+                y: y,
+                body_color: 0xffffff * Math.random(),
+                type:flyerTypes[i%flyerTypes.length]
+            });
+            // console.log(x,y)
+            engine.add(flyer); 
+            flyer.on("destroy",function(){
+                TYPE_NUM_MAP[this.config.type].cur -= 1;
+            })
         }
-        if(x < range_width) {
-            x+=100*Math.random()
-        }else{
-            x-=100*Math.random()
-        }
-        let flyer = new Flyer({
-            x: x,
-            y: y,
-            body_color: 0xffffff * Math.random(),
-            type:flyerTypes[i%flyerTypes.length]
-        });
-        // console.log(x,y)
-        engine.add(flyer); 
     }
 }
+
+const TYPE_NUM_MAP = {};
+genFlyer();
+
+setInterval(genFlyer, 16e3);// 每16秒进行一波刷新
+
 
 // 四边限制
 

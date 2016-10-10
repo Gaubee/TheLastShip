@@ -37,6 +37,10 @@ function Handler(app) {
 	setInterval(function() {
 		// console.time("refreshShareCache")
 		app.rpc.world.worldRemote.refreshShareCache(null, function(err, ids) {
+			if (err) {
+				return
+			}
+			console.log(ids)
 			var objects = [];
 			ids.forEach(function(id) {
 				var info_config = SHARED_CACHE.get(id);

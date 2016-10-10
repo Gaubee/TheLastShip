@@ -23,6 +23,8 @@ const WORLD_OBJS = new Map();
 const WALL_OBJS = new Map();
 const WALL_OBJS_list = [];
 
+const SHARED_CACHE = new Map();
+
 function Handler(app) {
 	this.app = app
 	const quadtree = this.quadtree = new QuadTreeWorld({
@@ -37,7 +39,11 @@ function Handler(app) {
 		app.rpc.world.worldRemote.refreshShareCache(null, function(err, ids) {
 			var objects = [];
 			ids.forEach(function(id) {
-				var info_config = new cache.Cache(id, 524288, cache.SIZE_128);
+				var info_config = SHARED_CACHE.get(id);
+				if (!info_config) {
+					info_config = new cache.Cache(id, 524288, cache.SIZE_128);
+					 SHARED_CACHE.set(id, info_config);
+				}
 				if (info_config.__TYPE__) {
 					objects.push({
 						id: id,

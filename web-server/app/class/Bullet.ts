@@ -116,12 +116,12 @@ export default class Bullet extends P2I {
                 });
             }
             if(self.config.delay) {
-                world.removeBody(self.p2_body);
+                world.removeBody(self.p2_body);// 临时移除
                 var acc_delay = self.config.delay;
                 self.on("update",function _(delay) {
                     acc_delay-=delay;
                     if(acc_delay <= 0) {
-                        world.addBody(self.p2_body);
+                        world.addBody(self.p2_body);//随后加入
                         self.off("update", _);
                         _go_to_explode();
                     }

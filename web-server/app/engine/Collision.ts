@@ -90,7 +90,9 @@ export class P2I extends PIXI.Container {
             this.on("destroy",function(){
                 if(_id && shared_config) {
                     // cache.release(_id);
-                    cache.clear(shared_config);
+                    process.nextTick(function(){
+                        cache.clear(shared_config);
+                    });
                 }
             })
         }

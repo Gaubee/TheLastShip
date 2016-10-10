@@ -195,7 +195,8 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 this.on("update", function () {
                     if (_id !== this._id) {
                         if (shared_config) {
-                            cache_1.release(_id);
+                            // cache.release(_id);
+                            cache_1.clear(shared_config);
                         }
                         _id = this._id;
                         shared_config = new cache_1.Cache(_id, 524288, cache_1.SIZE_128);
@@ -205,7 +206,10 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 });
                 this.on("destroy", function () {
                     if (_id && shared_config) {
-                        cache_1.release(_id);
+                        // cache.release(_id);
+                        process.nextTick(function () {
+                            cache_1.clear(shared_config);
+                        });
                     }
                 });
             }
@@ -3555,12 +3559,12 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                     });
                 }
                 if (self.config.delay) {
-                    world.removeBody(self.p2_body);
+                    world.removeBody(self.p2_body); // 临时移除
                     var acc_delay = self.config.delay;
                     self.on("update", function _(delay) {
                         acc_delay -= delay;
                         if (acc_delay <= 0) {
-                            world.addBody(self.p2_body);
+                            world.addBody(self.p2_body); //随后加入
                             self.off("update", _);
                             _go_to_explode();
                         }

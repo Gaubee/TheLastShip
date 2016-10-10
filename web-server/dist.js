@@ -195,9 +195,9 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 this.on("update", function () {
                     if (_id !== this._id) {
                         if (shared_config) {
-                            // cache.release(_id);
                             console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
-                            cache_1.clear(shared_config);
+                            // cache.clear(shared_config);
+                            shared_config.__DEL__ = true;
                         }
                         _id = this._id;
                         shared_config = new cache_1.Cache(_id, 524288, cache_1.SIZE_128);
@@ -211,9 +211,9 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                 this.on("destroy", function () {
                     if (_id && shared_config) {
                         // process.nextTick(function(){
-                        // cache.release(_id);
                         console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
-                        cache_1.clear(shared_config);
+                        // cache.clear(shared_config);
+                        shared_config.__DEL__ = true;
                     }
                 });
             }

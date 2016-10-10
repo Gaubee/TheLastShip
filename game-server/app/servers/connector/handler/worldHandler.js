@@ -35,68 +35,100 @@ function Handler(app) {
 	});
 	const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
 
+	var CG_second = 3;
+	setInterval(function() {
+		var total_num = SHARED_CACHE.size;
+		var unit_num = total_num / (CG_second-1) + 1;
+		var remover = [];
+		// console.log(SHARED_CACHE.entries())
+		var entries = SHARED_CACHE.entries();
+		do{
+			var info = entries.next()
+			if (info.done) {
+				break;
+			}
+			var shared_cache = info.value[1];
+			// console.log("shared_cache:",info)
+			if (shared_cache.__DEL__) {
+				var id = info.value[0];
+				remover.push(id);
+			}
+		}while(info);
+
+		console.log("釋放共享内存：", remover,total_num,unit_num)
+		remover.forEach(id => {
+			SHARED_CACHE.delete(id)
+		});
+	}, CG_second*1000); // 进行一次垃圾清理
+
 	setInterval(function() {
 		// console.time("refreshShareCache")
-		app.rpc.world.worldRemote.refreshShareCache(null, function(err, ids) {
-			if (err||!ids) {
-				return
+		// app.rpc.world.worldRemote.refreshShareCache(null, function(err, ids) {
+		// if (err||!ids) {
+		// 	return
+		// }
+		const IDS = new cache.Cache("ids", 524288, cache.SIZE_128);
+		var ids = IDS.list;
+		if (!ids) {
+			return
+		}
+		ids = ids.split(",");
+		var objects = [];
+		var no_found = [];
+		ids.forEach(function(id) {
+			var info_config = SHARED_CACHE.get(id);
+			if (!info_config) {
+				info_config = new cache.Cache(id, 524288, cache.SIZE_128);
+				SHARED_CACHE.set(id, info_config);
 			}
-			var objects = [];
-			var no_found = [];
-			ids.forEach(function(id) {
-				var info_config = SHARED_CACHE.get(id);
-				if (!info_config) {
-					info_config = new cache.Cache(id, 524288, cache.SIZE_128);
-					SHARED_CACHE.set(id, info_config);
-				}
-				if (info_config.__TYPE__) {
-					objects.push({
-						id: id,
-						config: info_config,
-						type: info_config.__TYPE__
-					});
-				}else{
-					no_found.push(id);
-				}
-			});
-			// no_found.length&&console.log("NO FOUND:", no_found)
+			if (info_config.__TYPE__) {
+				objects.push({
+					id: id,
+					config: info_config,
+					type: info_config.__TYPE__
+				});
+			} else {
+				no_found.push(id);
+			}
+		});
+		// no_found.length&&console.log("NO FOUND:", no_found)
 
-			NO_FOUND.list = no_found;
-			// console.log(ids.length,objects.length)
-			objects.forEach(info => {
-				if (info.type === "Wall") {
-					if (WALL_OBJS.has(info.id)) {
-						var obj = WALL_OBJS.get(info.id);
-						obj.setInfo(info);
-					} else {
-						obj = new WorldObj(info);
-						WALL_OBJS.set(info.id, obj);
-						WALL_OBJS_list.push(obj);
-					}
-				}
-				if (WORLD_OBJS.has(info.id)) {
-					var obj = WORLD_OBJS.get(info.id);
+		NO_FOUND.list = no_found;
+		// console.log(ids.length,objects.length)
+		objects.forEach(info => {
+			if (info.type === "Wall") {
+				if (WALL_OBJS.has(info.id)) {
+					var obj = WALL_OBJS.get(info.id);
 					obj.setInfo(info);
 				} else {
 					obj = new WorldObj(info);
-					WORLD_OBJS.set(info.id, obj);
-					quadtree.insert(obj);
-				}
-				obj.__is_hit = true;
-			});
-			// 删除已经不纯在的东西
-			for (var obj of WORLD_OBJS.values()) {
-				if (obj.__is_hit) {
-					obj.__is_hit = false
-				} else {
-					quadtree.remove(obj);
-					WORLD_OBJS.delete(obj.id);
+					WALL_OBJS.set(info.id, obj);
+					WALL_OBJS_list.push(obj);
 				}
 			}
-			// 更新物体坐标
-			quadtree.refresh();
-			// console.timeEnd("refreshShareCache")
-		})
+			if (WORLD_OBJS.has(info.id)) {
+				var obj = WORLD_OBJS.get(info.id);
+				obj.setInfo(info);
+			} else {
+				obj = new WorldObj(info);
+				WORLD_OBJS.set(info.id, obj);
+				quadtree.insert(obj);
+			}
+			obj.__is_hit = true;
+		});
+		// 删除已经不纯在的东西
+		for (var obj of WORLD_OBJS.values()) {
+			if (obj.__is_hit) {
+				obj.__is_hit = false
+			} else {
+				quadtree.remove(obj);
+				WORLD_OBJS.delete(obj.id);
+			}
+		}
+		// 更新物体坐标
+		quadtree.refresh();
+		// console.timeEnd("refreshShareCache")
+		// })
 	}, 1000 / 30)
 }
 
@@ -106,18 +138,19 @@ function getRectViewItems(quadtree, left, top, width, height) {
 		objects: objs.concat(WALL_OBJS_list).map(obj => obj.info)
 	}
 }
+
 function fastAssign(to_obj, from_obj) {
-    for (var key in from_obj) {
-        var value = from_obj[key];
-        if(value instanceof Array) {
-            to_obj[key] = value.map(item=>fastAssign({}, item))
-        }else if(value instanceof Object){
-            fastAssign((to_obj[key] = {}), value);
-        }else{
-            to_obj[key] = value
-        }
-    }
-    return to_obj
+	for (var key in from_obj) {
+		var value = from_obj[key];
+		if (value instanceof Array) {
+			to_obj[key] = value.map(item => fastAssign({}, item))
+		} else if (value instanceof Object) {
+			fastAssign((to_obj[key] = {}), value);
+		} else {
+			to_obj[key] = value
+		}
+	}
+	return to_obj
 }
 Handler.prototype = {
 	getWorld: function(msg, session, next) {

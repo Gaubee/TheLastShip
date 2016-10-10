@@ -140,16 +140,15 @@ engine.add(right_edge);
     }
 })();
 
-// var my_ship = new Ship({
-//     x: VIEW.CENTER.x,
-//     y: VIEW.CENTER.y,
-//     body_color: 0x366345
-// });
-// // current_stage.addChild(my_ship);
-// engine.add(my_ship);
-// setInterval(function () {
-//     engine.fire(my_ship._id);
-// },3000)
+var my_ship = new Ship({
+    x: VIEW.CENTER.x,
+    y: VIEW.CENTER.y,
+    body_color: 0x366345
+});
+engine.add(my_ship);
+my_ship.toggleKeepFire(bullet => {
+    engine.add(bullet);
+});
 
 // var other_ship = new Ship({
 //     x: VIEW.CENTER.x - 100,

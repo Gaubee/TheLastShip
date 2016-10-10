@@ -106,18 +106,22 @@ world.on("endContact",function (evt) {
 const All_body_weakmap = new WeakMap<p2.Body,P2I>();
 const All_id_map = new Map<string,P2I>();
 
-// if(_isNode) {
-//     const cache = require("node-shared-cache");
-//     setInterval(function(){
-//         const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
-//         if(NO_FOUND.list){
-//             for(var i = 0;i < NO_FOUND.list.length; i+=1){
-//                 var obj = All_id_map.get(NO_FOUND.list[i]);
-//                 console.log("NO_FOUND",obj&&JSON.stringify(obj));
-//             }
-//         }
-//     },1000);
-// }
+if(_isNode) {
+    const cache = require("node-shared-cache");
+    // setInterval(function(){
+    //     const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
+    //     if(NO_FOUND.list){
+    //         for(var i = 0;i < NO_FOUND.list.length; i+=1){
+    //             var obj = All_id_map.get(NO_FOUND.list[i]);
+    //             console.log("NO_FOUND",obj&&JSON.stringify(obj));
+    //         }
+    //     }
+    // },1000);
+    const IDS = new cache.Cache("ids", 524288, cache.SIZE_128);
+    setInterval(function(){
+        IDS.list = p2is.map(p2i=>p2i._id);
+    },1000/30);
+}
 // TODO 使用数据库？
 const ship_md5_id_map = new Map<string,string>();
 const ship_id_md5_map = new Map<string,string>();

@@ -5,6 +5,7 @@ module.exports = function(app) {
 const cache = require("node-shared-cache");
 const worldConfig = require("../../../../config/world.json")
 const QuadTreeWorld = require("../../../../../web-server/app/engine/QuadTreeWorld").default;
+const os = require("os");
 
 function WorldObj(info) {
 	this.id = info.id;
@@ -35,31 +36,34 @@ function Handler(app) {
 	});
 	const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
 
-	var CG_second = 3;
-	setInterval(function() {
-		var total_num = SHARED_CACHE.size;
-		var unit_num = total_num / (CG_second-1) + 1;
-		var remover = [];
-		// console.log(SHARED_CACHE.entries())
-		var entries = SHARED_CACHE.entries();
-		do{
-			var info = entries.next()
-			if (info.done) {
-				break;
-			}
-			var shared_cache = info.value[1];
-			// console.log("shared_cache:",info)
-			if (shared_cache.__DEL__) {
-				var id = info.value[0];
-				remover.push(id);
-			}
-		}while(info);
+	if (os.platform() === "linux") { // Linux需要清空/dev/shm下的文件
+		var CG_second = 3;
+		setInterval(function() {
+			var total_num = SHARED_CACHE.size;
+			var unit_num = total_num / (CG_second - 1) + 1;
+			var remover = [];
+			// console.log(SHARED_CACHE.entries())
+			var entries = SHARED_CACHE.entries();
+			do {
+				var info = entries.next()
+				if (info.done) {
+					break;
+				}
+				var shared_cache = info.value[1];
+				// console.log("shared_cache:",info)
+				if (shared_cache.__DEL__) {
+					var id = info.value[0];
+					remover.push(id);
+				}
+			} while (info);
 
-		console.log("釋放共享内存：", remover,total_num,unit_num)
-		remover.forEach(id => {
-			SHARED_CACHE.delete(id)
-		});
-	}, CG_second*1000); // 进行一次垃圾清理
+			console.log("釋放共享内存：", remover, total_num, unit_num)
+			remover.forEach(id => {
+				SHARED_CACHE.delete(id);
+				cache.release(id);
+			});
+		}, CG_second * 1000); // 进行一次垃圾清理
+	}
 
 	setInterval(function() {
 		// console.time("refreshShareCache")

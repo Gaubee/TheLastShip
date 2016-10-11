@@ -22,7 +22,7 @@ var bullets = new PIXI.Container();
 
 // 根据积分的多少，依次由周围往中心生成物品
 var flyerTypes = Object.keys(Flyer.TYPES);
-var max_num = 0.1;
+var max_num = 1;
 var max_score = 1000;
 
 function genFlyer(){

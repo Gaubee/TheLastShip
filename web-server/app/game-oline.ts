@@ -142,7 +142,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                     return
                 }
                 var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
-                ins.addChild(new PIXI.Text(obj_info.id,{font:"12px 微软雅黑"}))
+                // ins.addChild(new PIXI.Text(obj_info.id,{font:"12px 微软雅黑"}))
                 ins._id = obj_info.id;
                 if (view_ship_info.id === obj_info.id) {
                     // view_ship = ins;

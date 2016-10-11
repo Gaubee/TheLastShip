@@ -18,7 +18,7 @@ function WorldObj(info) {
 			config: {},
 			type: this.info.type
 		};
-		var config = this.info.config 
+		var config = this.info.config
 		config_keys.forEach((k) => {
 			res.config[k] = config[k]
 		});
@@ -77,15 +77,23 @@ function Handler(app) {
 	const SHARE_REMOVER_IDS = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
 
 	var cache_ids_time;
-	var cache_ids_list;
+	var cache_ids_list = [];
 	setInterval(function() {
 		var current_ids_time = IDS.time;
 		if (!current_ids_time) {
 			return
 		}
+		var current_ids_list_str = IDS.list;
 		if (current_ids_time !== cache_ids_time) { //到了要更新所有ID的时间
 			cache_ids_time = current_ids_time;
-			cache_ids_list = IDS.list;
+			if (current_ids_list_str) {
+				cache_ids_list = [];
+				for (var i = 0, len = current_ids_list_str.length; i < len; i += 8) {
+					cache_ids_list.push(current_ids_list_str.substr(i, 7));
+				}
+			} else {
+				console.log("IDS_LIST_STR ERROR！", cache_ids_time);
+			}
 		}
 		// 新增ID
 		const share_add_ids_list = SHARE_ADD_IDS.list

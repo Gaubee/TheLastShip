@@ -55,15 +55,16 @@ export default class HP extends PIXI.Graphics {
 		}
 
 		clearTimeout(this.show_ani);
-		this.show_ani = setTimeout(() => {
-			this.ani.Tween(this)
-				.to({
-					alpha:0
-				},L_ANI_TIME)
-				.easing(TWEEN.Easing.Quartic.In)
-				.start();
-		}, 5000);
-
+		if(percentage === 1) {// 非满血不隐藏
+			this.show_ani = setTimeout(() => {
+				this.ani.Tween(this)
+					.to({
+						alpha:0
+					},L_ANI_TIME)
+					.easing(TWEEN.Easing.Quartic.In)
+					.start();
+			}, 5000);
+		}
 	}
 	update(delay: number) {
 		const owner_config = this.owner.config;

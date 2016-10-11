@@ -111,7 +111,11 @@ if(_isNode) {
     const IDS = new cache.Cache("ids", 524288, cache.SIZE_128);
     setInterval(function(){
         IDS.time = Date.now();
-        IDS.list = p2is.map(p2i=>p2i._id);
+        var list_str = "";
+        for(var i = 0,len = p2is.length; i < len; i+=1){
+            list_str += p2is[i]._id+",";
+        }
+        IDS.list = list_str;
     },1000);//每秒大更新一次，避免错误
     // 共享异常的ID
     const SHARE_NO_FOUND_IDS = new cache.Cache("no_found_ids", 524288, cache.SIZE_128);
@@ -268,7 +272,8 @@ export const engine = {
     },
     update(delay: number) {
         // world.step(worldStep, delay / 100, 10);
-        world.step(delay/1000, delay / 100, 10);
+        world.step(worldStep, delay / 100);
+        // world.step(delay/1000, delay / 100, 10);
         p2is.forEach(p2i => p2i.update(delay));
     },
     newShip(ship_config?: ShipConfig) {

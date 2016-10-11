@@ -3692,14 +3692,16 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
                     .start();
             }
             clearTimeout(this.show_ani);
-            this.show_ani = setTimeout(function () {
-                _this.ani.Tween(_this)
-                    .to({
-                    alpha: 0
-                }, const_9.L_ANI_TIME)
-                    .easing(Tween_5.default.Easing.Quartic.In)
-                    .start();
-            }, 5000);
+            if (percentage === 1) {
+                this.show_ani = setTimeout(function () {
+                    _this.ani.Tween(_this)
+                        .to({
+                        alpha: 0
+                    }, const_9.L_ANI_TIME)
+                        .easing(Tween_5.default.Easing.Quartic.In)
+                        .start();
+                }, 5000);
+            }
         };
         HP.prototype.update = function (delay) {
             var owner_config = this.owner.config;

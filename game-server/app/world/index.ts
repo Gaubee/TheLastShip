@@ -25,58 +25,62 @@ var flyerTypes = Object.keys(Flyer.TYPES);
 var max_num = 1;
 var max_score = 1000;
 
-function genFlyer(){
-    for(let i = 0;i < flyerTypes.length;i+=1){
+function genFlyer() {
+    for (let i = 0; i < flyerTypes.length; i += 1) {
         var flyer_typename = flyerTypes[i];
         var flyer_typeinfo = Flyer.TYPES[flyer_typename];
         var cur_score = flyer_typeinfo.config.reward_experience
-        var cur_num = max_num*max_score/cur_score;
-        var position_rate = 1-cur_score/max_score;
+        var cur_num = (max_num * max_score / cur_score) | 0;
+        var position_rate = 1 - cur_score / max_score;
         var half_width = VIEW.WIDTH / 2;
         var half_height = VIEW.HEIGHT / 2;
         var range_width = position_rate * half_width;
         var range_height = position_rate * half_height;
         var type_num_info = TYPE_NUM_MAP[flyer_typename] || (TYPE_NUM_MAP[flyer_typename] = {
-            cur:0,
-            max:cur_num,
-            range_width:range_width,
-            range_height:range_height,
+            cur: 0,
+            max: cur_num,
+            range_width: range_width,
+            range_height: range_height,
         })
 
         var gen_num = type_num_info.max - type_num_info.cur;
-        if(gen_num) {
-            console.log(`自动刷怪：`,flyer_typename,gen_num,"/",cur_num);
+        if (!gen_num) {
+            return;
         }
+        var ran_gen_num = Math.ceil(Math.random() * gen_num);
+        console.log(`自动刷怪：`, flyer_typename, `${ran_gen_num}/${gen_num}/${cur_num}`);
 
-        for(let j = 0; j < gen_num; j += 1){
-            type_num_info.cur+=1
-            var deg = j/cur_num*Math.PI*2;
-            let x = Math.cos(deg)*range_width+half_width;
-            let y = Math.sin(deg)*range_height+half_height;
+        for (let j = 0; j < ran_gen_num; j += 1) {
+            type_num_info.cur += 1
+            var deg = j / cur_num * Math.PI * 2;
+            let x = Math.cos(deg) * range_width + half_width;
+            let y = Math.sin(deg) * range_height + half_height;
 
             var wave_x = range_width
             var wave_y = range_height
-            if(y < range_height) {
-                y+=wave_y*Math.random()
-            }else{
-                y-=wave_y*Math.random()
+            if (y < range_height) {
+                y += wave_y * Math.random()
+            } else {
+                y -= wave_y * Math.random()
             }
-            if(x < range_width) {
-                x+=wave_x*Math.random()
-            }else{
-                x-=wave_x*Math.random()
+            if (x < range_width) {
+                x += wave_x * Math.random()
+            } else {
+                x -= wave_x * Math.random()
             }
             let flyer = new Flyer({
                 x: x,
                 y: y,
                 body_color: 0xffffff * Math.random(),
-                type:flyerTypes[i%flyerTypes.length]
+                type: flyerTypes[i % flyerTypes.length]
             });
             // console.log(x,y)
-            engine.add(flyer); 
-            flyer.on("destroy",function(){
+            flyer.on("destroy", function() {
                 TYPE_NUM_MAP[this.config.type].cur -= 1;
-            })
+            });
+            setTimeout(function () {
+                engine.add(flyer);
+            }, j/ran_gen_num*30e3);
         }
     }
 }
@@ -84,7 +88,7 @@ function genFlyer(){
 const TYPE_NUM_MAP = {};
 genFlyer();
 
-setInterval(genFlyer, 30e3);// 每30秒进行一波刷新
+setInterval(genFlyer, 30e3); // 每30秒进行一波刷新
 
 
 // 四边限制
@@ -169,7 +173,7 @@ engine.add(right_edge);
 var pre_time;
 ani_ticker.add(() => {
     // fps+=1;
-    pre_time || (pre_time = performance.now() - 1000/60);
+    pre_time || (pre_time = performance.now() - 1000 / 60);
     var cur_time = performance.now();
     var dif_time = cur_time - pre_time;
     pre_time = cur_time;

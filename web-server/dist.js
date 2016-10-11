@@ -134,15 +134,6 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
     var uuid = 0;
     if (const_1._isNode) {
         var cache = require("node-shared-cache");
-        var share_remover_ids = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
-        var remover_ids = [];
-        setInterval(function () {
-            if (share_remover_ids.is_cleared) {
-                remover_ids.splice(0, share_remover_ids.list.length);
-                share_remover_ids.is_cleared = false;
-            }
-            share_remover_ids.list = remover_ids;
-        }, 1000 / 30);
     }
     var P2I = (function (_super) {
         __extends(P2I, _super);
@@ -197,34 +188,6 @@ define("app/engine/Collision", ["require", "exports", "app/const"], function (re
                     self.once("flash", _flash);
                 });
             });
-            if (const_1._isNode) {
-                var _id;
-                var shared_config;
-                // const assign_share_config = function (){
-                //     assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
-                // }
-                this.on("update", function () {
-                    if (_id !== this._id) {
-                        if (shared_config) {
-                            console.log("[[[[CLEAR]]]] SHARED CACHE:", _id);
-                            remover_ids.push(_id);
-                        }
-                        _id = this._id;
-                        shared_config = new cache.Cache(_id, 524288, cache.SIZE_128);
-                    }
-                    if (!shared_config.__TYPE__) {
-                        shared_config.__TYPE__ = self.constructor.name;
-                    }
-                    // process.nextTick(assign_share_config);
-                    const_1.assign(shared_config, self.config.toJSON ? self.config.toJSON() : self.config);
-                });
-                this.on("destroy", function () {
-                    if (_id && shared_config) {
-                        console.log("[[[[DESTROY]]]] SHARED CACHE:", _id);
-                        remover_ids.push(_id);
-                    }
-                });
-            }
         }
         P2I.prototype.update = function (delay) {
             var p2_body = this.p2_body;
@@ -3425,9 +3388,9 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
             }
         }
         Flyer.prototype.update = function (delay) {
-            _super.prototype.update.call(this, delay);
             this.rotation = this.config.rotation = this.p2_body.interpolatedAngle;
             // this.p2_body.force = [this.config.x_speed, this.config.y_speed];
+            _super.prototype.update.call(this, delay);
         };
         Flyer.prototype.setConfig = function (new_config) {
             _super.prototype.setConfig.call(this, new_config);
@@ -3627,7 +3590,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             });
             if (const_8._isNode) {
                 self.once("explode", function () {
-                    console.log("explode", self._id);
+                    // console.log("explode", self._id);
                     // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
                     // self.update = (delay) => {
                     //     self.emit("destroy");
@@ -8654,6 +8617,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                         return;
                     }
                     var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
+                    ins.addChild(new PIXI.Text(obj_info.id, { font: "12px 微软雅黑" }));
                     ins._id = obj_info.id;
                     if (view_ship_info.id === obj_info.id) {
                         // view_ship = ins;
@@ -8705,7 +8669,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     y: (view_ship || view_ship_info).config.y,
                     width: common_6.VIEW.WIDTH,
                     height: common_6.VIEW.HEIGHT,
-                    min: !is_force_no_min && !!view_ship && false
+                    min: !is_force_no_min && !!view_ship
                 }, function (data) {
                     var cur_time = performance.now();
                     var dif_time = cur_time - pre_time;
@@ -8717,6 +8681,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     showViewData(data.objects);
                     can_next = true;
                 });
+                is_force_no_min = false;
             });
         }
         ;

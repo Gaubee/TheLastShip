@@ -107,46 +107,56 @@ const All_body_weakmap = new WeakMap<p2.Body,P2I>();
 const All_id_map = new Map<string,P2I>();
 
 if(_isNode) {
-    const cache = require("node-shared-cache");
-    // setInterval(function(){
-    //     const NO_FOUND = new cache.Cache("no_found", 524288, cache.SIZE_128);
-    //     if(NO_FOUND.list){
-    //         for(var i = 0;i < NO_FOUND.list.length; i+=1){
-    //             var obj = All_id_map.get(NO_FOUND.list[i]);
-    //             console.log("NO_FOUND",obj&&JSON.stringify(obj));
-    //         }
-    //     }
-    // },1000);
+    var cache = require("node-shared-cache");
     const IDS = new cache.Cache("ids", 524288, cache.SIZE_128);
     setInterval(function(){
+        IDS.time = Date.now();
         IDS.list = p2is.map(p2i=>p2i._id);
-    },1000/30);
+    },1000);//每秒大更新一次，避免错误
+    // 共享异常的ID
+    const SHARE_NO_FOUND_IDS = new cache.Cache("no_found_ids", 524288, cache.SIZE_128);
+
+    // 新增的ID
+    const share_add_ids = new cache.Cache("add_ids", 524288, cache.SIZE_128);
+    var add_ids = []
+    // 移除的ID
+    const share_remover_ids = new cache.Cache("remover_ids", 524288, cache.SIZE_128);
+    var remover_ids = []
+    setInterval(function(){
+        var share_no_found_ids_list = SHARE_NO_FOUND_IDS.list;
+        if(share_no_found_ids_list && share_no_found_ids_list.length) {
+            console.log("HANDLE NO FOUND:", share_no_found_ids_list)
+            share_no_found_ids_list.forEach(function(id){
+                var item = All_id_map.get(id);
+                if(item) {
+                    item.emit("reshare_config")
+                }else{
+                    console.log("WHY?", id);
+                    remover_ids.push(id);
+                }
+            });
+            SHARE_NO_FOUND_IDS.is_cleared = true;
+        }
+
+        // ADD
+        if(share_add_ids.is_cleared) {
+            add_ids.splice(0, share_add_ids.list.length);
+            share_add_ids.is_cleared = false;
+        }
+        share_add_ids.list = add_ids;
+        // REM
+        if(share_remover_ids.is_cleared) {
+            remover_ids.splice(0, share_remover_ids.list.length);
+            share_remover_ids.is_cleared = false;
+        }
+        share_remover_ids.list = remover_ids;
+    },1000/60);
 }
 // TODO 使用数据库？
 const ship_md5_id_map = new Map<string,string>();
 const ship_id_md5_map = new Map<string,string>();
 
 const p2is = [];
-// if(_isNode) {
-//     const cache = require('node-shared-cache');
-//     const p2i_objs_cahce = new cache.Cache("p2is", 557056);
-//     const PUSH = "push"
-//     const SPLICE = "splice"
-//     p2is[PUSH] = function(){
-//         for(var i = 0,len = arguments.length,pre = this[this.length-1]; i < len; i+=1){
-//             var cache_obj = arguments[i];
-//             pre["__NEXT__"]  = cache_obj;
-//             pre = this[this.length] = cache_obj;
-//         }
-//     }
-//     const _splice = p2is[SPLICE];
-//     p2is[SPLICE] = function(start_index, num){
-//         if(start_index>=0) {
-//             _splice.call(this,start_index,num);
-//             this[start_index]["__NEXT__"] = 
-//         }
-//     }
-// }
 export const engine = {
     world: world,
     listener:null,
@@ -193,11 +203,58 @@ export const engine = {
         All_id_map.set(item._id, item);
         item.emit("add-to-world", world);
         item.on("destroy", function() {
-            console.log("destroy!!and remove!!",p2is.indexOf(this))
+            // console.log("destroy!!and remove!!",p2is.indexOf(this))
             p2is.splice(p2is.indexOf(this), 1);
             All_body_weakmap.delete(this.p2_body);
             All_id_map.delete(this._id);
         });
+        // 共享内存的相关操作
+        if(_isNode) {
+            add_ids.push(item._id);
+
+            var _id;
+            var shared_config;
+            var shared_config_in_js;
+            // 进行一波初始化
+            const init_shared_config = function(){
+                _id = item._id
+                shared_config = new cache.Cache(_id, 524288, cache.SIZE_128);
+                shared_config_in_js = {};
+                shared_config_in_js.__TYPE__ = shared_config.__TYPE__ = item.constructor.name;
+            }
+            const set_shared_config = function (){
+                var res_config = item.config.toJSON ? item.config.toJSON() : item.config
+                for(var k in res_config){//config统一都是单层结构
+                    if(shared_config_in_js[k] !== res_config[k]) {
+                        shared_config_in_js[k] = shared_config[k] = res_config[k]
+                    }
+                }
+            };
+            init_shared_config();
+            set_shared_config();
+            item.on("reshare_config",function(){
+                init_shared_config();
+                set_shared_config();
+            });
+
+            item.on("update",function(){
+                if(_id !== item._id) {
+                    remover_ids.push(_id)
+                    init_shared_config();
+                }
+                if(!shared_config_in_js.__TYPE__) {
+                    console.error("WTF?:",_id,shared_config_in_js);
+                }
+                set_shared_config();
+            })
+            item.on("destroy",function(){
+                if(_id && shared_config_in_js) {
+                    remover_ids.push(_id)
+                    shared_config = null;
+                    shared_config_in_js = null;
+                }
+            })
+        }
     },
     getGameBaseInfo(){
         return {

@@ -136,12 +136,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 }
             } else {
                 const Con = ObjectMap[obj_info.type];
-                if (!Con) {
+                if (!Con) {//出问题了，重新请求完整数据
                     // console.error("UNKONW TYPE:", obj_info);
                     is_force_no_min = true;
                     return
                 }
                 var ins = instanceMap[obj_info.id] = new Con(obj_info.config, obj_info.id);
+                ins.addChild(new PIXI.Text(obj_info.id,{font:"12px 微软雅黑"}))
                 ins._id = obj_info.id;
                 if (view_ship_info.id === obj_info.id) {
                     // view_ship = ins;
@@ -190,7 +191,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 y: (view_ship||view_ship_info).config.y,
                 width: VIEW.WIDTH,
                 height: VIEW.HEIGHT,
-                min:!is_force_no_min&&!!view_ship&&false
+                min:!is_force_no_min&&!!view_ship
             }, function (data) {
                 var cur_time = performance.now();
                 var dif_time = cur_time - pre_time;
@@ -203,6 +204,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 showViewData(data.objects);
                 can_next = true;
             });
+            is_force_no_min = false;
         });
     };
 

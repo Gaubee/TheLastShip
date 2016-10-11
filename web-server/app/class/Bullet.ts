@@ -170,7 +170,7 @@ export default class Bullet extends P2I {
         });
         if (_isNode) { //NODEJS
             self.once("explode", function() {
-                console.log("explode", self._id);
+                // console.log("explode", self._id);
                 // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
                 // self.update = (delay) => {
                 //     self.emit("destroy");

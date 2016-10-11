@@ -141,9 +141,9 @@ export default class Flyer extends P2I {
     }
 
     update(delay) {
-        super.update(delay);
         this.rotation = this.config.rotation = this.p2_body.interpolatedAngle;
         // this.p2_body.force = [this.config.x_speed, this.config.y_speed];
+        super.update(delay);
     }
     setConfig(new_config) {
         super.setConfig(new_config);

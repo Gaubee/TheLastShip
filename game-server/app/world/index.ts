@@ -22,7 +22,7 @@ var bullets = new PIXI.Container();
 
 // 根据积分的多少，依次由周围往中心生成物品
 var flyerTypes = Object.keys(Flyer.TYPES);
-var max_num = 1;
+var max_num = 0.1;
 var max_score = 1000;
 
 function genFlyer(){
@@ -44,7 +44,9 @@ function genFlyer(){
         })
 
         var gen_num = type_num_info.max - type_num_info.cur;
-        console.log(flyer_typename,cur_num,gen_num)
+        if(gen_num) {
+            console.log(`自动刷怪：`,flyer_typename,gen_num,"/",cur_num);
+        }
 
         for(let j = 0; j < gen_num; j += 1){
             type_num_info.cur+=1

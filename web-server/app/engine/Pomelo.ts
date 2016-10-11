@@ -109,7 +109,7 @@ export default class Pomelo extends EventEmitter {
         }
     };
 
-    request(route, msg, cb) {
+    request(route, msg, cb, is_retry = {}) {
         if (arguments.length === 2 && typeof msg === 'function') {
             cb = msg;
             msg = {};
@@ -124,7 +124,26 @@ export default class Pomelo extends EventEmitter {
         this.reqId++;
         this.sendMessage(this.reqId, route, msg);
 
-        this.callbacks[this.reqId] = cb;
+        if(isFinite(is_retry.time_out)) {
+            var _is_load = false;
+            setTimeout(() => {
+                if(!_is_load) {
+                    this.request(route, msg, cb, is_retry)// 超时重试
+                }
+            }, +is_retry.time_out);
+            this.callbacks[this.reqId] = function (data) {
+                if(is_retry.is_once) {
+                    if(cb["__IS_POMELO_"]) {
+                        return
+                    }
+                    cb["__IS_POMELO_"] = true
+                }
+                _is_load = true;
+                cb(data);
+            }
+        }else{
+            this.callbacks[this.reqId] = cb;
+        }
         this.routeMap[this.reqId] = route;
     };
     notify(route, msg) {

@@ -7462,7 +7462,9 @@ define("app/engine/Pomelo", ["require", "exports", "app/engine/Protobuf", "app/e
             }
         };
         ;
-        Pomelo.prototype.request = function (route, msg, cb) {
+        Pomelo.prototype.request = function (route, msg, cb, is_retry) {
+            var _this = this;
+            if (is_retry === void 0) { is_retry = {}; }
             if (arguments.length === 2 && typeof msg === 'function') {
                 cb = msg;
                 msg = {};
@@ -7476,7 +7478,27 @@ define("app/engine/Pomelo", ["require", "exports", "app/engine/Protobuf", "app/e
             }
             this.reqId++;
             this.sendMessage(this.reqId, route, msg);
-            this.callbacks[this.reqId] = cb;
+            if (isFinite(is_retry.time_out)) {
+                var _is_load = false;
+                setTimeout(function () {
+                    if (!_is_load) {
+                        _this.request(route, msg, cb, is_retry); // 超时重试
+                    }
+                }, +is_retry.time_out);
+                this.callbacks[this.reqId] = function (data) {
+                    if (is_retry.is_once) {
+                        if (cb["__IS_POMELO_"]) {
+                            return;
+                        }
+                        cb["__IS_POMELO_"] = true;
+                    }
+                    _is_load = true;
+                    cb(data);
+                };
+            }
+            else {
+                this.callbacks[this.reqId] = cb;
+            }
             this.routeMap[this.reqId] = route;
         };
         ;
@@ -9613,44 +9635,38 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/editor
             port: port,
             log: true
         }, function () {
-            var time_out = 2000;
-            var _is_load = false;
-            function queryEntry() {
-                setTimeout(function () {
-                    if (!_is_load) {
-                        loader_1.current_stage_wrap.emit("connect-retry");
-                        queryEntry();
-                    }
-                }, time_out);
-                // 随机选择服务器
-                Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
-                    if (data.code === 200) {
-                        _is_load = true;
-                        Pomelo_2.pomelo.init({
-                            host: data.host,
-                            port: data.port,
-                            log: true
-                        }, function () {
-                            loader_1.current_stage_wrap.emit("connected", function _(username) {
-                                game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
-                                    if (err) {
-                                        loader_1.current_stage_wrap.emit("connected", _, err);
-                                    }
-                                    else {
-                                        game_oline_1.current_stage_wrap.emit("before-active", game_info);
-                                        common_10.stageManager.set(game_oline_1.current_stage_wrap);
-                                    }
-                                });
+            // 随机选择服务器
+            Pomelo_2.pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
+                if (data.code === 200) {
+                    Pomelo_2.pomelo.init({
+                        host: data.host,
+                        port: data.port,
+                        log: true
+                    }, function () {
+                        loader_1.current_stage_wrap.emit("connected", function _(username) {
+                            game_oline_1.current_stage_wrap.emit("enter", username, function (err, game_info) {
+                                if (err) {
+                                    loader_1.current_stage_wrap.emit("connected", _, err);
+                                }
+                                else {
+                                    game_oline_1.current_stage_wrap.emit("before-active", game_info);
+                                    common_10.stageManager.set(game_oline_1.current_stage_wrap);
+                                }
                             });
                         });
-                    }
-                    else {
-                        console.error(data);
-                    }
-                });
-            }
-            ;
-            queryEntry();
+                    });
+                }
+                else {
+                    alert("服务异常！请尝试刷新浏览器");
+                    console.error(data);
+                }
+            }, {
+                time_out: 1000,
+                is_once: true
+            });
+        }, {
+            time_out: 1000,
+            is_once: true
         });
     }
     function animate() {

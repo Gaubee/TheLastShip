@@ -24,42 +24,36 @@ if(location.hash==="#test") {
         port: port,
         log: true
     }, function () {
-
-        var time_out = 2000;
-        var _is_load = false;
-        function queryEntry(){
-            setTimeout(function(){
-                if(!_is_load) {// 重试
-                    l_stage.emit("connect-retry");
-                    queryEntry();
-                }
-            }, time_out)
-            // 随机选择服务器
-            pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
-                if (data.code === 200) {
-                    _is_load = true;
-                    pomelo.init({
-                        host: data.host,
-                        port: data.port,
-                        log: true
-                    }, function () {
-                        l_stage.emit("connected",function _(username) {
-                            ol_stage.emit("enter",username,function (err,game_info) {
-                                if(err) {
-                                    l_stage.emit("connected",_,err);
-                                }else{
-                                    ol_stage.emit("before-active", game_info);
-                                    stageManager.set(ol_stage);
-                                }
-                            })
-                        });
+        // 随机选择服务器
+        pomelo.request("gate.gateHandler.queryEntry", "hello pomelo", function (data) {
+            if (data.code === 200) {
+                pomelo.init({
+                    host: data.host,
+                    port: data.port,
+                    log: true
+                }, function () {
+                    l_stage.emit("connected",function _(username) {
+                        ol_stage.emit("enter",username,function (err,game_info) {
+                            if(err) {
+                                l_stage.emit("connected",_,err);
+                            }else{
+                                ol_stage.emit("before-active", game_info);
+                                stageManager.set(ol_stage);
+                            }
+                        })
                     });
-                } else {
-                    console.error(data);
-                }
-            });
-        };
-        queryEntry();
+                });
+            } else {
+                alert("服务异常！请尝试刷新浏览器")
+                console.error(data);
+            }
+        }, {
+            time_out: 1000,
+            is_once: true
+        });
+    }, {
+        time_out: 1000,
+        is_once: true
     });
 }
 

@@ -9664,9 +9664,6 @@ define("app/main", ["require", "exports", "app/common", "app/game2", "app/editor
                 time_out: 1000,
                 is_once: true
             });
-        }, {
-            time_out: 1000,
-            is_once: true
         });
     }
     function animate() {

@@ -109,7 +109,7 @@ export default class Pomelo extends EventEmitter {
         }
     };
 
-    request(route, msg, cb, is_retry = {}) {
+    request(route, msg, cb, is_retry:{time_out?,is_once?} = {}) {
         if (arguments.length === 2 && typeof msg === 'function') {
             cb = msg;
             msg = {};

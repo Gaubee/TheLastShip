@@ -47,13 +47,10 @@ if(location.hash==="#test") {
                 alert("服务异常！请尝试刷新浏览器")
                 console.error(data);
             }
-        }, {
+        },{
             time_out: 1000,
             is_once: true
         });
-    }, {
-        time_out: 1000,
-        is_once: true
     });
 }
 

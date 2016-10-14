@@ -54,7 +54,6 @@ const FPS_ticker = new PIXI.ticker.Ticker();
 export const current_stage_wrap = new PIXI.Graphics();
 export const current_stage = new PIXI.Container();
 current_stage_wrap.addChild(current_stage);
-// current_stage_wrap["keep_direction"] = "horizontal";
 //加载图片资源
 export const loader = new PIXI.loaders.Loader();
 
@@ -119,10 +118,8 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 		while(len>0){
 			len -= 1;
 			current_stage.children[len].alpha = 0.2;
-			// current_stage.removeChildAt(0);
 		}
 		qtw.getRectViewItems(view.x,view.y,view_width,view_height).forEach(fly=>{
-			// current_stage.addChild(fly)
 			fly.alpha = 1;
 		});
 		current_stage.position.set(-view.x+VIEW.CENTER.x-view_width/2,-view.y+VIEW.CENTER.y-view_height/2);

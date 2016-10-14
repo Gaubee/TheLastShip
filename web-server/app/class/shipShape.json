@@ -9,7 +9,7 @@
 			},
 			"config": {
 				"size": "pt2px!15",
-				"max_hp": 50,
+				"max_hp": 10,
 				"bullet_damage": 5,
 				"restore_hp": 5,
 				"force": 80000,
@@ -24,13 +24,13 @@
 					"value": "pt2px!0.5",
 					"then": "eval!this.config.size += info.value*parseInt(this.config.level/3)"
 				},
-				"bullet_damage": 0.5,
-				"max_hp": 10
+				"bullet_damage": 0.2,
+				"max_hp": 1
 			},
 			"proto_grow": {
 				"//": "加点成长信息",
-				"bullet_damage": 10,
-				"max_hp": 100,
+				"bullet_damage": 1,
+				"max_hp": 10,
 				"restore_hp": 5,
 				"force": 15000,
 				"overload_speed": 0.4,
@@ -130,14 +130,14 @@
 				"x": "mix@(size)exp!*-0.55",
 				"y": "mix@(size)exp!/2"
 			},
-			"delay":0.500
+			"delay": 0.500
 		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.55",
 				"y": "mix@(size)exp!/-2"
 			},
-			"delay":0.500
+			"delay": 0.500
 		}]
 	},
 	"S-1-4": {
@@ -214,8 +214,8 @@
 		},
 		"guns": [{
 			"type": "long",
-			"args":{
-				"width":"mix@(size)exp!*2"
+			"args": {
+				"width": "mix@(size)exp!*2"
 			}
 		}]
 	},
@@ -331,7 +331,7 @@
 			"base_on": ["O-2-1"]
 		},
 		"body<EXTENDS@O-2-1.body>": {
-			"config":{
+			"config": {
 				"overload_speed": 1.5
 			}
 		},
@@ -364,10 +364,10 @@
 			"base_on": ["O-2-1"]
 		},
 		"body<EXTENDS@O-2-1.body>": {
-			"level_grow":{
+			"level_grow": {
 				"bullet_damage": 1
 			},
-			"proto_grow":{
+			"proto_grow": {
 				"bullet_damage": 20
 			}
 		},
@@ -385,9 +385,9 @@
 				"width": "mix@(size)exp!*1.5"
 			},
 			"rotation": "PI!0.18",
-			"bullet_size":"mix@(bullet_size)exp!*0.70710",
-			"bullet_damage":"mix@(bullet_damage)exp!/2",
-			"bullet_force":"mix@(bullet_force)exp!/2",
+			"bullet_size": "mix@(bullet_size)exp!*0.70710",
+			"bullet_damage": "mix@(bullet_damage)exp!/2",
+			"bullet_force": "mix@(bullet_force)exp!/2",
 			"delay": 0.125
 		}, {
 			"type": "long",
@@ -397,9 +397,9 @@
 				"width": "mix@(size)exp!*1.5"
 			},
 			"rotation": "PI!-0.18",
-			"bullet_size":"mix@(bullet_size)exp!*0.70710",
-			"bullet_damage":"mix@(bullet_damage)exp!/2",
-			"bullet_force":"mix@(bullet_force)exp!/2",
+			"bullet_size": "mix@(bullet_size)exp!*0.70710",
+			"bullet_damage": "mix@(bullet_damage)exp!/2",
+			"bullet_force": "mix@(bullet_force)exp!/2",
 			"delay": 0.125
 		}, {
 			"type": "long",
@@ -409,9 +409,9 @@
 				"width": "mix@(size)exp!*1.5"
 			},
 			"rotation": "PI!0.35",
-			"bullet_size":"mix@(bullet_size)exp!*0.70710",
-			"bullet_damage":"mix@(bullet_damage)exp!/2",
-			"bullet_force":"mix@(bullet_force)exp!/2",
+			"bullet_size": "mix@(bullet_size)exp!*0.70710",
+			"bullet_damage": "mix@(bullet_damage)exp!/2",
+			"bullet_force": "mix@(bullet_force)exp!/2",
 			"delay": 0.25
 		}, {
 			"type": "long",
@@ -421,9 +421,9 @@
 				"width": "mix@(size)exp!*1.5"
 			},
 			"rotation": "PI!-0.35",
-			"bullet_size":"mix@(bullet_size)exp!*0.70710",
-			"bullet_damage":"mix@(bullet_damage)exp!/2",
-			"bullet_force":"mix@(bullet_force)exp!/2",
+			"bullet_size": "mix@(bullet_size)exp!*0.70710",
+			"bullet_damage": "mix@(bullet_damage)exp!/2",
+			"bullet_force": "mix@(bullet_force)exp!/2",
 			"delay": 0.25
 		}, {
 			"type": "long",
@@ -433,9 +433,9 @@
 				"width": "mix@(size)exp!*1.5"
 			},
 			"rotation": "PI!0.5",
-			"bullet_size":"mix@(bullet_size)exp!*0.70710",
-			"bullet_damage":"mix@(bullet_damage)exp!/2",
-			"bullet_force":"mix@(bullet_force)exp!/2",
+			"bullet_size": "mix@(bullet_size)exp!*0.70710",
+			"bullet_damage": "mix@(bullet_damage)exp!/2",
+			"bullet_force": "mix@(bullet_force)exp!/2",
 			"delay": 0.375
 		}, {
 			"type": "long",
@@ -445,9 +445,9 @@
 				"width": "mix@(size)exp!*1.5"
 			},
 			"rotation": "PI!-0.5",
-			"bullet_size":"mix@(bullet_size)exp!*0.70710",
-			"bullet_damage":"mix@(bullet_damage)exp!/2",
-			"bullet_force":"mix@(bullet_force)exp!/2",
+			"bullet_size": "mix@(bullet_size)exp!*0.70710",
+			"bullet_damage": "mix@(bullet_damage)exp!/2",
+			"bullet_force": "mix@(bullet_force)exp!/2",
 			"delay": 0.375
 		}]
 	},
@@ -520,7 +520,14 @@
 			"level": 30,
 			"base_on": ["O-2-2"]
 		},
-		"body<EXTENDS@S-1-2.body>": {},
+		"body<EXTENDS@S-1-2.body>": {
+			"config": {
+				"bullet_force": 2000
+			},
+			"proto_grow": {
+				"bullet_force": 200
+			}
+		},
 		"guns": [{
 			"type": "long2",
 			"args": {
@@ -528,7 +535,10 @@
 				"y": "mix@(size)exp!/2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"bullet_type": "track跟踪",
+			"rotation": "PI!-0.5",
+			"bullet_lift_time": -1,
+			"max_bullet_length": 8,
+			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
 			"bullet_density": "pt2px!1"
 		}, {
@@ -538,7 +548,10 @@
 				"y": "mix@(size)exp!/-2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"bullet_type": "track跟踪",
+			"rotation": "PI!-0.5",
+			"bullet_lift_time": -1,
+			"max_bullet_length": 8,
+			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
 			"bullet_density": "pt2px!1"
 		}, {
@@ -548,8 +561,10 @@
 				"y": "mix@(size)exp!/2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"rotation": "PI!-1",
-			"bullet_type": "track跟踪",
+			"rotation": "PI!-1.5",
+			"bullet_lift_time": -1,
+			"max_bullet_length": 8,
+			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
 			"bullet_density": "pt2px!1"
 		}, {
@@ -559,8 +574,10 @@
 				"y": "mix@(size)exp!/-2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"rotation": "PI!-1",
-			"bullet_type": "track跟踪",
+			"rotation": "PI!-1.5",
+			"bullet_lift_time": -1,
+			"max_bullet_length": 8,
+			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
 			"bullet_density": "pt2px!1"
 		}]
@@ -678,69 +695,69 @@
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			}
-		},{
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!1"
-		},{
+			"rotation": "PI!1"
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!0.25",
-			"delay":0.5
-		},{
+			"rotation": "PI!0.25",
+			"delay": 0.5
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!-0.25",
-			"delay":0.5
-		},{
+			"rotation": "PI!-0.25",
+			"delay": 0.5
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!0.5"
-		},{
+			"rotation": "PI!0.5"
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!-0.5"
-		},{
+			"rotation": "PI!-0.5"
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!0.75",
-			"delay":0.5
-		},{
+			"rotation": "PI!0.75",
+			"delay": 0.5
+		}, {
 			"type": "long",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*0.85"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*0.85"
 			},
-			"rotation":"PI!-0.75",
-			"delay":0.5
+			"rotation": "PI!-0.75",
+			"delay": 0.5
 		}]
 	},
 	"X-3-3": {
@@ -753,15 +770,15 @@
 		"guns": [{
 			"type": "long",
 			"args": {
-				"lineStyle":["pt2px!1","0x5d5d5d",1],
+				"lineStyle": ["pt2px!1", "0x5d5d5d", 1],
 				"x": "mix@(size)exp!*-0.35",
 				"width": "mix@(size)exp!*1.4",
 				"height": "mix@(size)exp!*0.4"
 			}
-		},{
+		}, {
 			"type": "long",
 			"args": {
-				"lineStyle":["pt2px!1","0x5d5d5d",1],
+				"lineStyle": ["pt2px!1", "0x5d5d5d", 1],
 				"x": "mix@(size)exp!*-0.35",
 				"width": "mix@(size)exp!*2",
 				"height": "mix@(size)exp!*0.65"
@@ -771,7 +788,7 @@
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"y": "mix@(size)exp!*-0.2",
-				"height":"mix@(size)exp!*0.35"
+				"height": "mix@(size)exp!*0.35"
 			},
 			"rotation": "PI!0.8666666666"
 		}, {
@@ -779,7 +796,7 @@
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"y": "mix@(size)exp!*0.2",
-				"height":"mix@(size)exp!*0.35"
+				"height": "mix@(size)exp!*0.35"
 			},
 			"rotation": "PI!-0.8666666666"
 		}, {
@@ -787,7 +804,7 @@
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"y": "mix@(size)exp!*-0.45",
-				"height":"mix@(size)exp!*0.35"
+				"height": "mix@(size)exp!*0.35"
 			},
 			"rotation": "PI!0.8"
 		}, {
@@ -795,63 +812,62 @@
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"y": "mix@(size)exp!*0.45",
-				"height":"mix@(size)exp!*0.35"
+				"height": "mix@(size)exp!*0.35"
 			},
 			"rotation": "PI!-0.8"
 		}]
 	},
-	"Z-2-1":{
+	"Z-2-1": {
 		"name": "路障者",
 		"required": {
 			"level": 20,
 			"base_on": ["S-1-4"]
 		},
 		"body<EXTENDS@S-1-4.body>": {},
-		"guns":[{
+		"guns": [{
 			"type": "horn",
-			"args": {
-			}
+			"args": {}
 		}]
 	},
-	"Z-2-2":{
+	"Z-2-2": {
 		"name": "???",
 		"required": {
 			"level": 20,
 			"base_on": ["S-1-4"]
 		},
 		"body<EXTENDS@S-1-4.body>": {},
-		"guns":[{
+		"guns": [{
 			"type": "long",
 			"args": {
-				"width":"mix@(size)exp!*1",
-				"height":"mix@(size)exp!*1.4",
-				"x":"mix@(size)exp!*-0.5"
+				"width": "mix@(size)exp!*1",
+				"height": "mix@(size)exp!*1.4",
+				"x": "mix@(size)exp!*-0.5"
 			}
-		},{
+		}, {
 			"type": "long",
 			"args": {
-				"width":"mix@(size)exp!*1.2",
-				"height":"mix@(size)exp!*1",
-				"x":"mix@(size)exp!*-0.5"
+				"width": "mix@(size)exp!*1.2",
+				"height": "mix@(size)exp!*1",
+				"x": "mix@(size)exp!*-0.5"
 			}
 		}]
 	},
-	"Z-3-1":{
+	"Z-3-1": {
 		"name": "巨型路障者",
 		"required": {
 			"level": 30,
 			"base_on": ["Z-2-1"]
 		},
 		"body<EXTENDS@S-1-4.body>": {
-			"config":{
-				"bullet_size":20
+			"config": {
+				"bullet_size": 20
 			}
 		},
-		"guns":[{
+		"guns": [{
 			"type": "horn",
 			"args": {
-				"rect_height":"mix@(size)exp!*1.4",
-				"trapezoid_endHeight":"mix@(size)exp!*2.2",
+				"rect_height": "mix@(size)exp!*1.4",
+				"trapezoid_endHeight": "mix@(size)exp!*2.2",
 				"rect_x": "mix@(size)exp!*-0.3"
 			}
 		}]

@@ -45,7 +45,7 @@ import {
 
 interface moveShipOperateShipInfo {
 	x_speed: number,
-		y_speed: number,
+	y_speed: number,
 }
 /** 移动
  *
@@ -161,7 +161,7 @@ export function moveShip(
 				handle.y = mobile_operator.y
 			});
 
-		}());
+		} ());
 		// 确保操作面板处于摇柄球之上，不会音响touchendoutside事件;
 		listen_stage.addChild(mobile_operator);
 	} else {
@@ -334,7 +334,7 @@ export function shipFire(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	shipFire_cb: () => void) {
+	shipFire_cb: (target_point: { x: number, y: number }) => void) {
 	if (_isMobile) {
 		on(listen_stage, "touchstart", function(e) {
 			const view_ship = get_view_ship();
@@ -344,14 +344,60 @@ export function shipFire(
 				if (!touch) {
 					return
 				}
-				shipFire_cb();
+				shipFire_cb({ x: touch.clientX, y: touch.clientY });
 			}
 		});
 	} else {
 		on(listen_stage, "mousedown", function(e) {
 			const view_ship = get_view_ship();
 			if (view_ship) {
-				shipFire_cb();
+				var view_staget_pos = view_stage.position;
+				shipFire_cb({
+					x: e.data.global.x - view_staget_pos.x,
+					y: e.data.global.y - view_staget_pos.y,
+				});
+			}
+		});
+	}
+}
+
+
+/** 子弹控制
+ *
+ */
+export function shipControlBullets(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	shipFire_cb: (target_point: { x: number, y: number }) => void) {
+	if (_isMobile) {
+		on(listen_stage, "touchstart|touchmove", function(e) {
+			const view_ship = get_view_ship();
+			if (view_ship) {
+				var touch_list = e.data.originalEvent.touches;
+				var touch = touchManager.getFreeOne(touch_list);
+				if (!touch) {
+					return
+				}
+				shipFire_cb({ x: touch.clientX, y: touch.clientY });
+			}
+		});
+	} else {
+		on(listen_stage, "mousemove", function(e) {
+			const view_ship = get_view_ship();
+			if (view_ship) {
+				var view_staget_pos = view_stage.position;
+				shipFire_cb({
+					x: e.data.global.x - view_staget_pos.x,
+					y: e.data.global.y - view_staget_pos.y,
+				});
 			}
 		});
 	}
@@ -420,12 +466,12 @@ export function showProtoPlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	changeProto_cb: (add_proto:string,cb_to_redraw:()=>void) => void) {
+	changeProto_cb: (add_proto: string, cb_to_redraw: () => void) => void) {
 	const view_ship = get_view_ship();
-	if(!view_ship){
+	if (!view_ship) {
 		return
 	}
-	if(proto_plan["is_opened"]||proto_plan["is_ani"]){
+	if (proto_plan["is_opened"] || proto_plan["is_ani"]) {
 		return
 	}
 	clearTimeout(close_ProtoPlan_ti);
@@ -439,15 +485,15 @@ export function showProtoPlan(
 		changeProto_cb);
 	ani_tween.Tween(proto_plan)
 		.set({
-			x:-proto_plan.width,
-			y:VIEW.HEIGHT-proto_plan.height
+			x: -proto_plan.width,
+			y: VIEW.HEIGHT - proto_plan.height
 		})
 		.to({
-			x:0
+			x: 0
 		}, B_ANI_TIME)
 		.easing(TWEEN.Easing.Quadratic.Out)
 		.start()
-		.onComplete(()=>{
+		.onComplete(() => {
 			proto_plan["is_ani"] = false
 		});
 	listen_stage.addChild(proto_plan);
@@ -466,28 +512,28 @@ function drawProtoPlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	changeProto_cb: (add_proto:string,cb_to_redraw:()=>void) => void) {
+	changeProto_cb: (add_proto: string, cb_to_redraw: () => void) => void) {
 	const view_ship = get_view_ship();
 	// 销毁重绘
-	proto_plan.children.slice().forEach(child=>{
+	proto_plan.children.slice().forEach(child => {
 		proto_plan.removeChild(child);
 		child.destroy();
 	})
 
 	const typeInfo = shipShape[view_ship.config.type];
 	const proto_grow_config = typeInfo.body.proto_grow_config;
-	for(var k in proto_grow_config){
+	for (var k in proto_grow_config) {
 		var proto_grow_config_item = proto_grow_config[k];
-		if(typeof proto_grow_config_item === "object") {
-			var text_info = new TextBuilder(proto_grow_config_item.title+` : ${view_ship.proto_list.filter(skill_name=>skill_name === k).length}/${proto_grow_config_item.max}`,{
-				fontFamily:"微软雅黑",
-				fontSize:pt2px(10)
+		if (typeof proto_grow_config_item === "object") {
+			var text_info = new TextBuilder(proto_grow_config_item.title + ` : ${view_ship.proto_list.filter(skill_name => skill_name === k).length}/${proto_grow_config_item.max}`, {
+				fontFamily: "微软雅黑",
+				fontSize: pt2px(10)
 			});
-			proto_plan.addChildToFlow(text_info,{float:"right"});
+			proto_plan.addChildToFlow(text_info, { float: "right" });
 			text_info.interactive = true;
-			(function (k,text_info) {
-				on(text_info,"click|tap",function () {
-					changeProto_cb(k,function () {
+			(function(k, text_info) {
+				on(text_info, "click|tap", function() {
+					changeProto_cb(k, function() {
 						// 重绘
 						drawProtoPlan(listen_stage,
 							view_stage,
@@ -495,16 +541,16 @@ function drawProtoPlan(
 							ani_tween,
 							ani_ticker,
 							changeProto_cb);
-						if(view_ship.config.level <= view_ship.config.proto_list_length) {
-							var delay_close = function () {
-								close_ProtoPlan_ti = setTimeout(function () {
+						if (view_ship.config.level <= view_ship.config.proto_list_length) {
+							var delay_close = function() {
+								close_ProtoPlan_ti = setTimeout(function() {
 									hideProtoPlan(listen_stage,
 										view_stage,
 										get_view_ship,
 										ani_tween,
 										ani_ticker);
 									close_ProtoPlan_ti = null;
-								}, B_ANI_TIME);	
+								}, B_ANI_TIME);
 							}
 							// if(_isMobile) {
 							// 	delay_close();
@@ -516,13 +562,13 @@ function drawProtoPlan(
 						}
 					});
 				});
-			})(k,text_info);
+			})(k, text_info);
 		}
 	}
 	var bg = new PIXI.Graphics();
-	bg.beginFill(0xffffff,0.5);
-	bg.drawRoundedRect(-10,-10,proto_plan.width+20,proto_plan.height+20,5);
-	proto_plan.addChildAt(bg,0);
+	bg.beginFill(0xffffff, 0.5);
+	bg.drawRoundedRect(-10, -10, proto_plan.width + 20, proto_plan.height + 20, 5);
+	proto_plan.addChildAt(bg, 0);
 }
 /** 关闭属性加点面板
  *
@@ -538,18 +584,18 @@ export function hideProtoPlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker) {
-	if(!proto_plan["is_opened"]||proto_plan["is_ani"]){
+	if (!proto_plan["is_opened"] || proto_plan["is_ani"]) {
 		return
 	}
 	proto_plan["is_opened"] = false;
 	proto_plan["is_ani"] = true;
 	ani_tween.Tween(proto_plan)
 		.to({
-			x:-proto_plan.width
+			x: -proto_plan.width
 		}, B_ANI_TIME)
 		.easing(TWEEN.Easing.Quadratic.Out)
 		.start()
-		.onComplete(()=>{
+		.onComplete(() => {
 			proto_plan["is_ani"] = false
 			listen_stage.removeChild(proto_plan);
 		});
@@ -568,20 +614,20 @@ export function toggleProtoPlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	changeProto_cb: (add_proto:string,cb_to_redraw:()=>void) => void) {
+	changeProto_cb: (add_proto: string, cb_to_redraw: () => void) => void) {
 	on(listen_stage, "keydown", function(e) {
 		const view_ship = get_view_ship();
-		if(!view_ship) {
+		if (!view_ship) {
 			return
 		}
 		if (e.keyCode == 67) {
-			if(proto_plan["is_opened"]) {
+			if (proto_plan["is_opened"]) {
 				hideProtoPlan(listen_stage,
 					view_stage,
 					get_view_ship,
 					ani_tween,
 					ani_ticker)
-			}else{
+			} else {
 				showProtoPlan(listen_stage,
 					view_stage,
 					get_view_ship,
@@ -594,9 +640,9 @@ export function toggleProtoPlan(
 	});
 	const view_ship = get_view_ship();
 	function _init(view_ship) {
-		view_ship.on("level-changed",function () {
+		view_ship.on("level-changed", function() {
 			// 有可用属性点
-			if(view_ship.config.proto_list_length < view_ship.config.level) {
+			if (view_ship.config.proto_list_length < view_ship.config.level) {
 				showProtoPlan(listen_stage,
 					view_stage,
 					get_view_ship,
@@ -606,10 +652,10 @@ export function toggleProtoPlan(
 			}
 		});
 	}
-	if(view_ship) {
+	if (view_ship) {
 		_init(view_ship);
-	}else{
-		listen_stage.on("view_ship-changed",function (view_ship) {
+	} else {
+		listen_stage.on("view_ship-changed", function(view_ship) {
 			_init(view_ship);
 		})
 	}
@@ -628,16 +674,16 @@ export function sandboxTools(
 	/*动画控制器*/
 	ani_tween: TWEEN,
 	/*渲染循环器*/
-	ani_ticker: PIXI.ticker.Ticker){
-	on(listen_stage, "keydown", e=>{
+	ani_ticker: PIXI.ticker.Ticker) {
+	on(listen_stage, "keydown", e => {
 		const view_ship = get_view_ship();
-		if(!view_ship) {
+		if (!view_ship) {
 			return
 		}
 		// 快速升级
 		if (e.keyCode == 75) {
 			var experience = Ship.level_to_experience(view_ship.config.level + 1);
-			view_ship.emit("change-experience", experience-view_ship.config.experience);
+			view_ship.emit("change-experience", experience - view_ship.config.experience);
 		}
 	});
 }
@@ -660,9 +706,9 @@ export function showShapePlan(
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
 	changeable_shapes: string[],
-	changeShape_cb: (new_shape:string,cb_to_redraw:()=>void) => void) {
+	changeShape_cb: (new_shape: string, cb_to_redraw: () => void) => void) {
 	const view_ship = get_view_ship();
-	if(!view_ship){
+	if (!view_ship) {
 		return
 	}
 	drawShapePlan(listen_stage,
@@ -672,7 +718,7 @@ export function showShapePlan(
 		ani_ticker,
 		changeable_shapes,
 		changeShape_cb);
-	if(shape_plan["is_opened"]||shape_plan["is_ani"]){
+	if (shape_plan["is_opened"] || shape_plan["is_ani"]) {
 		return
 	}
 	clearTimeout(close_ShapePlan_ti);
@@ -680,15 +726,15 @@ export function showShapePlan(
 	shape_plan["is_ani"] = true;
 	ani_tween.Tween(shape_plan)
 		.set({
-			x:VIEW.WIDTH,
+			x: VIEW.WIDTH,
 			y: pt2px(10)
 		})
 		.to({
-			x:VIEW.WIDTH - shape_plan.width
+			x: VIEW.WIDTH - shape_plan.width
 		}, B_ANI_TIME)
 		.easing(TWEEN.Easing.Quadratic.Out)
 		.start()
-		.onComplete(()=>{
+		.onComplete(() => {
 			shape_plan["is_ani"] = false
 		});
 	listen_stage.addChild(shape_plan);
@@ -708,59 +754,59 @@ function drawShapePlan(
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
 	changeable_shapes: string[],
-	changeShape_cb: (new_shape:string,cb_to_redraw:()=>void) => void) {
+	changeShape_cb: (new_shape: string, cb_to_redraw: () => void) => void) {
 	const view_ship = get_view_ship();
 	// 销毁重绘
-	shape_plan.children.slice().forEach(child=>{
+	shape_plan.children.slice().forEach(child => {
 		shape_plan.removeChild(child);
 		child.destroy();
 	});
 	// 先放到缓存中，计算出合适的布局后再搞事
 	var items = [];
 	var max_width = 0;
-	changeable_shapes.forEach(type_name=>{
+	changeable_shapes.forEach(type_name => {
 		var typeInfo = shipShape[type_name]
-		var image_info = new Ship(assign(assign({},view_ship.config["toJSON"]()),{type:type_name}));
-		image_info.x = image_info.width/2
+		var image_info = new Ship(assign(assign({}, view_ship.config["toJSON"]()), { type: type_name }));
+		image_info.x = image_info.width / 2
 		image_info.y = image_info.height
-		var text_info = new TextBuilder(typeInfo.name,{
-			fontFamily:"微软雅黑",
+		var text_info = new TextBuilder(typeInfo.name, {
+			fontFamily: "微软雅黑",
 			align: "center",
-			fontSize:pt2px(10)
+			fontSize: pt2px(10)
 		});
 		var item_info = new FlowLayout();
-		item_info.max_width = Math.max(image_info.width,text_info.width);
-		max_width = Math.max(item_info.max_width,max_width);
-		item_info.addChildToFlow({float:"center"},image_info,text_info);
+		item_info.max_width = Math.max(image_info.width, text_info.width);
+		max_width = Math.max(item_info.max_width, max_width);
+		item_info.addChildToFlow({ float: "center" }, image_info, text_info);
 
 		items.push(item_info);
 
 		item_info.interactive = true;
-		on(item_info,"click|tap",function () {
-			changeShape_cb(type_name,function () {
+		on(item_info, "click|tap", function() {
+			changeShape_cb(type_name, function() {
 				view_ship.emit("level-changed");
 			});
 		});
 	});
-	shape_plan.max_width = max_width * 2 + pt2px(10+10+20);
-	items.forEach((item_info,i)=>{
+	shape_plan.max_width = max_width * 2 + pt2px(10 + 10 + 20);
+	items.forEach((item_info, i) => {
 		var item_info_bg = new PIXI.Graphics();
 		// item_info_bg.lineStyle(1,0xff0000,1);
-		item_info_bg.beginFill(0xffff00,0.0);
-		item_info_bg.drawRect(0,0,max_width+pt2px(10*(i%2)),item_info.height+pt2px(10));
+		item_info_bg.beginFill(0xffff00, 0.0);
+		item_info_bg.drawRect(0, 0, max_width + pt2px(10 * (i % 2)), item_info.height + pt2px(10));
 		item_info_bg.endFill();
 		item_info.addChild(item_info_bg);
-		item_info.width+item_info.height// 强制调用计算属性，动态计算布局
+		item_info.width + item_info.height// 强制调用计算属性，动态计算布局
 
 		// 强行调用私有属性，到后面才统一计算布局绘制。
-		shape_plan["_addFlowChildItem"](item_info, {float:"left"});
+		shape_plan["_addFlowChildItem"](item_info, { float: "left" });
 	});
-    shape_plan.reDrawFlow();
+	shape_plan.reDrawFlow();
 
 	var bg = new PIXI.Graphics();
-	bg.beginFill(0xffffff,0.5);
-	bg.drawRoundedRect(-10,-10,shape_plan.width+20,shape_plan.height+20,5);
-	shape_plan.addChildAt(bg,0);
+	bg.beginFill(0xffffff, 0.5);
+	bg.drawRoundedRect(-10, -10, shape_plan.width + 20, shape_plan.height + 20, 5);
+	shape_plan.addChildAt(bg, 0);
 }
 /** 关闭形态加点面板
  *
@@ -776,18 +822,18 @@ export function hideShapePlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker) {
-	if(!shape_plan["is_opened"]||shape_plan["is_ani"]){
+	if (!shape_plan["is_opened"] || shape_plan["is_ani"]) {
 		return
 	}
 	shape_plan["is_opened"] = false;
 	shape_plan["is_ani"] = true;
 	ani_tween.Tween(shape_plan)
 		.to({
-			x:VIEW.WIDTH
+			x: VIEW.WIDTH
 		}, B_ANI_TIME)
 		.easing(TWEEN.Easing.Quadratic.Out)
 		.start()
-		.onComplete(()=>{
+		.onComplete(() => {
 			shape_plan["is_ani"] = false
 			listen_stage.removeChild(shape_plan);
 		});
@@ -806,13 +852,13 @@ export function toggleShapePlan(
 	ani_tween: TWEEN,
 	/*渲染循环器*/
 	ani_ticker: PIXI.ticker.Ticker,
-	changeShape_cb: (new_shape:string,cb_to_redraw:()=>void) => void) {
+	changeShape_cb: (new_shape: string, cb_to_redraw: () => void) => void) {
 	const view_ship = get_view_ship();
 	function _init(view_ship) {
-		view_ship.on("level-changed",function () {
+		view_ship.on("level-changed", function() {
 			// 有可用形态
 			var changeable_shapes = view_ship.CHANGEABLE_SHAPES;
-			if(changeable_shapes.length > 0) {
+			if (changeable_shapes.length > 0) {
 				showShapePlan(listen_stage,
 					view_stage,
 					get_view_ship,
@@ -820,7 +866,7 @@ export function toggleShapePlan(
 					ani_ticker,
 					changeable_shapes,
 					changeShape_cb);
-			}else{
+			} else {
 				hideShapePlan(listen_stage,
 					view_stage,
 					get_view_ship,
@@ -829,11 +875,11 @@ export function toggleShapePlan(
 			}
 		});
 	}
-	if(view_ship) {
+	if (view_ship) {
 		_init(view_ship);
-	}else{
-		listen_stage.on("view_ship-changed",view_ship=>{
-			view_ship&&_init(view_ship);
+	} else {
+		listen_stage.on("view_ship-changed", view_ship => {
+			view_ship && _init(view_ship);
 		})
 	}
 

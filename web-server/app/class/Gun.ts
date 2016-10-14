@@ -23,55 +23,62 @@ import {
 	transformMix,
 } from "../const";
 import * as gunShape from "./gunShape.json";
-if(_isNode) {
-    Object.assign(gunShape, transformJSON(JSON.stringify(gunShape)));
+if (_isNode) {
+	Object.assign(gunShape, transformJSON(JSON.stringify(gunShape)));
 }
 
 export interface GunConfig {
 	// 基本属性
-	size ?: number 
-	rotation ?: number
+	size?: number
+	rotation?: number
 	//战斗相关的状态
-	is_firing ? : boolean
-	ison_BTAR ? : boolean // 是否处于攻击钱摇
-	BTAR_rate ? : number // 攻击前腰在整个动画时间的占比
-	delay ?:number// 延迟发射
+	is_firing?: boolean
+	ison_BTAR?: boolean // 是否处于攻击钱摇
+	BTAR_rate?: number // 攻击前腰在整个动画时间的占比
+	delay?: number// 延迟发射
 
 	// 战斗相关的属性
-	bullet_size ?: number 
-	bullet_density ?: number
-	bullet_force ? : number
-	bullet_damage ? : number
-	bullet_penetrate ? : number // 穿透，意味着子弹存在时间
-	overload_speed ? : number // 攻速
+	bullet_size?: number
+	bullet_density?: number
+	bullet_force?: number
+	bullet_damage?: number
+	bullet_penetrate?: number // 穿透，意味着子弹存在时间
+	bullet_type?: string
+	bullet_lift_time?: number
+	overload_speed?: number // 攻速
 
 	// 枪基本形状
-	type ? : string
+	type?: string
+	// 最多同时存在的子弹数
+	max_bullet_length?: number
 }
 export default class Gun extends P2I {
 	static TYPES = gunShape
 	owner: Ship = null
 	gun: PIXI.Graphics = new PIXI.Graphics()
-	config:GunConfig = {
-		rotation : 0,
+	config: GunConfig = {
+		rotation: 0,
 		//战斗相关的状态
-		is_firing : false,
-		ison_BTAR : false, // 是否处于攻击钱摇
+		is_firing: false,
+		ison_BTAR: false, // 是否处于攻击钱摇
 		BTAR_rate: 0.5, // 攻击前腰在整个动画时间的占比
-		delay:0,
+		delay: 0,
 
 		// 战斗相关的属性
 		bullet_size: pt2px(5),
 		bullet_density: pt2px(1),
-		bullet_force : 1,
-		bullet_damage : 1,
-		bullet_penetrate : 1, // 穿透，意味着子弹存在时间
-		overload_speed : 1, // 攻速
+		bullet_force: 1,
+		bullet_damage: 1,
+		bullet_penetrate: 1, // 穿透，意味着子弹存在时间
+		bullet_type: "normal",
+		bullet_lift_time: 3500,
+		overload_speed: 1, // 攻速
 
 		// 枪基本形状
-		type : "NONE"
+		type: "NONE",
+		max_bullet_length: -1,
 	}
-	constructor(new_config: GunConfig = {}, owner ? : Ship) {
+	constructor(new_config: GunConfig = {}, owner?: Ship) {
 		super();
 		const self = this;
 		self.owner = owner;
@@ -106,8 +113,8 @@ export default class Gun extends P2I {
 							self.emit("fire_end");
 							acc_overload_time -= overload_ani;
 						}
-						var config_delay = config.delay>1 ? config.delay:config.delay*1000/config.overload_speed
-						if(acc_overload_time >= overload_ani - config_delay) {
+						var config_delay = config.delay > 1 ? config.delay : config.delay * 1000 / config.overload_speed
+						if (acc_overload_time >= overload_ani - config_delay) {
 							config.is_firing = false;
 						}
 					}
@@ -135,10 +142,10 @@ export default class Gun extends P2I {
 				var overload_ani = 1000 / config.overload_speed;
 				var from_gun_x = self.x;
 				var from_gun_y = self.y;
-				var dif_gun_x =  -self.width * 0.2;
+				var dif_gun_x = -self.width * 0.2;
 				var dif_gun_y = 0;
-				if(config.rotation) {
-					var dir_vic = new Victor(dif_gun_x,dif_gun_y);
+				if (config.rotation) {
+					var dir_vic = new Victor(dif_gun_x, dif_gun_y);
 					dir_vic.rotate(config.rotation);
 					dif_gun_x = dir_vic.x;
 					dif_gun_y = dir_vic.y;
@@ -175,15 +182,15 @@ export default class Gun extends P2I {
 					self.off("update", _update);
 				});
 			});
-		}());
+		} ());
 	}
-	setConfig(new_config, is_from_owner?){
+	setConfig(new_config, is_from_owner?) {
 		super.setConfig(new_config);
 		const self = this;
 		const config = self.config;
 		// const cache_config = assign({},config);
 
-		var typeInfo = gunShape[new_config.type]||gunShape[config.type];
+		var typeInfo = gunShape[new_config.type] || gunShape[config.type];
 		if (!typeInfo) {
 			throw new TypeError("UNKONW Gun Type: " + config.type);
 		}
@@ -192,7 +199,7 @@ export default class Gun extends P2I {
 		const owner_config = owner.config;
 
 		// 动态合成配置
-		if(owner&&!is_from_owner) {
+		if (owner && !is_from_owner) {
 			new_config = assign(owner.getWeaponConfigById(self._id), new_config);
 		}
 		new_config = transformMix(owner_config, new_config)
@@ -221,14 +228,15 @@ export default class Gun extends P2I {
 		// 在射击动画结束的时候重置坐标，否则，原本射击的动画会影响绘制结果
 		var new_x = self.x;
 		var new_y = self.y;
-		self.once("cancel_fire_ani",function () {
+		self.once("cancel_fire_ani", function() {
 			self.x = new_x;
 			self.y = new_y;
 		});
 	}
-	update(delay){
+	update(delay) {
 		this.emit("update", delay);
 	}
+	bullets: Bullet[] = []
 	private _fire() {
 		const ship = this.owner;
 		const ship_config = ship.config;
@@ -255,8 +263,12 @@ export default class Gun extends P2I {
 			size: bullet_size,
 			density: bullet_density,
 			damage: config.bullet_damage,
+			type: config.bullet_type,
+			lift_time: config.bullet_lift_time < 0 ? Infinity : config.bullet_lift_time,
 			penetrate: config.bullet_penetrate,
-			body_color:ship.config.body_color
+
+			// 确保子弹的独立性，所以绘制信息直接一次性继承上去。
+			body_color: ship.config.body_color,
 			// delay:1000 / config.overload_speed * before_the_attack_roll_ani
 		}, this);
 
@@ -272,6 +284,24 @@ export default class Gun extends P2I {
 
 			ship.p2_body.force[0] -= init_x_force * mass_rate;
 			ship.p2_body.force[1] -= init_y_force * mass_rate;
+
+			console.log('before add',this.bullets.length);
+			if (config.max_bullet_length > 0) {
+				var dif_length = this.bullets.length - config.max_bullet_length;
+				// 移除多余的子弹，引爆
+				while (dif_length > 0) {
+					dif_length -= 1;
+					let bullet = this.bullets[0];
+					bullet.emit("explode");
+				}
+			}
+			this.bullets.push(bullet);
+			console.log('after  add', this.bullets.length);
+		});
+		bullet.on("explode", () => {
+			console.log('before remove', this.bullets.length);
+			this.bullets.splice(this.bullets.indexOf(bullet), 1);
+			console.log('after  remove', this.bullets.length);
 		});
 		// 通知父级
 		this.owner && this.owner.emit("gun-fire_start", this._id, bullet);
@@ -279,24 +309,54 @@ export default class Gun extends P2I {
 		// config.firing
 	}
 	private _is_waiting_delay = false;
-	fire(cb:(bullet:Bullet)=>void){
+	fire(cb: (bullet: Bullet) => void) {
 		const config = this.config;
-		if(!config.delay) {
+		if (!config.delay) {
 			var bullet = this._fire();
-			if(bullet) {
+			if (bullet) {
 				cb(bullet)
 			}
-		}else{
-			if(!config.is_firing && !this._is_waiting_delay) {
+		} else {
+			if (!config.is_firing && !this._is_waiting_delay) {
 				this._is_waiting_delay = true;
-				this.setTimeout(()=>{
+				this.setTimeout(() => {
 					this._is_waiting_delay = false;
 					var bullet = this._fire();
-					if(bullet) {
+					if (bullet) {
 						cb(bullet)
 					}
-				}, config.delay>1?config.delay:config.delay*1000/config.overload_speed);
+				}, config.delay > 1 ? config.delay : config.delay * 1000 / config.overload_speed);
 			}
+		}
+	}
+	static BULLET_CONTROL_HANDLE = {
+		"track-ship": function(gun: Gun, x: number, y: number) {
+			if (!gun["__bullet_track"]) {
+				gun["__bullet_track"] = { x, y };
+				const _ctl_bullets = gun["__ctl_track_bullets_handle"] = function() {
+					var max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
+					gun.bullets.forEach((bullet, i) => {
+						var {x, y} = gun["__bullet_track"];
+						const bullet_config = bullet.config;
+						var to_target_dir = new Victor(x - bullet_config.x, y - bullet_config.y);
+						if (to_target_dir.lengthSq() < max_bullet_length_Sq) {
+							return
+						}
+						var force = new Victor(bullet_config.x_force, bullet_config.y_force);
+						var target_angle = to_target_dir.angle()*1.1;
+						force.rotateTo(target_angle);
+
+						bullet.setConfig({
+							x_force: force.x,
+							y_force: force.y,
+							rotation: target_angle,
+						})
+					});
+					gun["__ctl_track_bullets_handle"] && gun.setTimeout(gun["__ctl_track_bullets_handle"], 100);// 默认每一秒进行一次自动控制
+				};
+				_ctl_bullets();
+			}
+			gun["__bullet_track"] = { x, y };
 		}
 	}
 }

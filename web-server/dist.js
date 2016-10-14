@@ -1574,6 +1574,55 @@ define("app/engine/Victor", ["require", "exports"], function (require, exports) 
         return deg / degrees;
     }
 });
+define("app/class/Drawer/BulletDrawer", ["require", "exports"], function (require, exports) {
+    "use strict";
+    function BulletDrawer(self, config) {
+        var body = self.body;
+        body.clear();
+        body.lineStyle(config.density, 0x5d5d5d, 1);
+        body.beginFill(config.body_color);
+        if (config.type === "normal") {
+            // 绘制外观形状
+            body.drawCircle(config.size / 2, config.size / 2, config.size);
+            self.pivot.set(config.size / 2, config.size / 2);
+            // 绘制物理形状
+            self.body_shape = new p2.Circle({
+                radius: config.size,
+            });
+        }
+        else if (config.type === "track-ship") {
+            var vertices = [];
+            for (var i = 0, N = 3; i < N; i++) {
+                var a = 2 * Math.PI / N * i;
+                var vertex = [config.size * Math.cos(a), config.size * Math.sin(a)]; // Note: vertices are added counter-clockwise
+                vertices.push(vertex);
+            }
+            // 绘制外观形状
+            var first_item = vertices[0];
+            body.moveTo(first_item[0], first_item[1]);
+            for (var i = 1, item = void 0; item = vertices[i]; i += 1) {
+                body.lineTo(item[0], item[1]);
+            }
+            body.lineTo(first_item[0], first_item[1]);
+            // 绘制物理形状
+            self.body_shape = new p2.Convex({
+                vertices: vertices
+            });
+        }
+        // 收尾外观绘制
+        body.endFill();
+        self.addChild(body);
+        // 收尾物理设定D
+        self.body_shape.material = self.constructor["material"];
+        // self.body_shape.sensor = true;
+        self.body_shape["bullet_team_tag"] = config.team_tag;
+        // self.p2_body.damping = self.p2_body.angularDamping = 0;// 1/config.penetrate;
+        self.p2_body.addShape(self.body_shape);
+        self.p2_body.setDensity(config.density);
+    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = BulletDrawer;
+});
 define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], function (require, exports, const_2) {
     "use strict";
     function ShapeDrawer(self, config, typeInfo) {
@@ -1648,7 +1697,7 @@ define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], func
 define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/engine/Victor"], function (require, exports, const_3, Victor_1) {
     "use strict";
     function GunDrawer(self, config, typeInfo) {
-        var ship = self.owner;
+        var ship = self.owner; // 注意，因为Gun对象不是在网络中传输过来的，而是直接通过Ship的type绘制出来的，所以这里能直接引用ship对象
         var body = self.gun;
         body.clear();
         var typeInfoArgs = typeInfo.args || {};
@@ -2488,10 +2537,14 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 bullet_force: 1,
                 bullet_damage: 1,
                 bullet_penetrate: 1,
+                bullet_type: "normal",
+                bullet_lift_time: 3500,
                 overload_speed: 1,
                 // 枪基本形状
-                type: "NONE"
+                type: "NONE",
+                max_bullet_length: -1,
             };
+            this.bullets = [];
             this._is_waiting_delay = false;
             var self = this;
             self.owner = owner;
@@ -2639,6 +2692,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             this.emit("update", delay);
         };
         Gun.prototype._fire = function () {
+            var _this = this;
             var ship = this.owner;
             var ship_config = ship.config;
             var config = this.config;
@@ -2664,8 +2718,11 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 size: bullet_size,
                 density: bullet_density,
                 damage: config.bullet_damage,
+                type: config.bullet_type,
+                lift_time: config.bullet_lift_time < 0 ? Infinity : config.bullet_lift_time,
                 penetrate: config.bullet_penetrate,
-                body_color: ship.config.body_color
+                // 确保子弹的独立性，所以绘制信息直接一次性继承上去。
+                body_color: ship.config.body_color,
             }, this);
             bullet.p2_body.velocity = ship.p2_body.velocity.slice();
             // 一旦发射，飞船受到后座力
@@ -2677,6 +2734,23 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 bullet.p2_body.force = [init_x_force, init_y_force];
                 ship.p2_body.force[0] -= init_x_force * mass_rate;
                 ship.p2_body.force[1] -= init_y_force * mass_rate;
+                console.log('before add', _this.bullets.length);
+                if (config.max_bullet_length > 0) {
+                    var dif_length = _this.bullets.length - config.max_bullet_length;
+                    // 移除多余的子弹，引爆
+                    while (dif_length > 0) {
+                        dif_length -= 1;
+                        var bullet_1 = _this.bullets[0];
+                        bullet_1.emit("explode");
+                    }
+                }
+                _this.bullets.push(bullet);
+                console.log('after  add', _this.bullets.length);
+            });
+            bullet.on("explode", function () {
+                console.log('before remove', _this.bullets.length);
+                _this.bullets.splice(_this.bullets.indexOf(bullet), 1);
+                console.log('after  remove', _this.bullets.length);
             });
             // 通知父级
             this.owner && this.owner.emit("gun-fire_start", this._id, bullet);
@@ -2706,6 +2780,35 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             }
         };
         Gun.TYPES = gunShape;
+        Gun.BULLET_CONTROL_HANDLE = {
+            "track-ship": function (gun, x, y) {
+                if (!gun["__bullet_track"]) {
+                    gun["__bullet_track"] = { x: x, y: y };
+                    var _ctl_bullets = gun["__ctl_track_bullets_handle"] = function () {
+                        var max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
+                        gun.bullets.forEach(function (bullet, i) {
+                            var _a = gun["__bullet_track"], x = _a.x, y = _a.y;
+                            var bullet_config = bullet.config;
+                            var to_target_dir = new Victor_2.default(x - bullet_config.x, y - bullet_config.y);
+                            if (to_target_dir.lengthSq() < max_bullet_length_Sq) {
+                                return;
+                            }
+                            var force = new Victor_2.default(bullet_config.x_force, bullet_config.y_force);
+                            var target_angle = to_target_dir.angle() * 1.1;
+                            force.rotateTo(target_angle);
+                            bullet.setConfig({
+                                x_force: force.x,
+                                y_force: force.y,
+                                rotation: target_angle,
+                            });
+                        });
+                        gun["__ctl_track_bullets_handle"] && gun.setTimeout(gun["__ctl_track_bullets_handle"], 100); // 默认每一秒进行一次自动控制
+                    };
+                    _ctl_bullets();
+                }
+                gun["__bullet_track"] = { x: x, y: y };
+            }
+        };
         return Gun;
     }(Collision_1.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -2884,6 +2987,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                         if (new_type != this.__type) {
                             this.__type = new_type;
                             this.__self__.reDrawBody();
+                            this._bullet_can_controlable_guns = null;
                         }
                     },
                     enumerable: true,
@@ -2903,6 +3007,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             );
             this.__GUNS_ID_MAP = null;
             this.is_keep_fire = false;
+            this._bullet_can_controlable_guns = null;
             var self = this;
             id && (self._id = id);
             var config = self.config;
@@ -3278,6 +3383,24 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 this.stopKeepFire();
             }
         };
+        Object.defineProperty(Ship.prototype, "bullet_can_controlable_guns", {
+            get: function () {
+                var _bullet_can_controlable_guns = this._bullet_can_controlable_guns;
+                if (_bullet_can_controlable_guns === null) {
+                    _bullet_can_controlable_guns = this._bullet_can_controlable_guns = this.guns.filter(function (gun) { return Gun_1.default.BULLET_CONTROL_HANDLE.hasOwnProperty(gun.config.bullet_type); });
+                }
+                return _bullet_can_controlable_guns;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Ship.prototype.controlBulletMoveTo = function (x, y) {
+            if (this.bullet_can_controlable_guns.length) {
+                this.bullet_can_controlable_guns.forEach(function (gun) {
+                    Gun_1.default.BULLET_CONTROL_HANDLE[gun.config.bullet_type](gun, x, y);
+                });
+            }
+        };
         Ship.TYPES = shipShape;
         Ship.experience_to_level = experience_to_level;
         Ship.level_to_experience = level_to_experience;
@@ -3472,7 +3595,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Wall;
 });
-define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class/Tween", "app/const"], function (require, exports, Collision_5, Tween_4, const_8) {
+define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/class/Drawer/BulletDrawer", "class/Tween", "app/const"], function (require, exports, Collision_5, BulletDrawer_1, Tween_4, const_8) {
     "use strict";
     var Easing = Tween_4.default.Easing;
     var Bullet = (function (_super) {
@@ -3485,6 +3608,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
             this.config = {
                 x: 0,
                 y: 0,
+                rotation: 0,
                 x_force: 0,
                 y_force: 0,
                 size: const_8.pt2px(5),
@@ -3495,31 +3619,17 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 penetrate: 0,
                 team_tag: NaN,
                 damage: 0,
-                scale: 1
+                scale: 1,
+                type: "normal"
             };
             var self = this;
             self.owner = owner;
             var config = self.config;
             const_8.mix_options(config, new_config);
-            var body = self.body;
-            body.lineStyle(config.density, 0x5d5d5d, 1);
-            body.beginFill(config.body_color);
-            body.drawCircle(config.size / 2, config.size / 2, config.size);
-            body.endFill();
-            self.addChild(body);
-            self.pivot.set(config.size / 2, config.size / 2);
+            BulletDrawer_1.default(self, config);
             if (const_8._isBorwser) {
                 self.cacheAsBitmap = true;
             }
-            self.body_shape = new p2.Circle({
-                radius: config.size,
-            });
-            self.body_shape.material = Bullet.material;
-            // self.body_shape.sensor = true;
-            self.body_shape["bullet_team_tag"] = config.team_tag;
-            // self.p2_body.damping = self.p2_body.angularDamping = 0;// 1/config.penetrate;
-            self.p2_body.addShape(self.body_shape);
-            self.p2_body.setDensity(config.density);
             self.p2_body.force = [config.x_force, config.y_force];
             self.p2_body.position = [config.x, config.y];
             self.position.set(config.x, config.y);
@@ -3593,7 +3703,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                     // console.log("explode", self._id);
                     // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
                     // self.update = (delay) => {
-                    //     self.emit("destroy");
+                    //	 self.emit("destroy");
                     // }
                     self.once("update", function () {
                         self.emit("destroy");
@@ -3634,16 +3744,23 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "class
                 return;
             }
             this.scale.set(config.scale, config.scale);
-            var old_radius = this.body_shape.radius;
-            var new_radius = config.scale * config.size;
-            if (new_radius !== old_radius) {
-                this.body_shape.radius = new_radius;
-                this.body_shape.updateArea();
-                this.p2_body.setDensity(config.density);
+            if (this.body_shape instanceof p2.Circle) {
+                var old_radius = this.body_shape.radius;
+                var new_radius = config.scale * config.size;
+                if (new_radius !== old_radius) {
+                    this.body_shape.radius = new_radius;
+                    this.body_shape.updateArea();
+                    this.p2_body.setDensity(config.density);
+                }
             }
             this.p2_body.position = [config.x, config.y];
             this.x = config.x;
             this.y = config.y;
+            this.p2_body.angle = config.rotation;
+        };
+        Bullet.prototype.update = function (delay) {
+            _super.prototype.update.call(this, delay);
+            this.rotation = this.p2_body.angle;
         };
         Bullet.material = new p2.Material();
         return Bullet;
@@ -5661,7 +5778,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                     if (!touch) {
                         return;
                     }
-                    shipFire_cb();
+                    shipFire_cb({ x: touch.clientX, y: touch.clientY });
                 }
             });
         }
@@ -5669,12 +5786,57 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
             common_2.on(listen_stage, "mousedown", function (e) {
                 var view_ship = get_view_ship();
                 if (view_ship) {
-                    shipFire_cb();
+                    var view_staget_pos = view_stage.position;
+                    shipFire_cb({
+                        x: e.data.global.x - view_staget_pos.x,
+                        y: e.data.global.y - view_staget_pos.y,
+                    });
                 }
             });
         }
     }
     exports.shipFire = shipFire;
+    /** 子弹控制
+     *
+     */
+    function shipControlBullets(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, shipFire_cb) {
+        if (const_10._isMobile) {
+            common_2.on(listen_stage, "touchstart|touchmove", function (e) {
+                var view_ship = get_view_ship();
+                if (view_ship) {
+                    var touch_list = e.data.originalEvent.touches;
+                    var touch = common_2.touchManager.getFreeOne(touch_list);
+                    if (!touch) {
+                        return;
+                    }
+                    shipFire_cb({ x: touch.clientX, y: touch.clientY });
+                }
+            });
+        }
+        else {
+            common_2.on(listen_stage, "mousemove", function (e) {
+                var view_ship = get_view_ship();
+                if (view_ship) {
+                    var view_staget_pos = view_stage.position;
+                    shipFire_cb({
+                        x: e.data.global.x - view_staget_pos.x,
+                        y: e.data.global.y - view_staget_pos.y,
+                    });
+                }
+            });
+        }
+    }
+    exports.shipControlBullets = shipControlBullets;
     /** 切换子弹自动发射的状态
      *
      */
@@ -6212,8 +6374,8 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         object_stage.addChild(right_edge);
         world_1.engine.add(right_edge);
         (function () {
-            var x_len = 6;
-            var y_len = 6;
+            var x_len = 2;
+            var y_len = 2;
             var x_unit = EDGE_WIDTH / (x_len + 1);
             var y_unit = EDGE_HEIGHT / (y_len + 1);
             var width = 40;
@@ -6303,11 +6465,15 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
             my_ship.operateShip(turnHead_info);
         });
         // 飞船发射
-        UX.shipFire(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function () {
+        UX.shipFire(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (target_point) {
             my_ship.fire(function (bullet) {
                 bullet_stage.addChild(bullet);
                 world_1.engine.add(bullet);
             });
+        });
+        // 飞船控制子弹（如果支持）
+        UX.shipControlBullets(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (target_point) {
+            my_ship.controlBulletMoveTo(target_point.x, target_point.y);
         });
         // 飞船切换自动
         UX.shipAutoFire(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function () {
@@ -8644,7 +8810,6 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                     // ins.addChild(new PIXI.Text(obj_info.id,{font:"12px 微软雅黑"}))
                     ins._id = obj_info.id;
                     if (view_ship_info.id === obj_info.id) {
-                        // view_ship = ins;
                         set_view_ship(ins);
                     }
                     if (obj_info.type === "Bullet") {
@@ -8739,23 +8904,11 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         });
         // 飞船发射
         UX.shipFire(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function () {
-            Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) {
-                // showViewData(data);
-                // var guns_id_map = view_ship.GUNS_ID_MAP;
-                // // 根据发射的子弹触发发射动画
-                // data.forEach(function (bullet_info) {
-                //     var gun = guns_id_map[bullet_info.owner_id];
-                //     if (!gun) {
-                //         console.error("No Found Gun Id:", bullet_info.owner_id);
-                //     }
-                //     gun.emit("fire_ani");
-                // });
-            });
+            Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
         });
         // 飞船切换自动
         UX.shipAutoFire(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function () {
-            Pomelo_1.pomelo.request("connector.worldHandler.autoFire", {}, function (data) {
-            });
+            Pomelo_1.pomelo.request("connector.worldHandler.autoFire", {}, function (data) { });
         });
         // 切换属性加点面板的显示隐藏
         UX.toggleProtoPlan(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function (add_proto, cb_to_redraw) {
@@ -9472,7 +9625,6 @@ define("app/test-quadtree-world", ["require", "exports", "class/Tween", "class/W
     exports.current_stage_wrap = new PIXI.Graphics();
     exports.current_stage = new PIXI.Container();
     exports.current_stage_wrap.addChild(exports.current_stage);
-    // current_stage_wrap["keep_direction"] = "horizontal";
     //加载图片资源
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
@@ -9533,7 +9685,6 @@ define("app/test-quadtree-world", ["require", "exports", "class/Tween", "class/W
                 exports.current_stage.children[len].alpha = 0.2;
             }
             qtw.getRectViewItems(view.x, view.y, view_width, view_height).forEach(function (fly) {
-                // current_stage.addChild(fly)
                 fly.alpha = 1;
             });
             exports.current_stage.position.set(-view.x + common_9.VIEW.CENTER.x - view_width / 2, -view.y + common_9.VIEW.CENTER.y - view_height / 2);

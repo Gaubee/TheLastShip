@@ -145,7 +145,6 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                 // ins.addChild(new PIXI.Text(obj_info.id,{font:"12px 微软雅黑"}))
                 ins._id = obj_info.id;
                 if (view_ship_info.id === obj_info.id) {
-                    // view_ship = ins;
                     set_view_ship(ins);
                 }
                 if (obj_info.type === "Bullet") {
@@ -257,18 +256,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , ani_tween
         , ani_ticker
         , () => {
-            pomelo.request("connector.worldHandler.fire", {}, function (data) {
-                // showViewData(data);
-                // var guns_id_map = view_ship.GUNS_ID_MAP;
-                // // 根据发射的子弹触发发射动画
-                // data.forEach(function (bullet_info) {
-                //     var gun = guns_id_map[bullet_info.owner_id];
-                //     if (!gun) {
-                //         console.error("No Found Gun Id:", bullet_info.owner_id);
-                //     }
-                //     gun.emit("fire_ani");
-                // });
-            });
+            pomelo.request("connector.worldHandler.fire", {}, function (data) {});
         });
     // 飞船切换自动
     UX.shipAutoFire(current_stage_wrap
@@ -277,8 +265,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         ,ani_tween
         ,ani_ticker
         ,()=> {
-            pomelo.request("connector.worldHandler.autoFire", {}, function (data) {
-            });
+            pomelo.request("connector.worldHandler.autoFire", {}, function (data) {});
         });
 
     // 切换属性加点面板的显示隐藏

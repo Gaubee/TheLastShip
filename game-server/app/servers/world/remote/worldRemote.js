@@ -171,19 +171,19 @@ WorldRemote.prototype.changeType = function(ship_id, new_type, cb) {
 	}
 };
 WorldRemote.prototype.refreshShareCache = function(cb) {
-		// this.world.refreshShareCache();
-		var ids = this.world.items.map(item => item._id);
-		cb(null, ids);
-	}
-	/**
-	 * Get user from chat channel.
-	 *
-	 * @param {Object} opts parameters for request
-	 * @param {String} name channel name
-	 * @param {boolean} flag channel parameter
-	 * @return {Array} users uids in channel
-	 *
-	 */
+	// this.world.refreshShareCache();
+	var ids = this.world.items.map(item => item._id);
+	cb(null, ids);
+};
+/**
+ * Get user from chat channel.
+ *
+ * @param {Object} opts parameters for request
+ * @param {String} name channel name
+ * @param {boolean} flag channel parameter
+ * @return {Array} users uids in channel
+ *
+ */
 WorldRemote.prototype.get = function(name, flag) {
 	var users = [];
 	var channel = this.channelService.getChannel(name, flag);
@@ -204,18 +204,15 @@ WorldRemote.prototype.get = function(name, flag) {
  * @param {String} name channel name
  *
  */
-WorldRemote.prototype.kick = function(uid, sid, name, cb) {
+WorldRemote.prototype.kick = function(uid, sid, name, ship_md5_id, cb) {
 	var channel = this.channelService.getChannel(name, false);
 	// leave channel
-	if (!!channel) {
-		channel.leave(uid, sid);
+	if (!channel) {
+		console.log("!channel un found!", uid, sid, name);
+		return
 	}
-	var username = uid.split('*')[0];
-	var param = {
-		route: 'onLeave',
-		user: username
-	};
-	console.log("Leave user!!!")
-	channel.pushMessage(param);
+	channel.leave(uid, sid);
+	console.log("Leave user!!!", uid, sid, name)
+	this.world.killShip(ship_md5_id)
 	cb && cb()
 };

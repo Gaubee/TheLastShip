@@ -12,11 +12,16 @@ module.exports = function(app) {
 };
 
 function Handler(app) {
-	this.roomid = app.get("serverId") + process.pid;
+	this.serverId = app.get("serverId");
+	this.roomid = this.serverId + process.pid;
 	this.app = app
 }
+
+const tick_ti_map = new Map();
+
 Handler.prototype = {
 	enter: function(msg, session, next) {
+		const self = this;
 		const roomid = this.roomid;
 		const username = msg.username;
 		const mac_ship_id = msg.mac_ship_id;
@@ -26,7 +31,7 @@ Handler.prototype = {
 		//重复登录
 		var session_get_by_uid = sessionService.getByUid(uid);
 		// console.log("sessionService.getByUid(uid):",session_get_by_uid,session_get_by_uid==session,session.uid);
-		if (session_get_by_uid&&uid!==session.uid) {
+		if (session_get_by_uid && uid !== session.uid) {
 			next(null, {
 				code: 500,
 				error: "重复登录"
@@ -36,14 +41,11 @@ Handler.prototype = {
 
 		// 绑定ID
 		session.bind(uid);
-
-		session.on("close", ((app, session) => {
-			if (session && session.uid) {
-				// 剔除玩家，玩家进入自爆
-				// app.rpc.world.worldRemote.kick(session, session.uid, app.get("serverId"), session.get("roomid"), null);
-				console.log("REMOVE:", session.uid)
-			}
-		}).bind(null, this.app));
+		const kick_ti = tick_ti_map.get(mac_ship_id);
+		if (kick_ti) {
+			console.log("停止掉线自杀");
+			clearTimeout(kick_ti);
+		}
 
 		if (mac_ship_id) {
 			var md5_mac_ship_id = MD5(mac_ship_id);
@@ -51,8 +53,19 @@ Handler.prototype = {
 
 		console.log("SESSION ship_id", mac_ship_id, md5_mac_ship_id);
 
+		session.on("closed", ((app, session) => {
+			if (session && session.uid) {
+				console.log("掉线，启动定时自杀", session.uid);
+				// 剔除玩家，玩家进入自爆
+				const kick_ti = setTimeout(function() {
+					app.rpc.world.worldRemote.kick(session, session.uid, self.serverId, roomid, md5_mac_ship_id, null);
+				}, 20e3);
+				tick_ti_map.set(mac_ship_id, kick_ti);
+			}
+		}).bind(null, this.app));
+
 		// 进入游戏世界
-		this.app.rpc.world.worldRemote.add(session, uid, this.app.get("serverId"), roomid, md5_mac_ship_id, function(err, game_info) {
+		this.app.rpc.world.worldRemote.add(session, uid, self.serverId, roomid, md5_mac_ship_id, function(err, game_info) {
 			if (err) {
 				return next(err);
 			}

@@ -296,6 +296,12 @@ export const engine = {
         var ship_id = ship_md5_id_map.get(ship_md5_id);
         return ship_id && All_id_map.get(ship_id);
     },
+    killShip(ship_md5_id){
+        const cur_ship = this.getShip(ship_md5_id);
+        if(cur_ship) {
+            cur_ship.emit("die")
+        }
+    },
     setConfig(ship_id, new_ship_config:ShipConfig){
         var current_ship = <Ship>All_id_map.get(ship_id);
         if(!(current_ship instanceof Ship)) {

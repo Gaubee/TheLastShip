@@ -10,7 +10,7 @@ const fs = require("fs");
  * Init app for client.
  */
 var app = pomelo.createApp();
-app.enable('systemMonitor');
+// app.enable('systemMonitor');
 app.set('name', 'TheLastShip');
 // app configuration
 app.configure('production|development', 'connector', function() {
@@ -80,5 +80,13 @@ app.configure('production|development', 'world', function() {
 app.start();
 
 process.on('uncaughtException', function(err) {
+  const __error_log_file_name = "./logs/uncaught.master.log";
   console.error(' Caught exception: ' + err.stack);
+  var d = new Date();
+  fs.writeFileSync(__error_log_file_name,
+    `---------${d.toLocaleDateString()} ${d.toLocaleTimeString()}----------\n` +
+    (err.stack || err) +
+    "\n\n", {
+      flag: 'a'
+    })
 });

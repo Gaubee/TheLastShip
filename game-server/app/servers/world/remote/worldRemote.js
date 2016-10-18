@@ -6,12 +6,15 @@ module.exports = function(app) {
 	return new WorldRemote(app);
 };
 
-function WorldObj(p2i){
+function WorldObj(p2i) {
 	this.id = p2i._id;
 	this.ins = p2i;
-	this.position = {x:p2i.config.x,y:p2i.config.y};
+	this.position = {
+		x: p2i.config.x,
+		y: p2i.config.y
+	};
 }
-WorldObj.prototype.setInfo = function () {
+WorldObj.prototype.setInfo = function() {
 	this.position.x = this.ins.config.x;
 	this.position.y = this.ins.config.y;
 }
@@ -31,6 +34,7 @@ var WorldRemote = function(app) {
 		events.on(eventName, function(data) {
 			for (var channel_name in channelService.channels) {
 				var channel = channelService.channels[channel_name];
+				// console.log("消息推送：", eventName, channel_name, channel);
 				channel.pushMessage({
 					route: eventName,
 					data: data
@@ -85,11 +89,11 @@ var WorldRemote = function(app) {
 			}
 			// 更新物体坐标
 			quadtree.refresh();
-		}, 1000/5);
-		this.getRectViewItems = function (left,top,width,height) {
-			const objs = quadtree.getRectViewItems(left-width/2, top-height/2, width, height);
+		}, 1000 / 5);
+		this.getRectViewItems = function(left, top, width, height) {
+			const objs = quadtree.getRectViewItems(left - width / 2, top - height / 2, width, height);
 			return {
-				objects: objs.concat(STATIC_OBJS_list).map(obj=>obj.ins)
+				objects: objs.concat(STATIC_OBJS_list).map(obj => obj.ins)
 			}
 		}
 	}
@@ -167,10 +171,10 @@ WorldRemote.prototype.changeType = function(ship_id, new_type, cb) {
 	}
 };
 WorldRemote.prototype.refreshShareCache = function(cb) {
-	// this.world.refreshShareCache();
-	var ids = this.world.items.map(item=>item._id);
-	cb(null, ids);
-}
+		// this.world.refreshShareCache();
+		var ids = this.world.items.map(item => item._id);
+		cb(null, ids);
+	}
 	/**
 	 * Get user from chat channel.
 	 *

@@ -23,7 +23,7 @@ import {
 export interface BulletConfig {
 	x?: number
 	y?: number
-	rotation?:number
+	rotation?: number
 	x_force?: number
 	y_force?: number
 	size?: number
@@ -218,8 +218,11 @@ export default class Bullet extends P2I {
 		this.y = config.y;
 		this.p2_body.angle = config.rotation;
 	}
-	update(delay){
+	update(delay) {
 		super.update(delay);
+		if (!this["transform"]) {// 被销毁
+			return
+		}
 		this.rotation = this.p2_body.angle;
 	}
 }

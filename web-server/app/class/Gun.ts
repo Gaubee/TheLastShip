@@ -51,6 +51,8 @@ export interface GunConfig {
 	type?: string
 	// 最多同时存在的子弹数
 	max_bullet_length?: number
+	// 是否处于自动控制状态
+	is_ctrl_by_AI?: boolean
 }
 export default class Gun extends P2I {
 	static TYPES = gunShape
@@ -77,6 +79,7 @@ export default class Gun extends P2I {
 		// 枪基本形状
 		type: "NONE",
 		max_bullet_length: -1,
+		is_ctrl_by_AI: false
 	}
 	constructor(new_config: GunConfig = {}, owner?: Ship) {
 		super();
@@ -244,6 +247,9 @@ export default class Gun extends P2I {
 		if (config.is_firing) {
 			return
 		}
+		if (config.max_bullet_length > 0 && this.bullets.length >= config.max_bullet_length) {
+			return
+		}
 		this.emit("fire_start");
 		const before_the_attack_roll_ani = config.BTAR_rate;
 		const bullet_size = config.bullet_size;
@@ -285,7 +291,6 @@ export default class Gun extends P2I {
 			ship.p2_body.force[0] -= init_x_force * mass_rate;
 			ship.p2_body.force[1] -= init_y_force * mass_rate;
 
-			console.log('before add',this.bullets.length);
 			if (config.max_bullet_length > 0) {
 				var dif_length = this.bullets.length - config.max_bullet_length;
 				// 移除多余的子弹，引爆
@@ -296,12 +301,12 @@ export default class Gun extends P2I {
 				}
 			}
 			this.bullets.push(bullet);
-			console.log('after  add', this.bullets.length);
 		});
 		bullet.on("explode", () => {
-			console.log('before remove', this.bullets.length);
-			this.bullets.splice(this.bullets.indexOf(bullet), 1);
-			console.log('after  remove', this.bullets.length);
+			var index = this.bullets.indexOf(bullet);
+			if (index !== -1) {
+				this.bullets.splice(index, 1);
+			}
 		});
 		// 通知父级
 		this.owner && this.owner.emit("gun-fire_start", this._id, bullet);
@@ -329,21 +334,60 @@ export default class Gun extends P2I {
 			}
 		}
 	}
+	// 指定子弹跟踪打击的点
+	private __bullet_track: { x: number, y: number }
+	// 子弹跟踪打击的算法
+	private __ctl_track_bullets_handle: () => void
+	toggleAI() {
+		this.setConfig({
+			is_ctrl_by_AI: !this.config.is_ctrl_by_AI
+		});
+	}
 	static BULLET_CONTROL_HANDLE = {
 		"track-ship": function(gun: Gun, x: number, y: number) {
-			if (!gun["__bullet_track"]) {
-				gun["__bullet_track"] = { x, y };
-				const _ctl_bullets = gun["__ctl_track_bullets_handle"] = function() {
-					var max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
+			if (!gun.__bullet_track) {
+				gun.__bullet_track = { x, y };
+				const _ctl_bullets = gun.__ctl_track_bullets_handle = function() {
+					const {x, y} = gun.__bullet_track;
+					const max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
+					// 如果开启了AI打击，那么子弹会寻找以目的地为中心200px，距离自己最近的可打击目标
+					var targets;
+					if (gun.config.is_ctrl_by_AI) {
+						const AI_dis_Sq = 200 * 200;
+						const ship = gun.owner;
+						const objects = ship.parent.children;
+						targets = objects.filter(filyer => {
+							if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship") {
+								var dif_x = filyer.x - x;
+								var dif_y = filyer.y - y;
+								return dif_x * dif_x + dif_y * dif_y <= AI_dis_Sq
+							}
+						})
+					}
 					gun.bullets.forEach((bullet, i) => {
-						var {x, y} = gun["__bullet_track"];
 						const bullet_config = bullet.config;
-						var to_target_dir = new Victor(x - bullet_config.x, y - bullet_config.y);
+						if (targets && targets.length) {
+							var near_target;
+							var near_target_dis_Sq = Infinity;
+							targets.forEach(target => {
+								var dif_x = target.x - bullet.x;
+								var dif_y = target.y - bullet.y;
+								var dis_Sq = dif_x * dif_x + dif_y * dif_y;
+								if (dis_Sq < near_target_dis_Sq) {
+									near_target_dis_Sq = dis_Sq;
+									near_target = target;
+								}
+							});
+							var to_target_dir = new Victor(near_target.x - bullet_config.x, near_target.y - bullet_config.y);
+						} else {
+							var to_target_dir = new Victor(x - bullet_config.x, y - bullet_config.y);
+						}
+
 						if (to_target_dir.lengthSq() < max_bullet_length_Sq) {
 							return
 						}
 						var force = new Victor(bullet_config.x_force, bullet_config.y_force);
-						var target_angle = to_target_dir.angle()*1.1;
+						var target_angle = to_target_dir.angle() * 1.1;
 						force.rotateTo(target_angle);
 
 						bullet.setConfig({
@@ -356,7 +400,7 @@ export default class Gun extends P2I {
 				};
 				_ctl_bullets();
 			}
-			gun["__bullet_track"] = { x, y };
+			gun.__bullet_track = { x, y };
 		}
 	}
 }

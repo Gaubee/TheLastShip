@@ -10,6 +10,7 @@ const fs = require("fs");
  * Init app for client.
  */
 var app = pomelo.createApp();
+app.enable('systemMonitor');
 app.set('name', 'TheLastShip');
 // app configuration
 app.configure('production|development', 'connector', function() {

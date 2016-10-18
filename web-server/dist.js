@@ -1707,7 +1707,7 @@ define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/en
         }
         var fill = typeInfoArgs.fill;
         if (!isFinite(typeInfoArgs.fill)) {
-            fill = 0x999999;
+            fill = config.is_ctrl_by_AI ? 0x99aaff : 0x999999;
         }
         body.lineStyle.apply(body, lineStyle);
         body.beginFill(fill);
@@ -2543,6 +2543,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 // 枪基本形状
                 type: "NONE",
                 max_bullet_length: -1,
+                is_ctrl_by_AI: false
             };
             this.bullets = [];
             this._is_waiting_delay = false;
@@ -2699,6 +2700,9 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             if (config.is_firing) {
                 return;
             }
+            if (config.max_bullet_length > 0 && this.bullets.length >= config.max_bullet_length) {
+                return;
+            }
             this.emit("fire_start");
             var before_the_attack_roll_ani = config.BTAR_rate;
             var bullet_size = config.bullet_size;
@@ -2734,7 +2738,6 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 bullet.p2_body.force = [init_x_force, init_y_force];
                 ship.p2_body.force[0] -= init_x_force * mass_rate;
                 ship.p2_body.force[1] -= init_y_force * mass_rate;
-                console.log('before add', _this.bullets.length);
                 if (config.max_bullet_length > 0) {
                     var dif_length = _this.bullets.length - config.max_bullet_length;
                     // 移除多余的子弹，引爆
@@ -2745,12 +2748,12 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     }
                 }
                 _this.bullets.push(bullet);
-                console.log('after  add', _this.bullets.length);
             });
             bullet.on("explode", function () {
-                console.log('before remove', _this.bullets.length);
-                _this.bullets.splice(_this.bullets.indexOf(bullet), 1);
-                console.log('after  remove', _this.bullets.length);
+                var index = _this.bullets.indexOf(bullet);
+                if (index !== -1) {
+                    _this.bullets.splice(index, 1);
+                }
             });
             // 通知父级
             this.owner && this.owner.emit("gun-fire_start", this._id, bullet);
@@ -2779,17 +2782,52 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 }
             }
         };
+        Gun.prototype.toggleAI = function () {
+            this.setConfig({
+                is_ctrl_by_AI: !this.config.is_ctrl_by_AI
+            });
+        };
         Gun.TYPES = gunShape;
         Gun.BULLET_CONTROL_HANDLE = {
             "track-ship": function (gun, x, y) {
-                if (!gun["__bullet_track"]) {
-                    gun["__bullet_track"] = { x: x, y: y };
-                    var _ctl_bullets = gun["__ctl_track_bullets_handle"] = function () {
+                if (!gun.__bullet_track) {
+                    gun.__bullet_track = { x: x, y: y };
+                    var _ctl_bullets = gun.__ctl_track_bullets_handle = function () {
+                        var _a = gun.__bullet_track, x = _a.x, y = _a.y;
                         var max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
+                        // 如果开启了AI打击，那么子弹会寻找以目的地为中心200px，距离自己最近的可打击目标
+                        var targets;
+                        if (gun.config.is_ctrl_by_AI) {
+                            var AI_dis_Sq_1 = 200 * 200;
+                            var ship = gun.owner;
+                            var objects = ship.parent.children;
+                            targets = objects.filter(function (filyer) {
+                                if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship") {
+                                    var dif_x = filyer.x - x;
+                                    var dif_y = filyer.y - y;
+                                    return dif_x * dif_x + dif_y * dif_y <= AI_dis_Sq_1;
+                                }
+                            });
+                        }
                         gun.bullets.forEach(function (bullet, i) {
-                            var _a = gun["__bullet_track"], x = _a.x, y = _a.y;
                             var bullet_config = bullet.config;
-                            var to_target_dir = new Victor_2.default(x - bullet_config.x, y - bullet_config.y);
+                            if (targets && targets.length) {
+                                var near_target;
+                                var near_target_dis_Sq = Infinity;
+                                targets.forEach(function (target) {
+                                    var dif_x = target.x - bullet.x;
+                                    var dif_y = target.y - bullet.y;
+                                    var dis_Sq = dif_x * dif_x + dif_y * dif_y;
+                                    if (dis_Sq < near_target_dis_Sq) {
+                                        near_target_dis_Sq = dis_Sq;
+                                        near_target = target;
+                                    }
+                                });
+                                var to_target_dir = new Victor_2.default(near_target.x - bullet_config.x, near_target.y - bullet_config.y);
+                            }
+                            else {
+                                var to_target_dir = new Victor_2.default(x - bullet_config.x, y - bullet_config.y);
+                            }
                             if (to_target_dir.lengthSq() < max_bullet_length_Sq) {
                                 return;
                             }
@@ -2806,7 +2844,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     };
                     _ctl_bullets();
                 }
-                gun["__bullet_track"] = { x: x, y: y };
+                gun.__bullet_track = { x: x, y: y };
             }
         };
         return Gun;
@@ -5883,6 +5921,40 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         }
     }
     exports.shipAutoFire = shipAutoFire;
+    /** 切换枪支的AI托管
+     *
+     */
+    function shipGunAICtrl(
+        /*事件监听层*/
+        listen_stage, 
+        /*视觉元素层*/
+        view_stage, 
+        /*动态获取运动视角对象*/
+        get_view_ship, 
+        /*动画控制器*/
+        ani_tween, 
+        /*渲染循环器*/
+        ani_ticker, shipGunAICtrl_cb) {
+        if (const_10._isMobile) {
+        }
+        else {
+            var _is_alt_down = false;
+            common_2.on(listen_stage, "keydown", function (e) {
+                if (e.keyCode === 18) {
+                    _is_alt_down = true;
+                }
+                if (_is_alt_down && e.keyCode >= 49 && e.keyCode <= 57) {
+                    shipGunAICtrl_cb(e.keyCode - 49);
+                }
+            });
+            common_2.on(listen_stage, "keyup", function (e) {
+                if (_is_alt_down && e.keyCode === 18) {
+                    _is_alt_down = false;
+                }
+            });
+        }
+    }
+    exports.shipGunAICtrl = shipGunAICtrl;
     var proto_plan = new FlowLayout_1.default();
     var close_ProtoPlan_ti = null;
     function showProtoPlan(
@@ -6474,6 +6546,13 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         // 飞船控制子弹（如果支持）
         UX.shipControlBullets(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (target_point) {
             my_ship.controlBulletMoveTo(target_point.x, target_point.y);
+        });
+        // 飞船控制枪支AI（如果支持）
+        UX.shipGunAICtrl(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (gun_index) {
+            if (gun_index < my_ship.guns.length) {
+                var gun = my_ship.guns[gun_index];
+                gun.toggleAI();
+            }
         });
         // 飞船切换自动
         UX.shipAutoFire(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function () {

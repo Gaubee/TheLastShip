@@ -449,6 +449,39 @@ export function shipAutoFire(
 		});
 	}
 }
+
+/** 切换枪支的AI托管
+ *
+ */
+export function shipGunAICtrl(
+	/*事件监听层*/
+	listen_stage: PIXI.Container,
+	/*视觉元素层*/
+	view_stage: PIXI.Container,
+	/*动态获取运动视角对象*/
+	get_view_ship: () => Ship,
+	/*动画控制器*/
+	ani_tween: TWEEN,
+	/*渲染循环器*/
+	ani_ticker: PIXI.ticker.Ticker,
+	shipGunAICtrl_cb: (gun_index: number) => void) {
+	if (_isMobile) {
+	} else {
+		var _is_alt_down = false;
+		on(listen_stage, "keydown", function(e) {
+			if (e.keyCode === 18) { _is_alt_down = true; }
+			if (_is_alt_down && e.keyCode >= 49 && e.keyCode <= 57) {
+				shipGunAICtrl_cb(e.keyCode - 49)
+			}
+		});
+		on(listen_stage, "keyup", function(e) {
+			if (_is_alt_down && e.keyCode === 18) {
+				_is_alt_down = false;
+			}
+		});
+	}
+}
+
 /** 显示属性加点面板
  *
  */

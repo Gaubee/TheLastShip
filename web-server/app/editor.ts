@@ -287,6 +287,18 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 		, (target_point) => {
 			my_ship.controlBulletMoveTo(target_point.x, target_point.y);
 		})
+	// 飞船控制枪支AI（如果支持）
+	UX.shipGunAICtrl(current_stage_wrap
+		, current_stage
+		, () => my_ship
+		, ani_tween
+		, ani_ticker
+		, (gun_index) => {
+			if (gun_index < my_ship.guns.length) {
+				const gun = my_ship.guns[gun_index];
+				gun.toggleAI();
+			}
+		})
 	// 飞船切换自动
 	UX.shipAutoFire(current_stage_wrap
 		, current_stage

@@ -22,7 +22,7 @@ export default function GunDrawer(self: Gun, config, typeInfo) {
 	}
 	var fill = typeInfoArgs.fill;
 	if (!isFinite(typeInfoArgs.fill)) {
-		fill = 0x999999;
+		fill = config.is_ctrl_by_AI ? 0x99aaff : 0x999999;
 	}
 	body.lineStyle.apply(body, lineStyle);
 	body.beginFill(fill);

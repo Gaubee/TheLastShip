@@ -2811,6 +2811,10 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                                 }
                             });
                         }
+                        var bullets_len = gun.bullets.length;
+                        var gun_index = ship.guns.indexOf(gun);
+                        var gun_index_1 = gun_index + 1;
+                        var unit_angle = Math.PI / 10;
                         gun.bullets.forEach(function (bullet, i) {
                             var bullet_config = bullet.config;
                             if (targets && targets.length) {
@@ -2830,11 +2834,14 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                             else {
                                 var to_target_dir = new Victor_2.default(x - bullet_config.x, y - bullet_config.y);
                             }
-                            if (to_target_dir.lengthSq() < max_bullet_length_Sq) {
+                            var to_target_dir_lengthSq = to_target_dir.lengthSq();
+                            if (to_target_dir_lengthSq < max_bullet_length_Sq) {
                                 return;
                             }
                             var force = new Victor_2.default(bullet_config.x_force, bullet_config.y_force);
-                            var target_angle = to_target_dir.angle() * 1.1;
+                            var target_angle = to_target_dir.angle();
+                            // 附带可旋转的角速度
+                            target_angle += unit_angle * ((i + gun_index * bullets_len) / (bullets_len * gun_index_1));
                             force.rotateTo(target_angle);
                             bullet.setConfig({
                                 x_force: force.x,

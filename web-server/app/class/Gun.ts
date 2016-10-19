@@ -366,6 +366,10 @@ export default class Gun extends P2I {
 							}
 						});
 					}
+					const bullets_len = gun.bullets.length;
+					const gun_index = ship.guns.indexOf(gun);
+					const gun_index_1 = gun_index + 1;
+					const unit_angle = Math.PI / 10;
 					gun.bullets.forEach((bullet, i) => {
 						const bullet_config = bullet.config;
 						if (targets && targets.length) {
@@ -384,12 +388,14 @@ export default class Gun extends P2I {
 						} else {
 							var to_target_dir = new Victor(x - bullet_config.x, y - bullet_config.y);
 						}
-
-						if (to_target_dir.lengthSq() < max_bullet_length_Sq) {
+						const to_target_dir_lengthSq = to_target_dir.lengthSq();
+						if (to_target_dir_lengthSq < max_bullet_length_Sq) {
 							return
 						}
 						var force = new Victor(bullet_config.x_force, bullet_config.y_force);
-						var target_angle = to_target_dir.angle() * 1.1;
+						var target_angle = to_target_dir.angle();
+						// 附带可旋转的角速度
+						target_angle += unit_angle * (/*让其无法聚集在一起*/(i + gun_index * bullets_len) / (bullets_len * gun_index_1));
 						force.rotateTo(target_angle);
 
 						bullet.setConfig({

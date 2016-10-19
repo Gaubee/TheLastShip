@@ -349,20 +349,22 @@ export default class Gun extends P2I {
 				gun.__bullet_track = { x, y };
 				const _ctl_bullets = gun.__ctl_track_bullets_handle = function() {
 					const {x, y} = gun.__bullet_track;
+					const ship = gun.owner;
+					const ship_x = ship.config.x;
+					const ship_y = ship.config.y;
 					const max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
-					// 如果开启了AI打击，那么子弹会寻找以目的地为中心200px，距离自己最近的可打击目标
+					// 如果开启了AI打击，那么子弹会寻找以飞船为中心600px，距离自己最近的可打击目标
 					var targets;
 					if (gun.config.is_ctrl_by_AI) {
-						const AI_dis_Sq = 200 * 200;
-						const ship = gun.owner;
+						const AI_dis_Sq = 600 * 600;
 						const objects = ship.parent.children;
 						targets = objects.filter(filyer => {
-							if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship") {
-								var dif_x = filyer.x - x;
-								var dif_y = filyer.y - y;
+							if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship" && filyer !== ship) {
+								var dif_x = filyer.x - ship_x;
+								var dif_y = filyer.y - ship_y;
 								return dif_x * dif_x + dif_y * dif_y <= AI_dis_Sq
 							}
-						})
+						});
 					}
 					gun.bullets.forEach((bullet, i) => {
 						const bullet_config = bullet.config;

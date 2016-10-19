@@ -45,6 +45,7 @@ Handler.prototype = {
 		if (kick_ti) {
 			console.log("停止掉线自杀");
 			clearTimeout(kick_ti);
+			tick_ti_map.clear(mac_ship_id);
 		}
 
 		if (mac_ship_id) {
@@ -58,6 +59,7 @@ Handler.prototype = {
 				console.log("掉线，启动定时自杀", session.uid);
 				// 剔除玩家，玩家进入自爆
 				const kick_ti = setTimeout(function() {
+					tick_ti_map.clear(mac_ship_id);
 					app.rpc.world.worldRemote.kick(session, session.uid, self.serverId, roomid, md5_mac_ship_id, null);
 				}, 20e3);
 				tick_ti_map.set(mac_ship_id, kick_ti);

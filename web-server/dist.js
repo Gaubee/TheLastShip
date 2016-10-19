@@ -2794,17 +2794,19 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     gun.__bullet_track = { x: x, y: y };
                     var _ctl_bullets = gun.__ctl_track_bullets_handle = function () {
                         var _a = gun.__bullet_track, x = _a.x, y = _a.y;
+                        var ship = gun.owner;
+                        var ship_x = ship.config.x;
+                        var ship_y = ship.config.y;
                         var max_bullet_length_Sq = gun.config.max_bullet_length * gun.config.max_bullet_length;
-                        // 如果开启了AI打击，那么子弹会寻找以目的地为中心200px，距离自己最近的可打击目标
+                        // 如果开启了AI打击，那么子弹会寻找以飞船为中心600px，距离自己最近的可打击目标
                         var targets;
                         if (gun.config.is_ctrl_by_AI) {
-                            var AI_dis_Sq_1 = 200 * 200;
-                            var ship = gun.owner;
+                            var AI_dis_Sq_1 = 600 * 600;
                             var objects = ship.parent.children;
                             targets = objects.filter(function (filyer) {
-                                if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship") {
-                                    var dif_x = filyer.x - x;
-                                    var dif_y = filyer.y - y;
+                                if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship" && filyer !== ship) {
+                                    var dif_x = filyer.x - ship_x;
+                                    var dif_y = filyer.y - ship_y;
                                     return dif_x * dif_x + dif_y * dif_y <= AI_dis_Sq_1;
                                 }
                             });
@@ -3798,6 +3800,9 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
         };
         Bullet.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
+            if (!this["transform"]) {
+                return;
+            }
             this.rotation = this.p2_body.angle;
         };
         Bullet.material = new p2.Material();

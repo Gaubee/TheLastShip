@@ -32,9 +32,9 @@ var WorldRemote = function(app) {
 		, "gun-fire_start" // 飞船的某个枪支发射
 	].forEach(eventName => {
 		events.on(eventName, function(data) {
-			for (var channel_name in channelService.channels) {
+			for (var channel_name in channelService.channels) {// 这里进程为单位，所以就一个，用for in 不会影响性能
 				var channel = channelService.channels[channel_name];
-				// console.log("消息推送：", eventName, channel_name, channel);
+				// console.log("消息推送：", eventName, channel_name, channel.userAmount);
 				channel.pushMessage({
 					route: eventName,
 					data: data
@@ -204,15 +204,25 @@ WorldRemote.prototype.get = function(name, flag) {
  * @param {String} name channel name
  *
  */
-WorldRemote.prototype.kick = function(uid, sid, name, ship_md5_id, cb) {
+WorldRemote.prototype.kick = function(name, ship_md5_id, cb) {
 	var channel = this.channelService.getChannel(name, false);
 	// leave channel
 	if (!channel) {
-		console.log("!channel un found!", uid, sid, name);
+		console.error("!channel un found!", name, ship_md5_id);
 		return
 	}
-	channel.leave(uid, sid);
-	console.log("Leave user!!!", uid, sid, name)
+	console.log("kill ship!!!", name, ship_md5_id)
 	this.world.killShip(ship_md5_id)
+	cb && cb()
+};
+WorldRemote.prototype.remove = function(uid, sid, name, cb) {
+	var channel = this.channelService.getChannel(name, false);
+	// leave channel
+	if (!channel) {
+		console.error("!channel un found!", uid, sid, name);
+		return
+	}
+	console.log("remove user!!!", uid, sid, name)
+	channel.leave(uid, sid);
 	cb && cb()
 };

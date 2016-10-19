@@ -1784,11 +1784,6 @@ define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/en
             self.rotation = config.rotation;
             self.x = rect_dir.x + rect_offset.x + ship.config.size;
             self.y = rect_dir.y + rect_offset.y + ship.config.size;
-            setInterval(function () {
-                self.setConfig({
-                    rotation: self.config.rotation + Math.PI * 0.001
-                });
-            });
         }
         else if (typeInfo.type === "rect+trapezoid") {
             var rect_x = typeInfoArgs.rect_x;

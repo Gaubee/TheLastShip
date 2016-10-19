@@ -110,11 +110,11 @@ export default function GunDrawer(self: Gun, config, typeInfo) {
 		self.rotation = config.rotation;
 		self.x = rect_dir.x + rect_offset.x + ship.config.size;
 		self.y = rect_dir.y + rect_offset.y + ship.config.size;
-		setInterval(function() {
-			self.setConfig({
-				rotation: self.config.rotation + Math.PI * 0.001
-			})
-		})
+		// setInterval(function() {
+		// 	self.setConfig({
+		// 		rotation: self.config.rotation + Math.PI * 0.001
+		// 	})
+		// })
 	} else if (typeInfo.type === "rect+trapezoid") {
 		const rect_x = typeInfoArgs.rect_x;
 		const rect_y = typeInfoArgs.rect_y;

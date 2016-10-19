@@ -57,10 +57,11 @@ Handler.prototype = {
 		session.on("closed", ((app, session) => {
 			if (session && session.uid) {
 				console.log("掉线，启动定时自杀", session.uid);
+				app.rpc.world.worldRemote.remove(session, session.uid, self.serverId, roomid, null);
 				// 剔除玩家，玩家进入自爆
 				const kick_ti = setTimeout(function() {
 					tick_ti_map.clear(mac_ship_id);
-					app.rpc.world.worldRemote.kick(session, session.uid, self.serverId, roomid, md5_mac_ship_id, null);
+					app.rpc.world.worldRemote.kick(session, roomid, md5_mac_ship_id, null);
 				}, 20e3);
 				tick_ti_map.set(mac_ship_id, kick_ti);
 			}

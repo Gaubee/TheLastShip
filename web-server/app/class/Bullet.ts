@@ -84,9 +84,9 @@ export default class Bullet extends P2I {
 
 		BulletDrawer(self, config);
 
-		if (_isBorwser) {
-			self.cacheAsBitmap = true;
-		}
+		// if (_isBorwser) {//要涉及到子弹角度旋转，这里暂时不做缓存控制
+		// 	self.cacheAsBitmap = true;
+		// }
 
 		self.p2_body.force = [config.x_force, config.y_force];
 		self.p2_body.position = [config.x, config.y];
@@ -220,7 +220,7 @@ export default class Bullet extends P2I {
 	}
 	update(delay) {
 		super.update(delay);
-		if (!this["transform"]) {// 被销毁
+		if (!this.children) {// 被销毁
 			return
 		}
 		this.rotation = this.p2_body.angle;

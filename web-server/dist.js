@@ -3667,9 +3667,9 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
             var config = self.config;
             const_8.mix_options(config, new_config);
             BulletDrawer_1.default(self, config);
-            if (const_8._isBorwser) {
-                self.cacheAsBitmap = true;
-            }
+            // if (_isBorwser) {//要涉及到子弹角度旋转，这里暂时不做缓存控制
+            // 	self.cacheAsBitmap = true;
+            // }
             self.p2_body.force = [config.x_force, config.y_force];
             self.p2_body.position = [config.x, config.y];
             self.position.set(config.x, config.y);
@@ -3800,7 +3800,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
         };
         Bullet.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
-            if (!this["transform"]) {
+            if (!this.children) {
                 return;
             }
             this.rotation = this.p2_body.angle;

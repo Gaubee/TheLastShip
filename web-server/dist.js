@@ -128,6 +128,23 @@ define("app/const", ["require", "exports"], function (require, exports) {
         });
     }
     exports.transformMix = transformMix;
+    exports.formatDeg = function () {
+        "use asm";
+        var PI = Math.PI;
+        var PI_2 = PI * 2;
+        return function (deg) {
+            deg = +deg;
+            PI = +PI;
+            PI_2 = +PI_2;
+            if (deg > PI) {
+                deg = +((deg % PI_2) - PI_2);
+            }
+            else if (deg < -PI) {
+                deg = +((deg % PI_2) + PI_2);
+            }
+            return deg;
+        };
+    }();
 });
 define("app/engine/Collision", ["require", "exports", "app/const"], function (require, exports, const_1) {
     "use strict";
@@ -2601,9 +2618,10 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     var from_gun_y = self.y;
                     var dif_gun_x = -self.width * 0.2;
                     var dif_gun_y = 0;
-                    if (config.rotation) {
+                    var gun_rotation = config.rotation + self.gun.rotation;
+                    if (gun_rotation) {
                         var dir_vic = new Victor_2.default(dif_gun_x, dif_gun_y);
-                        dir_vic.rotate(config.rotation);
+                        dir_vic.rotate(gun_rotation);
                         dif_gun_x = dir_vic.x;
                         dif_gun_y = dir_vic.y;
                     }
@@ -2705,7 +2723,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             var bullet_force = new Victor_2.default(config.bullet_force, 0);
             // const bullet_start = new Victor(ship_config.size + bullet_size / 2, 0);
             var bullet_start = new Victor_2.default(this.x - ship_config.size, this.y - ship_config.size);
-            var bullet_dir = ship_config.rotation + config.rotation;
+            var bullet_dir = ship_config.rotation + config.rotation + this.gun.rotation;
             bullet_force.rotate(bullet_dir);
             bullet_start.rotate(ship_config.rotation);
             var bullet = new Bullet_1.default({
@@ -2783,8 +2801,8 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             });
         };
         Gun.TYPES = gunShape;
-        Gun.BULLET_CONTROL_HANDLE = {
-            "track-ship": function (gun, x, y) {
+        Gun.GUN_CONTROL_HANDLE = {
+            "auto-track": function (gun, x, y) {
                 if (!gun.__bullet_track) {
                     gun.__bullet_track = { x: x, y: y };
                     var _ctl_bullets = gun.__ctl_track_bullets_handle = function () {
@@ -2844,11 +2862,82 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                                 rotation: target_angle,
                             });
                         });
-                        gun["__ctl_track_bullets_handle"] && gun.setTimeout(gun["__ctl_track_bullets_handle"], 100); // 默认每一秒进行一次自动控制
+                        gun.__ctl_track_bullets_handle && gun.setTimeout(gun.__ctl_track_bullets_handle, 100); // 默认每一秒进行一次自动控制
                     };
                     _ctl_bullets();
                 }
                 gun.__bullet_track = { x: x, y: y };
+            },
+            "auto-turn": function (gun, x, y) {
+                if (!gun.__turn_gun) {
+                    gun.__turn_gun = { x: x, y: y, to_rotation: 0 };
+                    var _ctr_gun = gun.__ctl_turn_gun_handles = function () {
+                        var _a = gun.__turn_gun, x = _a.x, y = _a.y;
+                        var ship = gun.owner;
+                        var gun_helper = gun.gun["__gun_helper"]; // 基座
+                        var ship_x = ship.config.x;
+                        var ship_y = ship.config.y;
+                        // 打击目标相对与飞船的坐标
+                        var re_x = x - ship.config.x;
+                        var re_y = y - ship.config.y;
+                        var base_dir = new Victor_2.default(gun_helper.x - ship.config.size, gun_helper.y - ship.config.size); //基座的真实相对坐标
+                        base_dir.rotate(ship.config.rotation);
+                        var dir = new Victor_2.default(re_x - base_dir.x, re_y - base_dir.y);
+                        var to_rotation = const_4.formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
+                        if (Math.abs(to_rotation) <= Math.PI / 2 && !gun.config.is_ctrl_by_AI) {
+                        }
+                        else {
+                            var AI_dis_Sq_2 = 800 * 800;
+                            var objects = ship.parent.children;
+                            var targets = objects.filter(function (filyer) {
+                                if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship" && filyer !== ship) {
+                                    var dif_x = filyer.x - ship_x;
+                                    var dif_y = filyer.y - ship_y;
+                                    return dif_x * dif_x + dif_y * dif_y <= AI_dis_Sq_2;
+                                }
+                            });
+                            // 优先打击近处的物体
+                            var near_target;
+                            var near_target_dis_Sq = Infinity;
+                            targets.forEach(function (target) {
+                                var dif_x = target.x - (base_dir.x + ship_x);
+                                var dif_y = target.y - (base_dir.y + ship_y);
+                                var dis_Sq = dif_x * dif_x + dif_y * dif_y;
+                                if (dis_Sq < near_target_dis_Sq) {
+                                    near_target_dis_Sq = dis_Sq;
+                                    near_target = target;
+                                }
+                            });
+                            if (near_target) {
+                                var re_x = near_target.x - ship.config.x;
+                                var re_y = near_target.y - ship.config.y;
+                                var dir = new Victor_2.default(re_x - base_dir.x, re_y - base_dir.y);
+                                var to_rotation = const_4.formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
+                            }
+                        }
+                        to_rotation = Math.abs(to_rotation) <= Math.PI / 2 ? to_rotation : 0;
+                        gun.__turn_gun.to_rotation = to_rotation;
+                        gun.__ctl_turn_gun_handles && gun.setTimeout(gun.__ctl_turn_gun_handles, 100);
+                    };
+                    var trun_speed_1 = Math.PI / 50;
+                    gun.on("update", function () {
+                        if (gun.config.ison_BTAR) {
+                            return;
+                        }
+                        var to_rotation = gun.__turn_gun.to_rotation;
+                        var cur_rotation = const_4.formatDeg(gun.gun.rotation);
+                        var dif_rotation = to_rotation - cur_rotation;
+                        if (Math.abs(dif_rotation) > trun_speed_1) {
+                            gun.gun.rotation += (dif_rotation > 0 ? trun_speed_1 : -trun_speed_1);
+                        }
+                        else {
+                            gun.gun.rotation = to_rotation;
+                        }
+                    });
+                    _ctr_gun();
+                }
+                gun.__turn_gun.x = x;
+                gun.__turn_gun.y = y;
             }
         };
         return Gun;
@@ -2923,7 +3012,8 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     y: 0,
                     y_speed: 0,
                     x_speed: 0,
-                    force: 100000
+                    force: 100000,
+                    is_lock_rotation: false
                 },
                 _a["__size"] = const_5.pt2px(15),
                 Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.size, {
@@ -3223,6 +3313,9 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 });
                 self.__GUNS_ID_MAP = null; // 清除枪支缓存
             }
+            if (self.guns.some(function (gun) { return gun.config.type === "auto-turn"; })) {
+                config.is_lock_rotation = true;
+            }
         };
         Ship.prototype.getWeaponConfigById = function (gun_id) {
             var self = this;
@@ -3283,7 +3376,16 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         });
         Ship.prototype.update = function (delay) {
             _super.prototype.update.call(this, delay);
-            this.rotation = this.p2_body["rotation"];
+            if (this.config.is_lock_rotation) {
+                this.config.rotation += Math.PI / 500;
+                if (this.config.rotation > Math.PI) {
+                    this.config.rotation -= Math.PI * 2;
+                }
+                else if (this.config.rotation < -Math.PI) {
+                    this.config.rotation += Math.PI * 2;
+                }
+            }
+            this.rotation = this.p2_body["rotation"] = this.config.rotation;
             this.p2_body.force = [this.config.x_speed, this.config.y_speed];
             this.guns.forEach(function (gun) { return gun.update(delay); });
         };
@@ -3296,6 +3398,9 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 x_speed: config.x_speed,
                 rotation: config.rotation,
             };
+            if (config.is_lock_rotation) {
+                delete limit_config.rotation;
+            }
             const_5.mix_options(limit_config, new_config);
             if (limit_config.x_speed * limit_config.x_speed +
                 limit_config.y_speed * limit_config.y_speed >
@@ -3429,7 +3534,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             get: function () {
                 var _bullet_can_controlable_guns = this._bullet_can_controlable_guns;
                 if (_bullet_can_controlable_guns === null) {
-                    _bullet_can_controlable_guns = this._bullet_can_controlable_guns = this.guns.filter(function (gun) { return Gun_1.default.BULLET_CONTROL_HANDLE.hasOwnProperty(gun.config.bullet_type); });
+                    _bullet_can_controlable_guns = this._bullet_can_controlable_guns = this.guns.filter(function (gun) { return Gun_1.default.GUN_CONTROL_HANDLE.hasOwnProperty(gun.config.type); });
                 }
                 return _bullet_can_controlable_guns;
             },
@@ -3439,7 +3544,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype.controlBulletMoveTo = function (x, y) {
             if (this.bullet_can_controlable_guns.length) {
                 this.bullet_can_controlable_guns.forEach(function (gun) {
-                    Gun_1.default.BULLET_CONTROL_HANDLE[gun.config.bullet_type](gun, x, y);
+                    Gun_1.default.GUN_CONTROL_HANDLE[gun.config.type](gun, x, y);
                 });
             }
         };

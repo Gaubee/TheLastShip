@@ -21,6 +21,7 @@ import {
 	transformJSON,
 	transformValue,
 	transformMix,
+	formatDeg,
 } from "../const";
 import * as gunShape from "./gunShape.json";
 if (_isNode) {
@@ -147,9 +148,10 @@ export default class Gun extends P2I {
 				var from_gun_y = self.y;
 				var dif_gun_x = -self.width * 0.2;
 				var dif_gun_y = 0;
-				if (config.rotation) {
+				var gun_rotation = config.rotation + self.gun.rotation;
+				if (gun_rotation) {
 					var dir_vic = new Victor(dif_gun_x, dif_gun_y);
-					dir_vic.rotate(config.rotation);
+					dir_vic.rotate(gun_rotation);
 					dif_gun_x = dir_vic.x;
 					dif_gun_y = dir_vic.y;
 				}
@@ -257,7 +259,7 @@ export default class Gun extends P2I {
 		const bullet_force = new Victor(config.bullet_force, 0);
 		// const bullet_start = new Victor(ship_config.size + bullet_size / 2, 0);
 		const bullet_start = new Victor(this.x - ship_config.size, this.y - ship_config.size);
-		const bullet_dir = ship_config.rotation + config.rotation;
+		const bullet_dir = ship_config.rotation + config.rotation + this.gun.rotation;
 		bullet_force.rotate(bullet_dir);
 		bullet_start.rotate(ship_config.rotation);
 		const bullet = new Bullet({
@@ -334,17 +336,20 @@ export default class Gun extends P2I {
 			}
 		}
 	}
-	// 指定子弹跟踪打击的点
-	private __bullet_track: { x: number, y: number }
-	// 子弹跟踪打击的算法
-	private __ctl_track_bullets_handle: () => void
 	toggleAI() {
 		this.setConfig({
 			is_ctrl_by_AI: !this.config.is_ctrl_by_AI
 		});
 	}
-	static BULLET_CONTROL_HANDLE = {
-		"track-ship": function(gun: Gun, x: number, y: number) {
+	// 指定子弹跟踪打击的点
+	private __bullet_track: { x: number, y: number }
+	// 子弹跟踪打击的算法
+	private __ctl_track_bullets_handle: () => void
+	// 自动转向权重打击点
+	private __turn_gun: { x: number, y: number, to_rotation: number }
+	private __ctl_turn_gun_handles: () => void
+	static GUN_CONTROL_HANDLE = {
+		"auto-track": function(gun: Gun, x: number, y: number) {
 			if (!gun.__bullet_track) {
 				gun.__bullet_track = { x, y };
 				const _ctl_bullets = gun.__ctl_track_bullets_handle = function() {
@@ -404,11 +409,84 @@ export default class Gun extends P2I {
 							rotation: target_angle,
 						})
 					});
-					gun["__ctl_track_bullets_handle"] && gun.setTimeout(gun["__ctl_track_bullets_handle"], 100);// 默认每一秒进行一次自动控制
+					gun.__ctl_track_bullets_handle && gun.setTimeout(gun.__ctl_track_bullets_handle, 100);// 默认每一秒进行一次自动控制
 				};
 				_ctl_bullets();
 			}
 			gun.__bullet_track = { x, y };
+		},
+		"auto-turn": function(gun: Gun, x: number, y: number) {
+			if (!gun.__turn_gun) {
+				gun.__turn_gun = { x, y, to_rotation: 0 };
+				const _ctr_gun = gun.__ctl_turn_gun_handles = function() {
+					const {x, y} = gun.__turn_gun;
+					const ship = gun.owner;
+					const gun_helper = gun.gun["__gun_helper"];// 基座
+					const ship_x = ship.config.x;
+					const ship_y = ship.config.y;
+					// 打击目标相对与飞船的坐标
+					var re_x = x - ship.config.x
+					var re_y = y - ship.config.y
+					var base_dir = new Victor(gun_helper.x - ship.config.size, gun_helper.y - ship.config.size);//基座的真实相对坐标
+					base_dir.rotate(ship.config.rotation);
+
+					var dir = new Victor(re_x - base_dir.x, re_y - base_dir.y);
+
+					var to_rotation = formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
+					if (Math.abs(to_rotation) <= Math.PI / 2 && !gun.config.is_ctrl_by_AI) {// 转向角度+-PI
+						// to_rotation = Math.abs(to_rotation) <= Math.PI / 2 ? to_rotation : 0;
+					} else {// 枪支角度超出控制，采用自动控制或者主动声明使用自动控制
+						const AI_dis_Sq = 800 * 800;
+						const objects = ship.parent.children;
+						var targets = objects.filter(filyer => {
+							if (filyer.constructor.name === "Flyer" || filyer.constructor.name === "Ship" && filyer !== ship) {
+								var dif_x = filyer.x - ship_x;
+								var dif_y = filyer.y - ship_y;
+								return dif_x * dif_x + dif_y * dif_y <= AI_dis_Sq
+							}
+						});
+						// 优先打击近处的物体
+						var near_target;
+						var near_target_dis_Sq = Infinity;
+						targets.forEach(target => {
+							var dif_x = target.x - (base_dir.x + ship_x);
+							var dif_y = target.y - (base_dir.y + ship_y);
+							var dis_Sq = dif_x * dif_x + dif_y * dif_y;
+							if (dis_Sq < near_target_dis_Sq) {
+								near_target_dis_Sq = dis_Sq;
+								near_target = target;
+							}
+						});
+						if (near_target) {
+							var re_x = near_target.x - ship.config.x
+							var re_y = near_target.y - ship.config.y
+							var dir = new Victor(re_x - base_dir.x, re_y - base_dir.y);
+							var to_rotation = formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
+						}
+					}
+					to_rotation = Math.abs(to_rotation) <= Math.PI / 2 ? to_rotation : 0;
+					gun.__turn_gun.to_rotation = to_rotation;
+
+					gun.__ctl_turn_gun_handles && gun.setTimeout(gun.__ctl_turn_gun_handles, 100);
+				};
+				const trun_speed = Math.PI / 50;
+				gun.on("update", function() {
+					if (gun.config.ison_BTAR) {// 处于攻击前摇时不转向
+						return
+					}
+					var { to_rotation} = gun.__turn_gun;
+					var cur_rotation = formatDeg(gun.gun.rotation);
+					const dif_rotation = to_rotation - cur_rotation;
+					if (Math.abs(dif_rotation) > trun_speed) {//渐变转向
+						gun.gun.rotation += (dif_rotation > 0 ? trun_speed : -trun_speed)
+					} else {
+						gun.gun.rotation = to_rotation
+					}
+				});
+				_ctr_gun();
+			}
+			gun.__turn_gun.x = x;
+			gun.__turn_gun.y = y;
 		}
 	}
 }

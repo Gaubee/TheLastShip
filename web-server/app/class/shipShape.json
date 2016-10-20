@@ -529,57 +529,41 @@
 			}
 		},
 		"guns": [{
-			"type": "long2",
+			"type": "auto-track",
 			"args": {
 				"x": "mix@(size)exp!*-0.55",
 				"y": "mix@(size)exp!/2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"rotation": "PI!-0.5",
-			"bullet_lift_time": -1,
-			"max_bullet_length": 8,
-			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
-			"bullet_density": "pt2px!1"
+			"rotation": "PI!-0.5"
 		}, {
-			"type": "long2",
+			"type": "auto-track",
 			"args": {
 				"x": "mix@(size)exp!*-0.55",
 				"y": "mix@(size)exp!/-2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"rotation": "PI!-0.5",
-			"bullet_lift_time": -1,
-			"max_bullet_length": 8,
-			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
-			"bullet_density": "pt2px!1"
+			"rotation": "PI!-0.5"
 		}, {
-			"type": "long2",
+			"type": "auto-track",
 			"args": {
 				"x": "mix@(size)exp!*-0.55",
 				"y": "mix@(size)exp!/2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"rotation": "PI!-1.5",
-			"bullet_lift_time": -1,
-			"max_bullet_length": 8,
-			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
-			"bullet_density": "pt2px!1"
+			"rotation": "PI!-1.5"
 		}, {
-			"type": "long2",
+			"type": "auto-track",
 			"args": {
 				"x": "mix@(size)exp!*-0.55",
 				"y": "mix@(size)exp!/-2",
 				"width": "mix@(size)exp!*1.6"
 			},
-			"rotation": "PI!-1.5",
-			"bullet_lift_time": -1,
-			"max_bullet_length": 8,
-			"bullet_type": "track-ship",
 			"bullet_size": "mix@(size)exp!*0.2",
-			"bullet_density": "pt2px!1"
+			"rotation": "PI!-1.5"
 		}]
 	},
 	"X-2-1": {
@@ -653,35 +637,40 @@
 			"type": "auto-turn",
 			"args": {
 				"x": "mix@(size)exp!*-0.35"
-			}
+			},
+			"bullet_size":"mix@(size)exp!*0.25"
 		}, {
 			"type": "auto-turn",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"circle_config_rotation": "PI!0.4"
 			},
-			"rotation": "PI!0.4"
+			"rotation": "PI!0.4",
+			"bullet_size":"mix@(size)exp!*0.25"
 		}, {
 			"type": "auto-turn",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"circle_config_rotation": "PI!-0.4"
 			},
-			"rotation": "PI!-0.4"
+			"rotation": "PI!-0.4",
+			"bullet_size":"mix@(size)exp!*0.25"
 		}, {
 			"type": "auto-turn",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"circle_config_rotation": "PI!0.8"
 			},
-			"rotation": "PI!0.8"
+			"rotation": "PI!0.8",
+			"bullet_size":"mix@(size)exp!*0.25"
 		}, {
 			"type": "auto-turn",
 			"args": {
 				"x": "mix@(size)exp!*-0.35",
 				"circle_config_rotation": "PI!-0.8"
 			},
-			"rotation": "PI!-0.8"
+			"rotation": "PI!-0.8",
+			"bullet_size":"mix@(size)exp!*0.25"
 		}]
 	},
 	"X-3-2": {

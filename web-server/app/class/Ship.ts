@@ -42,6 +42,7 @@ export interface ShipConfig {
 	//战斗相关的状态
 	is_firing?: boolean
 	ison_BTAR?: boolean // 是否处于攻击钱摇
+	is_lock_rotation?: boolean
 
 	// 战斗相关的属性
 	bullet_force?: number
@@ -125,6 +126,7 @@ export default class Ship extends P2I {
 		y_speed: 0,
 		x_speed: 0,
 		force: 100000,
+		is_lock_rotation: false,
 		["__size"]: pt2px(15),
 		get [FIX_GETTER_SETTER_BUG_KEYS_MAP.size]() {
 			return this.__size;
@@ -390,6 +392,9 @@ export default class Ship extends P2I {
 			});
 			self.__GUNS_ID_MAP = null;// 清除枪支缓存
 		}
+		if (self.guns.some(gun => gun.config.type === "auto-turn")) {//自动转向枪支，锁定肢体旋转，改为自动旋转
+			config.is_lock_rotation = true;
+		}
 	}
 	getWeaponConfigById(gun_id) {
 		const self = this;
@@ -443,7 +448,15 @@ export default class Ship extends P2I {
 	}
 	update(delay) {
 		super.update(delay);
-		this.rotation = this.p2_body["rotation"];
+		if (this.config.is_lock_rotation) {
+			this.config.rotation += Math.PI / 500;
+			if (this.config.rotation > Math.PI) {
+				this.config.rotation -= Math.PI * 2;
+			} else if (this.config.rotation < -Math.PI) {
+				this.config.rotation += Math.PI * 2;
+			}
+		}
+		this.rotation = this.p2_body["rotation"] = this.config.rotation;
 		this.p2_body.force = [this.config.x_speed, this.config.y_speed];
 		this.guns.forEach(gun => gun.update(delay));
 	}
@@ -456,6 +469,9 @@ export default class Ship extends P2I {
 			x_speed: config.x_speed,
 			rotation: config.rotation,
 		};
+		if (config.is_lock_rotation) {
+			delete limit_config.rotation;
+		}
 		mix_options(limit_config, new_config);
 
 		if (
@@ -592,14 +608,14 @@ export default class Ship extends P2I {
 	get bullet_can_controlable_guns() {
 		var _bullet_can_controlable_guns = this._bullet_can_controlable_guns;
 		if (_bullet_can_controlable_guns === null) {
-			_bullet_can_controlable_guns = this._bullet_can_controlable_guns = this.guns.filter(gun => Gun.BULLET_CONTROL_HANDLE.hasOwnProperty(gun.config.bullet_type))
+			_bullet_can_controlable_guns = this._bullet_can_controlable_guns = this.guns.filter(gun => Gun.GUN_CONTROL_HANDLE.hasOwnProperty(gun.config.type))
 		}
 		return _bullet_can_controlable_guns
 	}
 	controlBulletMoveTo(x: number, y: number) {
 		if (this.bullet_can_controlable_guns.length) {
 			this.bullet_can_controlable_guns.forEach(gun => {
-				Gun.BULLET_CONTROL_HANDLE[gun.config.bullet_type](gun, x, y);
+				Gun.GUN_CONTROL_HANDLE[gun.config.type](gun, x, y);
 			});
 		}
 	}

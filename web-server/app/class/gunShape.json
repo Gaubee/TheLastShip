@@ -49,6 +49,23 @@
 			"overload_speed": 1
 		}
 	},
+	"auto-track": {
+		"type": "trapezoid",
+		"args": {
+			"width": "pt2px!20",
+			"height": "pt2px!14",
+			"endHeight": "pt2px!10",
+			"lineStyle": ["pt2px!1.5", "0x5d5d5d", 1],
+			"x": "pt2px!-2"
+		},
+		"config": {
+			"bullet_type": "track-ship",
+			"bullet_size": "mix@(size)exp!*0.2",
+			"bullet_density": "pt2px!1",
+			"bullet_lift_time": -1,
+			"max_bullet_length": 8
+		}
+	},
 	"auto-turn":{
 		"type":"circle+rect",
 		"args":{
@@ -59,11 +76,11 @@
 			"rect_x": "mix@(size)exp!*0.1",
 			"rect_y":0,
 			"rect_width":"mix@(size)exp!*1",
-			"rect_height":"mix@(size)exp!*0.4"
+			"rect_height":"mix@(size)exp!*0.5"
 		},
 		"config":{
-			"bullet_size":"mix@(size)exp!*0.2",
-			"bullet_density":"pt2px!2"
+			"bullet_size":"mix@(size)exp!*0.1",
+			"bullet_density":"pt2px!1.5"
 		}
 	},
 	"horn":{

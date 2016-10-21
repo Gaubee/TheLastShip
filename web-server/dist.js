@@ -146,12 +146,9 @@ define("app/const", ["require", "exports"], function (require, exports) {
         };
     }();
 });
-define("app/engine/Collision", ["require", "exports", "app/const"], function (require, exports, const_1) {
+define("app/engine/Collision", ["require", "exports"], function (require, exports) {
     "use strict";
     var uuid = 0;
-    if (const_1._isNode) {
-        var cache = require("node-shared-cache");
-    }
     var P2I = (function (_super) {
         __extends(P2I, _super);
         function P2I(world) {
@@ -1640,7 +1637,7 @@ define("app/class/Drawer/BulletDrawer", ["require", "exports"], function (requir
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = BulletDrawer;
 });
-define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], function (require, exports, const_2) {
+define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], function (require, exports, const_1) {
     "use strict";
     function ShapeDrawer(self, config, typeInfo) {
         var body = self.body;
@@ -1654,7 +1651,7 @@ define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], func
             body.lineStyle.apply(body, typeInfoArgs.lineStyle);
         }
         else {
-            body.lineStyle(const_2.pt2px(1.5), 0x000000, 1);
+            body.lineStyle(const_1.pt2px(1.5), 0x000000, 1);
         }
         if (isFinite(typeInfoArgs.fill)) {
             body.beginFill(+typeInfoArgs.fill);
@@ -1711,7 +1708,7 @@ define("app/class/Drawer/ShapeDrawer", ["require", "exports", "app/const"], func
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = ShapeDrawer;
 });
-define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/engine/Victor"], function (require, exports, const_3, Victor_1) {
+define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/engine/Victor"], function (require, exports, const_2, Victor_1) {
     "use strict";
     function GunDrawer(self, config, typeInfo) {
         var ship = self.owner; // 注意，因为Gun对象不是在网络中传输过来的，而是直接通过Ship的type绘制出来的，所以这里能直接引用ship对象
@@ -1720,7 +1717,7 @@ define("app/class/Drawer/GunDrawer", ["require", "exports", "app/const", "app/en
         var typeInfoArgs = typeInfo.args || {};
         var lineStyle = typeInfoArgs.lineStyle;
         if (!(lineStyle instanceof Array)) {
-            lineStyle = [const_3.pt2px(1.5), 0x5d5d5d, 1];
+            lineStyle = [const_2.pt2px(1.5), 0x5d5d5d, 1];
         }
         var fill = typeInfoArgs.fill;
         if (!isFinite(typeInfoArgs.fill)) {
@@ -2523,11 +2520,11 @@ define("class/Tween", ["require", "exports"], function (require, exports) {
     exports.default = TWEEN;
     ;
 });
-define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/class/Drawer/GunDrawer", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const", "./gunShape.json"], function (require, exports, Collision_1, GunDrawer_1, Victor_2, Bullet_1, Tween_1, const_4, gunShape) {
+define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/class/Drawer/GunDrawer", "app/engine/Victor", "app/class/Bullet", "class/Tween", "app/const", "./gunShape.json"], function (require, exports, Collision_1, GunDrawer_1, Victor_2, Bullet_1, Tween_1, const_3, gunShape) {
     "use strict";
     var Easing = Tween_1.default.Easing;
-    if (const_4._isNode) {
-        Object.assign(gunShape, const_4.transformJSON(JSON.stringify(gunShape)));
+    if (const_3._isNode) {
+        Object.assign(gunShape, const_3.transformJSON(JSON.stringify(gunShape)));
     }
     var Gun = (function (_super) {
         __extends(Gun, _super);
@@ -2544,8 +2541,8 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                 BTAR_rate: 0.5,
                 delay: 0,
                 // 战斗相关的属性
-                bullet_size: const_4.pt2px(5),
-                bullet_density: const_4.pt2px(1),
+                bullet_size: const_3.pt2px(5),
+                bullet_density: const_3.pt2px(1),
                 bullet_force: 1,
                 bullet_damage: 1,
                 bullet_penetrate: 1,
@@ -2602,7 +2599,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                         self.once("fire_start", _fire_start);
                     });
                     // 浏览器端要加动画
-                    if (const_4._isBorwser) {
+                    if (const_3._isBorwser) {
                         self.emit("fire_ani");
                     }
                 });
@@ -2671,18 +2668,18 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
             var owner_config = owner.config;
             // 动态合成配置
             if (owner && !is_from_owner) {
-                new_config = const_4.assign(owner.getWeaponConfigById(self._id), new_config);
+                new_config = const_3.assign(owner.getWeaponConfigById(self._id), new_config);
             }
-            new_config = const_4.transformMix(owner_config, new_config);
-            typeInfo = const_4.transformMix(owner_config, typeInfo);
+            new_config = const_3.transformMix(owner_config, new_config);
+            typeInfo = const_3.transformMix(owner_config, typeInfo);
             if (new_config["args"]) {
-                typeInfo = const_4.assign(typeInfo, {
+                typeInfo = const_3.assign(typeInfo, {
                     args: new_config["args"]
                 });
             }
             // 覆盖配置
-            const_4.mix_options(config, typeInfo["config"]);
-            const_4.mix_options(config, new_config);
+            const_3.mix_options(config, typeInfo["config"]);
+            const_3.mix_options(config, new_config);
             // var _is_redraw = false;
             // for(var k in cache_config) {
             // 	if(cache_config[k]!==config[k]){
@@ -2883,7 +2880,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                         var base_dir = new Victor_2.default(gun_helper.x - ship.config.size, gun_helper.y - ship.config.size); //基座的真实相对坐标
                         base_dir.rotate(ship.config.rotation);
                         var dir = new Victor_2.default(re_x - base_dir.x, re_y - base_dir.y);
-                        var to_rotation = const_4.formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
+                        var to_rotation = const_3.formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
                         if (Math.abs(to_rotation) <= Math.PI / 2 && !gun.config.is_ctrl_by_AI) {
                         }
                         else {
@@ -2912,7 +2909,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                                 var re_x = near_target.x - ship.config.x;
                                 var re_y = near_target.y - ship.config.y;
                                 var dir = new Victor_2.default(re_x - base_dir.x, re_y - base_dir.y);
-                                var to_rotation = const_4.formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
+                                var to_rotation = const_3.formatDeg(dir.angle() - gun.rotation - ship.config.rotation);
                             }
                         }
                         to_rotation = Math.abs(to_rotation) <= Math.PI / 2 ? to_rotation : 0;
@@ -2926,7 +2923,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                             return;
                         }
                         var to_rotation = gun.__turn_gun.to_rotation;
-                        var cur_rotation = const_4.formatDeg(gun.gun.rotation);
+                        var cur_rotation = const_3.formatDeg(gun.gun.rotation);
                         var dif_rotation = to_rotation - cur_rotation;
                         if (Math.abs(dif_rotation) > trun_speed_1) {
                             gun.gun.rotation += (dif_rotation > 0 ? trun_speed_1 : -trun_speed_1);
@@ -2948,7 +2945,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
     }(Collision_1.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Gun;
-    if (const_4._isNode) {
+    if (const_3._isNode) {
         Gun.GUN_CONTROL_HANDLE["auto-turn"] = function (gun, data, cb) {
             if (!gun.__turn_gun) {
                 gun.__turn_gun = { x: data.x, y: data.x, to_rotation: +data.to_rotation || 0 };
@@ -2958,7 +2955,7 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                         return;
                     }
                     var to_rotation = gun.__turn_gun.to_rotation;
-                    var cur_rotation = const_4.formatDeg(gun.gun.rotation);
+                    var cur_rotation = const_3.formatDeg(gun.gun.rotation);
                     var dif_rotation = to_rotation - cur_rotation;
                     if (Math.abs(dif_rotation) > trun_speed_2) {
                         gun.gun.rotation += (dif_rotation > 0 ? trun_speed_2 : -trun_speed_2);
@@ -2976,11 +2973,11 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
         };
     }
 });
-define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/class/Gun", "class/Tween", "app/const", "./shipShape.json"], function (require, exports, Collision_2, ShapeDrawer_1, Gun_1, Tween_2, const_5, shipShape) {
+define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/class/Gun", "class/Tween", "app/const", "./shipShape.json"], function (require, exports, Collision_2, ShapeDrawer_1, Gun_1, Tween_2, const_4, shipShape) {
     "use strict";
     var Easing = Tween_2.default.Easing;
-    if (const_5._isNode) {
-        Object.assign(shipShape, const_5.transformJSON(JSON.stringify(shipShape)));
+    if (const_4._isNode) {
+        Object.assign(shipShape, const_4.transformJSON(JSON.stringify(shipShape)));
     }
     var EXPERIENCE_LEVEL_MAP = [0];
     var LEVEL_STAGE_1 = 10;
@@ -3046,7 +3043,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     force: 100000,
                     is_lock_rotation: false
                 },
-                _a["__size"] = const_5.pt2px(15),
+                _a["__size"] = const_4.pt2px(15),
                 Object.defineProperty(_a, FIX_GETTER_SETTER_BUG_KEYS_MAP.size, {
                     get: function () {
                         return this.__size;
@@ -3091,7 +3088,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 _a.ison_BTAR = false,
                 // 战斗相关的属性
                 _a.bullet_force = 30000,
-                _a.bullet_size = const_5.pt2px(5),
+                _a.bullet_size = const_4.pt2px(5),
                 _a.bullet_damage = 5,
                 _a.bullet_penetrate = 0.5,
                 _a.overload_speed = 1,
@@ -3113,7 +3110,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                         if (new_level != this.__level) {
                             var old_level = this.__level;
                             this.__level = new_level;
-                            if (const_5._isBorwser) {
+                            if (const_4._isBorwser) {
                                 this.__self__.emit("level-changed", old_level, new_level);
                             }
                         }
@@ -3180,9 +3177,9 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             }
             // 覆盖配置
             var cache_config = config["toJSON"]();
-            const_5.mix_options(cache_config, typeInfo.body.config);
-            const_5.mix_options(cache_config, new_config);
-            const_5.mix_options(config, cache_config);
+            const_4.mix_options(cache_config, typeInfo.body.config);
+            const_4.mix_options(cache_config, new_config);
+            const_4.mix_options(config, cache_config);
             if (config.cur_hp == 0) {
                 config.cur_hp = config.max_hp;
             }
@@ -3198,7 +3195,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 if (isFinite(dif_hp)) {
                     var config_1 = self.config;
                     config_1.cur_hp += dif_hp;
-                    if (dif_hp < 0 && const_5._isBorwser) {
+                    if (dif_hp < 0 && const_4._isBorwser) {
                         self.emit("flash");
                     }
                     if (config_1.cur_hp > config_1.max_hp) {
@@ -3216,7 +3213,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                     damage_from.emit("change-experience", self.config.experience / 2);
                 }
             });
-            if (const_5._isNode) {
+            if (const_4._isNode) {
                 self.once("die", function () {
                     self.emit("destroy");
                 });
@@ -3237,7 +3234,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             }
             else {
                 self.once("die", function () {
-                    var ani_time = const_5.B_ANI_TIME;
+                    var ani_time = const_4.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
                     var _to = {
@@ -3291,12 +3288,12 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype.reDrawBody = function () {
             var config = this.config;
             var typeInfo = shipShape[config.type];
-            const_5._isBorwser && (this.body.cacheAsBitmap = false);
+            const_4._isBorwser && (this.body.cacheAsBitmap = false);
             // 绘制船体
             ShapeDrawer_1.default(this, config, typeInfo.body);
             // 绘制枪支位置
             this.reloadWeapon();
-            const_5._isBorwser && (this.body.cacheAsBitmap = true);
+            const_4._isBorwser && (this.body.cacheAsBitmap = true);
         };
         // 卸载武器
         Ship.prototype.unloadWeapon = function () {
@@ -3313,7 +3310,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             var typeInfo = shipShape[config.type];
             typeInfo.guns.forEach(function (_gun_config, i) {
                 var gun = self.guns[i];
-                var gun_config = const_5.assign({}, _gun_config);
+                var gun_config = const_4.assign({}, _gun_config);
                 // 枪支继承飞船的基本配置
                 [
                     "bullet_force",
@@ -3358,7 +3355,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 return;
             }
             var _gun_config = typeInfo.guns[gunindex];
-            var gun_config = const_5.assign({}, _gun_config);
+            var gun_config = const_4.assign({}, _gun_config);
             // 枪支继承飞船的基本配置
             [
                 "bullet_force",
@@ -3434,7 +3431,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             if (config.is_lock_rotation) {
                 delete limit_config.rotation;
             }
-            const_5.mix_options(limit_config, new_config);
+            const_4.mix_options(limit_config, new_config);
             if (limit_config.x_speed * limit_config.x_speed +
                 limit_config.y_speed * limit_config.y_speed >
                 config.force * config.force + 1 // JS小数问题，确保全速前进不会出现问题
@@ -3447,7 +3444,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype.setConfig = function (new_config) {
             _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
-            const_5.mix_options(config, new_config);
+            const_4.mix_options(config, new_config);
             this.p2_body.position[0] = config.x;
             this.p2_body.position[1] = config.y;
             this.x = config.x;
@@ -3499,7 +3496,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             /** 基础的等级带来的属性增长
              *
              */
-            const_5.assign(cache_config, type_config);
+            const_4.assign(cache_config, type_config);
             for (var config_key in level_grow) {
                 var level_grow_value = level_grow[config_key];
                 if (isFinite(level_grow_value)) {
@@ -3531,7 +3528,7 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 }
             });
             this.config = config;
-            const_5.mix_options(config, cache_config);
+            const_4.mix_options(config, cache_config);
         };
         Ship.prototype.fire = function (cb) {
             this.guns.forEach(function (gun) {
@@ -3589,10 +3586,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Ship;
 });
-define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/const", "class/Tween", "./flyerShape.json"], function (require, exports, Collision_3, ShapeDrawer_2, const_6, Tween_3, flyerShape) {
+define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/const", "class/Tween", "./flyerShape.json"], function (require, exports, Collision_3, ShapeDrawer_2, const_5, Tween_3, flyerShape) {
     "use strict";
-    if (const_6._isNode) {
-        Object.assign(flyerShape, const_6.transformJSON(JSON.stringify(flyerShape)));
+    if (const_5._isNode) {
+        Object.assign(flyerShape, const_5.transformJSON(JSON.stringify(flyerShape)));
     }
     var Easing = Tween_3.default.Easing;
     var Flyer = (function (_super) {
@@ -3607,7 +3604,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
                 y: 0,
                 y_speed: 5,
                 x_speed: 0,
-                size: const_6.pt2px(10),
+                size: const_5.pt2px(10),
                 body_color: 0x2255ff,
                 density: 1,
                 rotation: 0,
@@ -3619,15 +3616,15 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
             };
             var self = this;
             var config = self.config;
-            const_6.mix_options(config, new_config);
+            const_5.mix_options(config, new_config);
             var typeInfo = flyerShape[config.type];
             if (!typeInfo) {
                 throw new TypeError("UNKONW Ship Type: " + config.type);
             }
             // 覆盖配置
-            const_6.mix_options(config, typeInfo.config);
+            const_5.mix_options(config, typeInfo.config);
             ShapeDrawer_2.default(self, config, typeInfo);
-            if (const_6._isBorwser) {
+            if (const_5._isBorwser) {
                 self.cacheAsBitmap = true;
             }
             self.p2_body.angularVelocity = Math.PI * Math.random();
@@ -3640,7 +3637,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
                 if (isFinite(dif_hp)) {
                     var config_4 = self.config;
                     config_4.cur_hp += dif_hp;
-                    if (dif_hp < 0 && const_6._isBorwser) {
+                    if (dif_hp < 0 && const_5._isBorwser) {
                         self.emit("flash");
                     }
                     if (config_4.cur_hp > config_4.max_hp) {
@@ -3657,14 +3654,14 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
                     damage_from.emit("change-experience", self.config.reward_experience);
                 }
             });
-            if (const_6._isNode) {
+            if (const_5._isNode) {
                 self.once("ember", function () {
                     self.emit("destroy");
                 });
             }
             else {
                 self.once("ember", function () {
-                    var ani_time = const_6.B_ANI_TIME;
+                    var ani_time = const_5.B_ANI_TIME;
                     var ani_progress = 0;
                     var _update = self.update;
                     var _to = {
@@ -3698,7 +3695,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
         Flyer.prototype.setConfig = function (new_config) {
             _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
-            const_6.mix_options(config, new_config);
+            const_5.mix_options(config, new_config);
             this.rotation = this.p2_body.angle = config.rotation;
             this.p2_body.position = [config.x, config.y];
             this.x = config.x;
@@ -3710,7 +3707,7 @@ define("app/class/Flyer", ["require", "exports", "app/engine/Collision", "app/cl
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Flyer;
 });
-define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_4, const_7) {
+define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/const"], function (require, exports, Collision_4, const_6) {
     "use strict";
     var Wall = (function (_super) {
         __extends(Wall, _super);
@@ -3736,14 +3733,14 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
             this.body = new PIXI.Graphics();
             var self = this;
             var config = self.config;
-            const_7.mix_options(config, new_config);
+            const_6.mix_options(config, new_config);
             var body = self.body;
             body.beginFill(config.color);
             body.drawRect(0, 0, config.width, config.height);
             body.endFill();
             self.addChild(body);
             self.pivot.set(config.width / 2, config.height / 2);
-            if (const_7._isBorwser) {
+            if (const_6._isBorwser) {
                 self.cacheAsBitmap = true;
             }
             self.body_shape = new p2.Box({
@@ -3760,7 +3757,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
         Wall.prototype.setConfig = function (new_config) {
             _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
-            const_7.mix_options(config, new_config);
+            const_6.mix_options(config, new_config);
             this.p2_body.position = [config.x, config.y];
             this.x = config.x;
             this.y = config.y;
@@ -3775,7 +3772,7 @@ define("app/class/Wall", ["require", "exports", "app/engine/Collision", "app/con
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Wall;
 });
-define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/class/Drawer/BulletDrawer", "class/Tween", "app/const"], function (require, exports, Collision_5, BulletDrawer_1, Tween_4, const_8) {
+define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/class/Drawer/BulletDrawer", "class/Tween", "app/const"], function (require, exports, Collision_5, BulletDrawer_1, Tween_4, const_7) {
     "use strict";
     var Easing = Tween_4.default.Easing;
     var Bullet = (function (_super) {
@@ -3791,7 +3788,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
                 rotation: 0,
                 x_force: 0,
                 y_force: 0,
-                size: const_8.pt2px(5),
+                size: const_7.pt2px(5),
                 body_color: 0x2255ff,
                 delay: 0,
                 lift_time: 3500,
@@ -3805,7 +3802,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
             var self = this;
             self.owner = owner;
             var config = self.config;
-            const_8.mix_options(config, new_config);
+            const_7.mix_options(config, new_config);
             BulletDrawer_1.default(self, config);
             // if (_isBorwser) {//要涉及到子弹角度旋转，这里暂时不做缓存控制
             // 	self.cacheAsBitmap = true;
@@ -3878,7 +3875,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
                     self.off("update", _update);
                 }
             });
-            if (const_8._isNode) {
+            if (const_7._isNode) {
                 self.once("explode", function () {
                     // console.log("explode", self._id);
                     // 不要马上执行销毁，这个时间可能是从P2中执行出来的，可能还没运算完成
@@ -3892,7 +3889,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
             }
             else {
                 self.once("explode", function () {
-                    var ani_time = const_8.B_ANI_TIME;
+                    var ani_time = const_7.B_ANI_TIME;
                     var ani_progress = 0;
                     var _to = {
                         scaleXY: 2,
@@ -3919,7 +3916,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
         Bullet.prototype.setConfig = function (new_config) {
             _super.prototype.setConfig.call(this, new_config);
             var config = this.config;
-            const_8.mix_options(config, new_config);
+            const_7.mix_options(config, new_config);
             if (!this.scale) {
                 return;
             }
@@ -3951,7 +3948,7 @@ define("app/class/Bullet", ["require", "exports", "app/engine/Collision", "app/c
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Bullet;
 });
-define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], function (require, exports, Tween_5, const_9) {
+define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], function (require, exports, Tween_5, const_8) {
     "use strict";
     var HP = (function (_super) {
         __extends(HP, _super);
@@ -3960,7 +3957,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
             this.show_ani = null;
             this.owner = owner;
             this.ani = ani;
-            this.source_width = owner.config.size * 2 || owner.width || const_9.pt2px(40);
+            this.source_width = owner.config.size * 2 || owner.width || const_8.pt2px(40);
             var owner_config = owner.config;
             this.setHP(owner_config.cur_hp / owner_config.max_hp);
         }
@@ -3973,7 +3970,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
             }
             percentage = Math.min(Math.max(parseFloat(percentage), 0), 1);
             var width = this.source_width;
-            var height = Math.min(width / 8, const_9.pt2px(4));
+            var height = Math.min(width / 8, const_8.pt2px(4));
             var borderWidth = height / 5;
             this.lineStyle(borderWidth, 0x000000, 1);
             this.beginFill(0xEEEEEE);
@@ -3987,7 +3984,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
                 this.ani.Tween(this)
                     .to({
                     alpha: 1
-                }, const_9.B_ANI_TIME)
+                }, const_8.B_ANI_TIME)
                     .easing(Tween_5.default.Easing.Quartic.Out)
                     .start();
             }
@@ -3997,7 +3994,7 @@ define("app/class/HP", ["require", "exports", "class/Tween", "app/const"], funct
                     _this.ani.Tween(_this)
                         .to({
                         alpha: 0
-                    }, const_9.L_ANI_TIME)
+                    }, const_8.L_ANI_TIME)
                         .easing(Tween_5.default.Easing.Quartic.In)
                         .start();
                 }, 5000);
@@ -5678,7 +5675,7 @@ define("class/TextBuilder", ["require", "exports"], function (require, exports) 
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = TextBuilder;
 });
-define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "class/TextBuilder", "app/class/Ship", "app/engine/Victor", "app/common", "app/const", "./class/shipShape.json"], function (require, exports, Tween_6, FlowLayout_1, TextBuilder_1, Ship_2, Victor_3, common_2, const_10, shipShape) {
+define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "class/TextBuilder", "app/class/Ship", "app/engine/Victor", "app/common", "app/const", "./class/shipShape.json"], function (require, exports, Tween_6, FlowLayout_1, TextBuilder_1, Ship_2, Victor_3, common_2, const_9, shipShape) {
     "use strict";
     /** 移动
      *
@@ -5694,7 +5691,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween, 
         /*渲染循环器*/
         ani_ticker, moveShip_cb) {
-        if (const_10._isMobile) {
+        if (const_9._isMobile) {
             var mobile_operator_1 = new PIXI.Graphics();
             (function () {
                 var _size;
@@ -5844,8 +5841,8 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
             // 将要去的目的点，在接近的时候改变飞船速度
             var move_target_point;
             var target_anchor = new PIXI.Graphics();
-            target_anchor.lineStyle(const_10.pt2px(2), 0xff2244, 0.8);
-            target_anchor.drawCircle(0, 0, const_10.pt2px(10));
+            target_anchor.lineStyle(const_9.pt2px(2), 0xff2244, 0.8);
+            target_anchor.drawCircle(0, 0, const_9.pt2px(10));
             target_anchor.cacheAsBitmap = true;
             target_anchor.scale.set(0);
             view_stage.addChild(target_anchor);
@@ -5862,7 +5859,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                         .to({
                         x: 0,
                         y: 0
-                    }, const_10.B_ANI_TIME)
+                    }, const_9.B_ANI_TIME)
                         .start();
                 }
             });
@@ -5903,7 +5900,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween, 
         /*渲染循环器*/
         ani_ticker, turnHead_cb) {
-        if (const_10._isMobile) {
+        if (const_9._isMobile) {
             // 旋转角度
             common_2.on(listen_stage, "touchstart|touchmove", function (e) {
                 var view_ship = get_view_ship();
@@ -5952,7 +5949,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween, 
         /*渲染循环器*/
         ani_ticker, shipFire_cb) {
-        if (const_10._isMobile) {
+        if (const_9._isMobile) {
             common_2.on(listen_stage, "touchstart", function (e) {
                 var view_ship = get_view_ship();
                 if (view_ship) {
@@ -5993,7 +5990,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween, 
         /*渲染循环器*/
         ani_ticker, shipFire_cb) {
-        if (const_10._isMobile) {
+        if (const_9._isMobile) {
             common_2.on(listen_stage, "touchstart|touchmove", function (e) {
                 var view_ship = get_view_ship();
                 if (view_ship) {
@@ -6034,7 +6031,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween, 
         /*渲染循环器*/
         ani_ticker, shipAutoFire_cb) {
-        if (const_10._isMobile) {
+        if (const_9._isMobile) {
             var waiting_ti;
             common_2.on(listen_stage, "touchstart", function (e) {
                 var view_ship = get_view_ship();
@@ -6080,7 +6077,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween, 
         /*渲染循环器*/
         ani_ticker, shipGunAICtrl_cb) {
-        if (const_10._isMobile) {
+        if (const_9._isMobile) {
         }
         else {
             var _is_alt_down = false;
@@ -6131,7 +6128,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         })
             .to({
             x: 0
-        }, const_10.B_ANI_TIME)
+        }, const_9.B_ANI_TIME)
             .easing(Tween_6.default.Easing.Quadratic.Out)
             .start()
             .onComplete(function () {
@@ -6167,7 +6164,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
             if (typeof proto_grow_config_item === "object") {
                 var text_info = new TextBuilder_1.default(proto_grow_config_item.title + (" : " + view_ship.proto_list.filter(function (skill_name) { return skill_name === k; }).length + "/" + proto_grow_config_item.max), {
                     fontFamily: "微软雅黑",
-                    fontSize: const_10.pt2px(10)
+                    fontSize: const_9.pt2px(10)
                 });
                 proto_plan.addChildToFlow(text_info, { float: "right" });
                 text_info.interactive = true;
@@ -6181,7 +6178,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                                     close_ProtoPlan_ti = setTimeout(function () {
                                         hideProtoPlan(listen_stage, view_stage, get_view_ship, ani_tween, ani_ticker);
                                         close_ProtoPlan_ti = null;
-                                    }, const_10.B_ANI_TIME);
+                                    }, const_9.B_ANI_TIME);
                                 };
                                 // if(_isMobile) {
                                 // 	delay_close();
@@ -6223,7 +6220,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween.Tween(proto_plan)
             .to({
             x: -proto_plan.width
-        }, const_10.B_ANI_TIME)
+        }, const_9.B_ANI_TIME)
             .easing(Tween_6.default.Easing.Quadratic.Out)
             .start()
             .onComplete(function () {
@@ -6337,11 +6334,11 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween.Tween(shape_plan)
             .set({
             x: common_2.VIEW.WIDTH,
-            y: const_10.pt2px(10)
+            y: const_9.pt2px(10)
         })
             .to({
             x: common_2.VIEW.WIDTH - shape_plan.width
-        }, const_10.B_ANI_TIME)
+        }, const_9.B_ANI_TIME)
             .easing(Tween_6.default.Easing.Quadratic.Out)
             .start()
             .onComplete(function () {
@@ -6375,13 +6372,13 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         var max_width = 0;
         changeable_shapes.forEach(function (type_name) {
             var typeInfo = shipShape[type_name];
-            var image_info = new Ship_2.default(const_10.assign(const_10.assign({}, view_ship.config["toJSON"]()), { type: type_name }));
+            var image_info = new Ship_2.default(const_9.assign(const_9.assign({}, view_ship.config["toJSON"]()), { type: type_name }));
             image_info.x = image_info.width / 2;
             image_info.y = image_info.height;
             var text_info = new TextBuilder_1.default(typeInfo.name, {
                 fontFamily: "微软雅黑",
                 align: "center",
-                fontSize: const_10.pt2px(10)
+                fontSize: const_9.pt2px(10)
             });
             var item_info = new FlowLayout_1.default();
             item_info.max_width = Math.max(image_info.width, text_info.width);
@@ -6395,12 +6392,12 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
                 });
             });
         });
-        shape_plan.max_width = max_width * 2 + const_10.pt2px(10 + 10 + 20);
+        shape_plan.max_width = max_width * 2 + const_9.pt2px(10 + 10 + 20);
         items.forEach(function (item_info, i) {
             var item_info_bg = new PIXI.Graphics();
             // item_info_bg.lineStyle(1,0xff0000,1);
             item_info_bg.beginFill(0xffff00, 0.0);
-            item_info_bg.drawRect(0, 0, max_width + const_10.pt2px(10 * (i % 2)), item_info.height + const_10.pt2px(10));
+            item_info_bg.drawRect(0, 0, max_width + const_9.pt2px(10 * (i % 2)), item_info.height + const_9.pt2px(10));
             item_info_bg.endFill();
             item_info.addChild(item_info_bg);
             item_info.width + item_info.height; // 强制调用计算属性，动态计算布局
@@ -6435,7 +6432,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         ani_tween.Tween(shape_plan)
             .to({
             x: common_2.VIEW.WIDTH
-        }, const_10.B_ANI_TIME)
+        }, const_9.B_ANI_TIME)
             .easing(Tween_6.default.Easing.Quadratic.Out)
             .start()
             .onComplete(function () {
@@ -6482,7 +6479,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
     }
     exports.toggleShapePlan = toggleShapePlan;
 });
-define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_7, When_1, Flyer_2, Ship_3, Wall_2, HP_1, world_1, ediorStage, common_3, const_11, UX) {
+define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/class/HP", "app/engine/world", "./ediorStage.json", "app/common", "app/const", "app/ux"], function (require, exports, Tween_7, When_1, Flyer_2, Ship_3, Wall_2, HP_1, world_1, ediorStage, common_3, const_10, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_7.default();
@@ -6496,7 +6493,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: const_11.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_10.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     function renderInit(loader, resource) {
         for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
@@ -6539,7 +6536,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         };
         if (ediorStage["flyers"] instanceof Array) {
             ediorStage["flyers"].forEach(function (flyer_config) {
-                var flyer = new Flyer_2.default(const_11.assign({
+                var flyer = new Flyer_2.default(const_10.assign({
                     x: 50 + Math.random() * (common_3.VIEW.WIDTH - 100),
                     y: 50 + Math.random() * (common_3.VIEW.HEIGHT - 100),
                     x_speed: 10 * 2 * (Math.random() - 0.5),
@@ -6609,7 +6606,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
             }
         })();
         if (ediorStage["myship"]) {
-            var my_ship = new Ship_3.default(const_11.assign({
+            var my_ship = new Ship_3.default(const_10.assign({
                 x: common_3.VIEW.CENTER.x,
                 y: common_3.VIEW.CENTER.y,
                 body_color: 0x366345
@@ -6619,7 +6616,7 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         }
         if (ediorStage["ships"] instanceof Array) {
             ediorStage["ships"].forEach(function (ship_config) {
-                var ship = new Ship_3.default(const_11.assign({
+                var ship = new Ship_3.default(const_10.assign({
                     x: 100 + (EDGE_WIDTH - 200) * Math.random(),
                     y: 100 + (EDGE_HEIGHT - 200) * Math.random(),
                     body_color: 0xffffff * Math.random()
@@ -6640,8 +6637,8 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
         // 辅助线
         (function () {
             var lines = new PIXI.Graphics();
-            var x_unit = const_11.pt2px(10);
-            var y_unit = const_11.pt2px(10);
+            var x_unit = const_10.pt2px(10);
+            var y_unit = const_10.pt2px(10);
             var x_len = (EDGE_WIDTH / x_unit) | 0;
             var y_len = (EDGE_HEIGHT / y_unit) | 0;
             lines.lineStyle(1, 0x333333, 0.8);
@@ -8948,7 +8945,7 @@ define("app/ui/Button", ["require", "exports", "app/common"], function (require,
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Button;
 });
-define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Pomelo", "app/common", "app/const", "app/ux"], function (require, exports, Tween_9, When_2, Flyer_3, Wall_3, Ship_4, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_2, FlowLayout_2, shadowWorld_1, Pomelo_1, common_6, const_12, UX) {
+define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Wall", "app/class/Ship", "app/class/Bullet", "app/class/HP", "app/ui/Dialog", "app/ui/Button", "class/TextBuilder", "class/FlowLayout", "app/engine/shadowWorld", "app/engine/Pomelo", "app/common", "app/const", "app/ux"], function (require, exports, Tween_9, When_2, Flyer_3, Wall_3, Ship_4, Bullet_3, HP_2, Dialog_1, Button_1, TextBuilder_2, FlowLayout_2, shadowWorld_1, Pomelo_1, common_6, const_11, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_9.default();
@@ -8963,7 +8960,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: const_12.pt2px(25) + "px 微软雅黑",
+        font: const_11.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);
@@ -9274,24 +9271,24 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
             var title = new PIXI.Container();
             var restart_button = new Button_1.default({
                 value: "重新开始",
-                fontSize: const_12.pt2px(14),
-                paddingTop: const_12.pt2px(4),
-                paddingBottom: const_12.pt2px(4),
-                paddingLeft: const_12.pt2px(4),
-                paddingRight: const_12.pt2px(4),
+                fontSize: const_11.pt2px(14),
+                paddingTop: const_11.pt2px(4),
+                paddingBottom: const_11.pt2px(4),
+                paddingLeft: const_11.pt2px(4),
+                paddingRight: const_11.pt2px(4),
                 color: 0xffffff,
                 fontFamily: "微软雅黑"
             });
             var content = new FlowLayout_2.default([
                 new TextBuilder_2.default("被击杀！", {
-                    fontSize: const_12.pt2px(16),
+                    fontSize: const_11.pt2px(16),
                     fontFamily: "微软雅黑"
                 }),
                 restart_button
             ], {
                 float: "center"
             });
-            content.max_width = const_12.pt2px(60);
+            content.max_width = const_11.pt2px(60);
             content.reDrawFlow();
             common_6.on(restart_button, "click|tap", function (e) {
                 exports.current_stage_wrap.emit("enter", null, function (err, game_info) {
@@ -9491,7 +9488,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
     }
     exports.initStage = initStage;
 });
-define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/world", "app/common", "app/const", "app/ux"], function (require, exports, Tween_10, When_3, Flyer_4, Ship_5, Wall_4, world_2, common_7, const_13, UX) {
+define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/class/Ship", "app/class/Wall", "app/engine/world", "app/common", "app/const", "app/ux"], function (require, exports, Tween_10, When_3, Flyer_4, Ship_5, Wall_4, world_2, common_7, const_12, UX) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_10.default();
@@ -9505,7 +9502,7 @@ define("app/game2", ["require", "exports", "class/Tween", "class/When", "app/cla
     exports.loader = new PIXI.loaders.Loader();
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
-    var loading_text = new PIXI.Text("游戏加载中……", { font: const_13.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
+    var loading_text = new PIXI.Text("游戏加载中……", { font: const_12.pt2px(25) + "px 微软雅黑", fill: "#FFF" });
     exports.current_stage.addChild(loading_text);
     function renderInit(loader, resource) {
         for (var i = 0, len = exports.current_stage.children.length; i < len; i += 1) {
@@ -9898,7 +9895,7 @@ define("app/loader", ["require", "exports", "class/Tween", "class/When", "app/ui
     }
     exports.initStage = initStage;
 });
-define("app/test-quadtree-world", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/engine/QuadTreeWorld", "app/common", "app/const"], function (require, exports, Tween_12, When_5, Flyer_5, QuadTreeWorld_1, common_9, const_14) {
+define("app/test-quadtree-world", ["require", "exports", "class/Tween", "class/When", "app/class/Flyer", "app/engine/QuadTreeWorld", "app/common", "app/const"], function (require, exports, Tween_12, When_5, Flyer_5, QuadTreeWorld_1, common_9, const_13) {
     "use strict";
     var ani_ticker = new PIXI.ticker.Ticker();
     var ani_tween = new Tween_12.default();
@@ -9912,7 +9909,7 @@ define("app/test-quadtree-world", ["require", "exports", "class/Tween", "class/W
     exports.loader.add("button", "./res/game_res.png");
     exports.loader.load();
     var loading_text = new PIXI.Text("游戏加载中……", {
-        font: const_14.pt2px(25) + "px 微软雅黑",
+        font: const_13.pt2px(25) + "px 微软雅黑",
         fill: "#FFF"
     });
     exports.current_stage.addChild(loading_text);

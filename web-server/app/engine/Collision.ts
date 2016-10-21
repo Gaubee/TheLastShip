@@ -10,10 +10,6 @@ import {
     _isNode,
 } from "../const";
 
-if(_isNode) {
-    var cache = require("node-shared-cache");
-}
-
 export class P2I extends PIXI.Container {
     _id = "I" + ((uuid++) / 1000000).toFixed(6).substr(2)
     conName: string

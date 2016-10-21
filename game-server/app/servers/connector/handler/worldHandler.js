@@ -50,14 +50,16 @@ function getCache(id) {
 	return res;
 }
 const removeCache = is_linux ? function(id) {
-	if (SHARED_CACHE.get(id)) {
-		SHARED_CACHE.set(id, null); // 不使用delete，确保不会被重新创建
+	var obj = SHARED_CACHE.get(id);
+	if (obj) {
+		cache.clear(obj);
 		cache.release(id); // Linux需要清空/dev/shm下的文件
+		SHARED_CACHE.set(id, null); // 不使用delete，确保不会被重新创建
 	}
 } : function(id) {
 	var obj = SHARED_CACHE.get(id);
 	if (obj) {
-		cache.clear(SHARED_CACHE.get(id));
+		cache.clear(obj);
 	}
 	SHARED_CACHE.set(id, null);
 }

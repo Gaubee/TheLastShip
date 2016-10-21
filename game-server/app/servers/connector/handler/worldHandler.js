@@ -52,8 +52,8 @@ function getCache(id) {
 const removeCache = is_linux ? function(id) {
 	var obj = SHARED_CACHE.get(id);
 	if (obj) {
-		cache.clear(obj);
-		cache.release(id); // Linux需要清空/dev/shm下的文件
+		// cache.clear(obj);
+		cache.unlink(id); // Linux需要清空/dev/shm下的文件
 		SHARED_CACHE.set(id, null); // 不使用delete，确保不会被重新创建
 	}
 } : function(id) {

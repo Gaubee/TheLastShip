@@ -342,16 +342,16 @@ export default class Gun extends P2I {
 		});
 	}
 	// 指定子弹跟踪打击的点
-	private __bullet_track: { x: number, y: number }
+	__bullet_track: { x: number, y: number }
 	// 子弹跟踪打击的算法
 	private __ctl_track_bullets_handle: () => void
 	// 自动转向权重打击点
-	private __turn_gun: { x: number, y: number, to_rotation: number }
+	__turn_gun: { x: number, y: number, to_rotation: number }
 	private __ctl_turn_gun_handles: () => void
 	static GUN_CONTROL_HANDLE = {
-		"auto-track": function(gun: Gun, x: number, y: number) {
+		"auto-track": function(gun: Gun, data: { x: number, y: number }, cb: (...args) => void) {
 			if (!gun.__bullet_track) {
-				gun.__bullet_track = { x, y };
+				gun.__bullet_track = { x: data.x, y: data.y };
 				const _ctl_bullets = gun.__ctl_track_bullets_handle = function() {
 					const {x, y} = gun.__bullet_track;
 					const ship = gun.owner;
@@ -413,11 +413,11 @@ export default class Gun extends P2I {
 				};
 				_ctl_bullets();
 			}
-			gun.__bullet_track = { x, y };
+			gun.__bullet_track = { x: data.x, y: data.y };
 		},
-		"auto-turn": function(gun: Gun, x: number, y: number) {
+		"auto-turn": function(gun: Gun, data: { x: number, y: number, to_rotation?: number }, cb: (...args) => void) {
 			if (!gun.__turn_gun) {
-				gun.__turn_gun = { x, y, to_rotation: 0 };
+				gun.__turn_gun = { x: data.x, y: data.x, to_rotation: +data.to_rotation||0 };
 				const _ctr_gun = gun.__ctl_turn_gun_handles = function() {
 					const {x, y} = gun.__turn_gun;
 					const ship = gun.owner;
@@ -465,7 +465,8 @@ export default class Gun extends P2I {
 						}
 					}
 					to_rotation = Math.abs(to_rotation) <= Math.PI / 2 ? to_rotation : 0;
-					gun.__turn_gun.to_rotation = to_rotation;
+					// gun.__turn_gun.to_rotation = to_rotation;
+					cb("turn-gun", { gun, to_rotation });
 
 					gun.__ctl_turn_gun_handles && gun.setTimeout(gun.__ctl_turn_gun_handles, 100);
 				};
@@ -485,8 +486,37 @@ export default class Gun extends P2I {
 				});
 				_ctr_gun();
 			}
-			gun.__turn_gun.x = x;
-			gun.__turn_gun.y = y;
+			gun.__turn_gun.x = data.x;
+			gun.__turn_gun.y = data.y;
+			if(isFinite(data.to_rotation)){
+				gun.__turn_gun.to_rotation = data.to_rotation;
+			}
+		}
+	}
+}
+if (_isNode) {
+	Gun.GUN_CONTROL_HANDLE["auto-turn"] = function(gun: Gun, data: { x: number, y: number, to_rotation?: number }, cb: (...args) => void) {
+		if (!gun.__turn_gun) {
+			gun.__turn_gun = { x: data.x, y: data.x, to_rotation: +data.to_rotation || 0 };
+			const trun_speed = Math.PI / 50;
+			gun.on("update", function() {
+				if (gun.config.ison_BTAR) {// 处于攻击前摇时不转向
+					return
+				}
+				var { to_rotation} = gun.__turn_gun;
+				var cur_rotation = formatDeg(gun.gun.rotation);
+				const dif_rotation = to_rotation - cur_rotation;
+				if (Math.abs(dif_rotation) > trun_speed) {//渐变转向
+					gun.gun.rotation += (dif_rotation > 0 ? trun_speed : -trun_speed)
+				} else {
+					gun.gun.rotation = to_rotation
+				}
+			});
+		}
+		gun.__turn_gun.x = data.x;
+		gun.__turn_gun.y = data.y;
+		if (isFinite(data.to_rotation)) {
+			gun.__turn_gun.to_rotation = data.to_rotation;
 		}
 	}
 }

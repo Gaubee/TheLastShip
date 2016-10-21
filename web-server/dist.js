@@ -2802,9 +2802,9 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
         };
         Gun.TYPES = gunShape;
         Gun.GUN_CONTROL_HANDLE = {
-            "auto-track": function (gun, x, y) {
+            "auto-track": function (gun, data, cb) {
                 if (!gun.__bullet_track) {
-                    gun.__bullet_track = { x: x, y: y };
+                    gun.__bullet_track = { x: data.x, y: data.y };
                     var _ctl_bullets = gun.__ctl_track_bullets_handle = function () {
                         var _a = gun.__bullet_track, x = _a.x, y = _a.y;
                         var ship = gun.owner;
@@ -2866,11 +2866,11 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     };
                     _ctl_bullets();
                 }
-                gun.__bullet_track = { x: x, y: y };
+                gun.__bullet_track = { x: data.x, y: data.y };
             },
-            "auto-turn": function (gun, x, y) {
+            "auto-turn": function (gun, data, cb) {
                 if (!gun.__turn_gun) {
-                    gun.__turn_gun = { x: x, y: y, to_rotation: 0 };
+                    gun.__turn_gun = { x: data.x, y: data.x, to_rotation: +data.to_rotation || 0 };
                     var _ctr_gun = gun.__ctl_turn_gun_handles = function () {
                         var _a = gun.__turn_gun, x = _a.x, y = _a.y;
                         var ship = gun.owner;
@@ -2916,7 +2916,8 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                             }
                         }
                         to_rotation = Math.abs(to_rotation) <= Math.PI / 2 ? to_rotation : 0;
-                        gun.__turn_gun.to_rotation = to_rotation;
+                        // gun.__turn_gun.to_rotation = to_rotation;
+                        cb("turn-gun", { gun: gun, to_rotation: to_rotation });
                         gun.__ctl_turn_gun_handles && gun.setTimeout(gun.__ctl_turn_gun_handles, 100);
                     };
                     var trun_speed_1 = Math.PI / 50;
@@ -2936,14 +2937,44 @@ define("app/class/Gun", ["require", "exports", "app/engine/Collision", "app/clas
                     });
                     _ctr_gun();
                 }
-                gun.__turn_gun.x = x;
-                gun.__turn_gun.y = y;
+                gun.__turn_gun.x = data.x;
+                gun.__turn_gun.y = data.y;
+                if (isFinite(data.to_rotation)) {
+                    gun.__turn_gun.to_rotation = data.to_rotation;
+                }
             }
         };
         return Gun;
     }(Collision_1.P2I));
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.default = Gun;
+    if (const_4._isNode) {
+        Gun.GUN_CONTROL_HANDLE["auto-turn"] = function (gun, data, cb) {
+            if (!gun.__turn_gun) {
+                gun.__turn_gun = { x: data.x, y: data.x, to_rotation: +data.to_rotation || 0 };
+                var trun_speed_2 = Math.PI / 50;
+                gun.on("update", function () {
+                    if (gun.config.ison_BTAR) {
+                        return;
+                    }
+                    var to_rotation = gun.__turn_gun.to_rotation;
+                    var cur_rotation = const_4.formatDeg(gun.gun.rotation);
+                    var dif_rotation = to_rotation - cur_rotation;
+                    if (Math.abs(dif_rotation) > trun_speed_2) {
+                        gun.gun.rotation += (dif_rotation > 0 ? trun_speed_2 : -trun_speed_2);
+                    }
+                    else {
+                        gun.gun.rotation = to_rotation;
+                    }
+                });
+            }
+            gun.__turn_gun.x = data.x;
+            gun.__turn_gun.y = data.y;
+            if (isFinite(data.to_rotation)) {
+                gun.__turn_gun.to_rotation = data.to_rotation;
+            }
+        };
+    }
 });
 define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/class/Drawer/ShapeDrawer", "app/class/Gun", "class/Tween", "app/const", "./shipShape.json"], function (require, exports, Collision_2, ShapeDrawer_1, Gun_1, Tween_2, const_5, shipShape) {
     "use strict";
@@ -3384,8 +3415,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
                 else if (this.config.rotation < -Math.PI) {
                     this.config.rotation += Math.PI * 2;
                 }
+                this.p2_body["rotation"] = this.config.rotation;
             }
-            this.rotation = this.p2_body["rotation"] = this.config.rotation;
+            //这里的p2_body.rotation是由影子世界控制的，使得转向的动画流畅
+            this.rotation = this.p2_body["rotation"]; // = this.config.rotation;
             this.p2_body.force = [this.config.x_speed, this.config.y_speed];
             this.guns.forEach(function (gun) { return gun.update(delay); });
         };
@@ -3541,10 +3574,10 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
             enumerable: true,
             configurable: true
         });
-        Ship.prototype.controlBulletMoveTo = function (x, y) {
+        Ship.prototype.controlGunAI = function (x, y, cb) {
             if (this.bullet_can_controlable_guns.length) {
                 this.bullet_can_controlable_guns.forEach(function (gun) {
-                    Gun_1.default.GUN_CONTROL_HANDLE[gun.config.type](gun, x, y);
+                    Gun_1.default.GUN_CONTROL_HANDLE[gun.config.type](gun, { x: x, y: y }, cb);
                 });
             }
         };
@@ -5946,10 +5979,10 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
         }
     }
     exports.shipFire = shipFire;
-    /** 子弹控制
+    /** AI控制
      *
      */
-    function shipControlBullets(
+    function shipControlGunAI(
         /*事件监听层*/
         listen_stage, 
         /*视觉元素层*/
@@ -5986,7 +6019,7 @@ define("app/ux", ["require", "exports", "class/Tween", "class/FlowLayout", "clas
             });
         }
     }
-    exports.shipControlBullets = shipControlBullets;
+    exports.shipControlGunAI = shipControlGunAI;
     /** 切换子弹自动发射的状态
      *
      */
@@ -6655,9 +6688,14 @@ define("app/editor", ["require", "exports", "class/Tween", "class/When", "app/cl
                 world_1.engine.add(bullet);
             });
         });
-        // 飞船控制子弹（如果支持）
-        UX.shipControlBullets(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (target_point) {
-            my_ship.controlBulletMoveTo(target_point.x, target_point.y);
+        // 飞船控制AI（如果支持）
+        UX.shipControlGunAI(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (target_point) {
+            my_ship.controlGunAI(target_point.x, target_point.y, function (type, data) {
+                if (type === "turn-gun") {
+                    var gun = data.gun, to_rotation = data.to_rotation;
+                    gun.__turn_gun.to_rotation = to_rotation;
+                }
+            });
         });
         // 飞船控制枪支AI（如果支持）
         UX.shipGunAICtrl(exports.current_stage_wrap, exports.current_stage, function () { return my_ship; }, ani_tween, ani_ticker, function (gun_index) {
@@ -8981,6 +9019,7 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         };
         exports.current_stage.addChild(hp_stage);
         var HP_WEAKMAP = {};
+        var ALL_SHIP_IDS = [];
         var is_force_no_min = false;
         function showViewData(objects) {
             objects.forEach(function (obj_info) {
@@ -9011,6 +9050,15 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
                         if (obj_info.type === "Ship" || obj_info.type === "Flyer") {
                             var hp = HP_WEAKMAP[obj_info.id] = new HP_2.default(ins, ani_tween);
                             hp_stage.addChild(hp);
+                        }
+                        if (obj_info.type === "Ship") {
+                            ALL_SHIP_IDS.push(obj_info.id);
+                            ins.on("destroy", function () {
+                                var index = ALL_SHIP_IDS.indexOf(obj_info.id);
+                                if (index >= 0) {
+                                    ALL_SHIP_IDS.splice(index, 1);
+                                }
+                            });
                         }
                     }
                     shadowWorld_1.engine.add(ins);
@@ -9097,6 +9145,49 @@ define("app/game-oline", ["require", "exports", "class/Tween", "class/When", "ap
         UX.shipFire(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function () {
             Pomelo_1.pomelo.request("connector.worldHandler.fire", {}, function (data) { });
         });
+        // 飞船控制AI（如果支持）
+        UX.shipControlGunAI(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function (target_point) {
+            view_ship.controlGunAI(target_point.x, target_point.y, function (type, data) {
+                if (type === "turn-gun") {
+                    var gun = data.gun, to_rotation = data.to_rotation;
+                    Pomelo_1.pomelo.request("connector.worldHandler.controlGunAI", { gun_id: gun._id, args: to_rotation }, function () { });
+                }
+            });
+        });
+        function showShipAIData(objects) {
+        }
+        function getShipAIData() {
+            setInterval(function () {
+                is_force_no_min = true;
+            }, 1000);
+            var can_next = true;
+            var timeSinceLastCalledMS = 0;
+            ani_ticker.add(function () {
+                var p_now = performance.now();
+                // 上一次请求到现在的时间
+                var pre_req_delay = p_now - timeSinceLastCalledMS;
+                if (pre_req_delay >= 100) {
+                    can_next = true;
+                }
+                else if (pre_req_delay < 50) {
+                    return;
+                }
+                if (can_next === false) {
+                    return;
+                }
+                can_next = false;
+                Pomelo_1.pomelo.request("connector.worldHandler.getAIInfo", {
+                    ids: ALL_SHIP_IDS
+                }, function (data) {
+                    timeSinceLastCalledMS = performance.now();
+                    showShipAIData(data.objects);
+                    can_next = true;
+                });
+                is_force_no_min = false;
+            });
+        }
+        ;
+        exports.current_stage_wrap.on("active", getShipAIData);
         // 飞船切换自动
         UX.shipAutoFire(exports.current_stage_wrap, exports.current_stage, function () { return view_ship; }, ani_tween, ani_ticker, function () {
             Pomelo_1.pomelo.request("connector.worldHandler.autoFire", {}, function (data) { });

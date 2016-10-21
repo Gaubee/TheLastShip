@@ -455,8 +455,11 @@ export default class Ship extends P2I {
 			} else if (this.config.rotation < -Math.PI) {
 				this.config.rotation += Math.PI * 2;
 			}
+			this.p2_body["rotation"] = this.config.rotation;
 		}
-		this.rotation = this.p2_body["rotation"] = this.config.rotation;
+
+		//这里的p2_body.rotation是由影子世界控制的，使得转向的动画流畅
+		this.rotation = this.p2_body["rotation"];// = this.config.rotation;
 		this.p2_body.force = [this.config.x_speed, this.config.y_speed];
 		this.guns.forEach(gun => gun.update(delay));
 	}
@@ -612,10 +615,10 @@ export default class Ship extends P2I {
 		}
 		return _bullet_can_controlable_guns
 	}
-	controlBulletMoveTo(x: number, y: number) {
+	controlGunAI(x: number, y: number, cb: (...args) => void) {
 		if (this.bullet_can_controlable_guns.length) {
 			this.bullet_can_controlable_guns.forEach(gun => {
-				Gun.GUN_CONTROL_HANDLE[gun.config.type](gun, x, y);
+				Gun.GUN_CONTROL_HANDLE[gun.config.type](gun, { x, y }, cb);
 			});
 		}
 	}

@@ -2,21 +2,21 @@
   "development": {
     "connector": [{
       "id": "connector-server-1",
-      "host": "192.168.1.113",
+      "host": "192.168.1.115",
       "port": 4050,
       "clientPort": 3050,
       "frontend": true
     }],
     "gate": [{
       "id": "gate-server-1",
-      "host": "192.168.1.113",
+      "host": "192.168.1.115",
       "port": 4051,
       "clientPort": 3051,
       "frontend": true
     }],
     "world": [{
       "id": "world-server-1",
-      "host": "192.168.1.113",
+      "host": "192.168.1.115",
       "port": 4052
     }]
   },

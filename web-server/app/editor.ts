@@ -278,15 +278,20 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 				engine.add(bullet);
 			});
 		});
-	// 飞船控制子弹（如果支持）
-	UX.shipControlBullets(current_stage_wrap
+	// 飞船控制AI（如果支持）
+	UX.shipControlGunAI(current_stage_wrap
 		, current_stage
 		, () => my_ship
 		, ani_tween
 		, ani_ticker
 		, (target_point) => {
-			my_ship.controlBulletMoveTo(target_point.x, target_point.y);
-		})
+			my_ship.controlGunAI(target_point.x, target_point.y, function(type, data) {
+				if (type === "turn-gun") {
+					const { gun, to_rotation } = data;
+					gun.__turn_gun.to_rotation = to_rotation;
+				}
+			});
+		});
 	// 飞船控制枪支AI（如果支持）
 	UX.shipGunAICtrl(current_stage_wrap
 		, current_stage

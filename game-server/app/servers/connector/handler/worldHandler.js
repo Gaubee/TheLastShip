@@ -301,5 +301,11 @@ Handler.prototype = {
 		this.app.rpc.world.worldRemote.changeType(session, ship_id, msg.type, function(err, res) {
 			next(err, res)
 		});
-	}
+	},
+	controlGunAI: function(msg, session, next) {
+		next(null, {});
+	},
+	getAIInfo: function(msg, session, next) {
+		next(null, {});
+	},
 }

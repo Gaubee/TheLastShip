@@ -98,11 +98,11 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var view_ship: Ship;
     function set_view_ship(ship) {
         view_ship = ship;
-        current_stage_wrap.emit("view_ship-changed",view_ship);
+        current_stage_wrap.emit("view_ship-changed", view_ship);
     }
     // 子弹绘图层
     const bullet_stage = new PIXI.Container();
-    bullet_stage["update"] = function (delay) {
+    bullet_stage["update"] = function(delay) {
         this.children.forEach((bullet: Bullet) => {
             bullet.update(delay);
         });
@@ -110,7 +110,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     current_stage.addChild(bullet_stage);
     // 物体绘图层：墙、飞船等等
     const object_stage = new PIXI.Container();
-    object_stage["update"] = function (delay) {
+    object_stage["update"] = function(delay) {
         this.children.forEach((obj: Wall | Ship) => {
             obj.update(delay);
         });
@@ -118,13 +118,14 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     current_stage.addChild(object_stage);
     // 血量绘图层;
     var hp_stage = new PIXI.Container();
-    hp_stage["update"] = function (delay) {
+    hp_stage["update"] = function(delay) {
         this.children.forEach((hp: HP) => {
             hp.update(delay);
         });
     }
     current_stage.addChild(hp_stage);
     const HP_WEAKMAP: { [key: string]: HP } = {};
+    const ALL_SHIP_IDS = [];
 
     var is_force_no_min = false;
     function showViewData(objects) {
@@ -155,6 +156,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
                         var hp = HP_WEAKMAP[obj_info.id] = new HP(ins, ani_tween);
                         hp_stage.addChild(hp);
                     }
+                    if (obj_info.type === "Ship") {
+                        ALL_SHIP_IDS.push(obj_info.id);
+                        ins.on("destroy", () => {
+                            var index = ALL_SHIP_IDS.indexOf(obj_info.id);
+                            if (index >= 0) { ALL_SHIP_IDS.splice(index, 1); }
+                        });
+                    }
                 }
                 engine.add(ins);
             }
@@ -167,11 +175,11 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var isNewDataFrame = false;
     var can_next = true;;
     function getViewData() {
-        setInterval(function(){
+        setInterval(function() {
             is_force_no_min = true;
-        },1000);
+        }, 1000);
         var pre_time = performance.now();
-        ani_ticker.add(function () {
+        ani_ticker.add(function() {
             var p_now = performance.now();
             // 上一次请求到现在的时间
             var pre_req_delay = p_now - timeSinceLastCalledMS;
@@ -186,12 +194,12 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             can_next = false;
             var start_ping = performance.now();
             pomelo.request("connector.worldHandler.getWorld", {
-                x: (view_ship||view_ship_info).config.x,
-                y: (view_ship||view_ship_info).config.y,
+                x: (view_ship || view_ship_info).config.x,
+                y: (view_ship || view_ship_info).config.y,
                 width: VIEW.WIDTH,
                 height: VIEW.HEIGHT,
-                min:!is_force_no_min&&!!view_ship
-            }, function (data) {
+                min: !is_force_no_min && !!view_ship
+            }, function(data) {
                 var cur_time = performance.now();
                 var dif_time = cur_time - pre_time;
                 pre_time = cur_time;
@@ -236,7 +244,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , (move_info) => {
             pomelo.request("connector.worldHandler.setConfig", {
                 config: move_info
-            }, function (data) { });
+            }, function(data) { });
         });
     // 飞船转向
     UX.turnHead(current_stage_wrap
@@ -247,7 +255,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , (turnHead_info) => {
             pomelo.request("connector.worldHandler.setConfig", {
                 config: turnHead_info
-            }, function (data) { });
+            }, function(data) { });
         });
     // 飞船发射
     UX.shipFire(current_stage_wrap
@@ -256,29 +264,79 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         , ani_tween
         , ani_ticker
         , () => {
-            pomelo.request("connector.worldHandler.fire", {}, function (data) {});
+            pomelo.request("connector.worldHandler.fire", {}, function(data) { });
         });
+    // 飞船控制AI（如果支持）
+    UX.shipControlGunAI(current_stage_wrap
+        , current_stage
+        , () => view_ship
+        , ani_tween
+        , ani_ticker
+        , (target_point) => {
+            view_ship.controlGunAI(target_point.x, target_point.y, function(type, data) {
+                if (type === "turn-gun") {
+                    const { gun, to_rotation } = data;
+                    pomelo.request("connector.worldHandler.controlGunAI", { gun_id: gun._id, args: to_rotation }, function() { });
+
+                    // gun.__turn_gun.to_rotation = to_rotation;
+                }
+            });
+        });
+    function showShipAIData(objects) {
+
+    }
+    function getShipAIData() {
+        setInterval(function() {
+            is_force_no_min = true;
+        }, 1000);
+        var can_next = true;
+        var timeSinceLastCalledMS = 0;
+        ani_ticker.add(function() {
+            var p_now = performance.now();
+            // 上一次请求到现在的时间
+            var pre_req_delay = p_now - timeSinceLastCalledMS;
+            if (pre_req_delay >= 100) {//请求至少是10FPS，多于这个时间差，强制请求
+                can_next = true
+            } else if (pre_req_delay < 50) { // 封顶请求20FPS，少于这个时间差，忽略请求
+                return
+            }
+            if (can_next === false) {
+                return
+            }
+            can_next = false;
+            pomelo.request("connector.worldHandler.getAIInfo", {
+                ids: ALL_SHIP_IDS
+            }, function(data) {
+                timeSinceLastCalledMS = performance.now();
+
+                showShipAIData(data.objects);
+                can_next = true;
+            });
+            is_force_no_min = false;
+        });
+    };
+    current_stage_wrap.on("active", getShipAIData);
     // 飞船切换自动
     UX.shipAutoFire(current_stage_wrap
-        ,current_stage
-        ,()=>view_ship
-        ,ani_tween
-        ,ani_ticker
-        ,()=> {
-            pomelo.request("connector.worldHandler.autoFire", {}, function (data) {});
+        , current_stage
+        , () => view_ship
+        , ani_tween
+        , ani_ticker
+        , () => {
+            pomelo.request("connector.worldHandler.autoFire", {}, function(data) { });
         });
 
     // 切换属性加点面板的显示隐藏
     UX.toggleProtoPlan(current_stage_wrap
-        ,current_stage
-        ,()=>view_ship
-        ,ani_tween
-        ,ani_ticker,function (add_proto:string,cb_to_redraw) {
+        , current_stage
+        , () => view_ship
+        , ani_tween
+        , ani_ticker, function(add_proto: string, cb_to_redraw) {
             // view_ship._computeConfig();
             // view_ship.reloadWeapon();
             pomelo.request("connector.worldHandler.addProto", {
                 proto: add_proto
-            }, function (data) {
+            }, function(data) {
                 view_ship.proto_list = data;
                 cb_to_redraw();
             });
@@ -286,13 +344,13 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
 
     // 切换形态变化面板的显示隐藏
     UX.toggleShapePlan(current_stage_wrap
-        ,current_stage
-        ,()=>view_ship
-        ,ani_tween
-        ,ani_ticker,function (new_shape:string,cb_to_redraw) {
+        , current_stage
+        , () => view_ship
+        , ani_tween
+        , ani_ticker, function(new_shape: string, cb_to_redraw) {
             pomelo.request("connector.worldHandler.changeType", {
                 type: new_shape
-            }, function (data) {
+            }, function(data) {
                 view_ship.setConfig(data.config);
                 cb_to_redraw();
             });
@@ -301,7 +359,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     /**响应服务端事件
      *
      */
-    pomelo.on("explode", function (arg) {
+    pomelo.on("explode", function(arg) {
         var bullet_info = arg.data;
         console.log("explode:", bullet_info);
         var bullet = instanceMap[bullet_info.id];
@@ -311,22 +369,22 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             instanceMap[bullet_info.id] = null;
         }
     });
-    pomelo.on("gun-fire_start", function (arg) {
+    pomelo.on("gun-fire_start", function(arg) {
         var fire_start_info = arg.data;
         console.log("gun-fire_start:", fire_start_info);
         var bullet_info = fire_start_info.bullet;
-        var ship_id  = fire_start_info.ship_id;
+        var ship_id = fire_start_info.ship_id;
         var ship = <Ship>instanceMap[ship_id];
-        if(ship) {
+        if (ship) {
             var gun = ship.GUNS_ID_MAP[fire_start_info.gun_id];
-            if(gun) {
+            if (gun) {
                 gun.emit("fire_ani");
             }
         }
         showViewData([bullet_info]);
     });
 
-    pomelo.on("change-hp", function (arg) {
+    pomelo.on("change-hp", function(arg) {
         const ship_info = arg.data;
         console.log("change-hp:", ship_info);
         const ship = <Ship | Flyer>instanceMap[ship_info.id];
@@ -342,7 +400,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
             }
         }
     });
-    pomelo.on("ember", function (arg) {
+    pomelo.on("ember", function(arg) {
         const flyer_info = arg.data;
         console.log("ember:", flyer_info);
         const flyer = instanceMap[flyer_info.id];
@@ -383,14 +441,14 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         content.max_width = pt2px(60);
         content.reDrawFlow();
 
-        on(restart_button, "click|tap", function (e) {
-            current_stage_wrap.emit("enter", null, function (err, game_info) {
+        on(restart_button, "click|tap", function(e) {
+            current_stage_wrap.emit("enter", null, function(err, game_info) {
                 if (err) {
                     alert(err)
                 } else {
                     current_stage_wrap.emit("before-active", game_info);
                     die_dialog.close();
-                    die_dialog.once("removed", function () {
+                    die_dialog.once("removed", function() {
                         current_stage_wrap.emit("active");
                     });
                 }
@@ -409,7 +467,7 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
         });
         return dialog;
     })();
-    pomelo.on("die", function (arg) {
+    pomelo.on("die", function(arg) {
         var ship_info = arg.data;
         console.log("die:", ship_info);
         var ship = instanceMap[ship_info.id];
@@ -469,41 +527,41 @@ function renderInit(loader: PIXI.loaders.Loader, resource: PIXI.loaders.Resource
     var _is_ctrl_down = false;
     var _is_alt_down = false;
     var _is_f_down = false;
-    on(current_stage_wrap,"keydown",function (e) {
-             if(e.keyCode === 17){_is_ctrl_down = true;}
-        else if(e.keyCode === 18){_is_alt_down = true;}
-        else if(e.keyCode === 70){_is_f_down = true;}
-        if(_is_ctrl_down&&_is_alt_down&&_is_f_down) {
+    on(current_stage_wrap, "keydown", function(e) {
+        if (e.keyCode === 17) { _is_ctrl_down = true; }
+        else if (e.keyCode === 18) { _is_alt_down = true; }
+        else if (e.keyCode === 70) { _is_f_down = true; }
+        if (_is_ctrl_down && _is_alt_down && _is_f_down) {
             _is_debug = !_is_debug;
-            if(_is_debug) {
+            if (_is_debug) {
                 console.log = _native_log
-            }else{
+            } else {
                 console.log = _noop_log
             }
         }
     });
-    on(current_stage_wrap,"keyup",function (e) {
-        if(_is_ctrl_down&&e.keyCode === 17) {
+    on(current_stage_wrap, "keyup", function(e) {
+        if (_is_ctrl_down && e.keyCode === 17) {
             _is_ctrl_down = false;
         }
-        if(_is_alt_down&&e.keyCode === 18) {
+        if (_is_alt_down && e.keyCode === 18) {
             _is_alt_down = false;
         }
-        if(_is_f_down&&e.keyCode === 70) {
+        if (_is_f_down && e.keyCode === 70) {
             _is_f_down = false;
         }
     });
-    FPS_ticker.add(function () {
+    FPS_ticker.add(function() {
         var ping_info = ping.toFixed(2);
-        if(ping_info.length < 6) {
-            ping_info = ("000"+ping_info).substr(-6);
+        if (ping_info.length < 6) {
+            ping_info = ("000" + ping_info).substr(-6);
         }
         var net_fps = (1 / timeSinceLastCalled).toFixed(0);
-        if(net_fps.length < 2) {
-            ping_info = ("00"+ping_info).substr(-2);
+        if (net_fps.length < 2) {
+            ping_info = ("00" + ping_info).substr(-2);
         }
         FPS_Text.text = `FPS:${FPS_ticker.FPS.toFixed(0)}/${net_fps} W:${VIEW.WIDTH} H:${VIEW.HEIGHT} Ping:${ping_info}`;
-        if (view_ship&&_is_debug) {
+        if (view_ship && _is_debug) {
             var info = "\n";
             var config = view_ship.config["toJSON"]();
             for (var k in config) {
@@ -529,12 +587,12 @@ _is_f_down:${_is_f_down}
     init_w.ok(0, []);
 }
 current_stage_wrap.on("init", initStage);
-current_stage_wrap.on("reinit", function () {
+current_stage_wrap.on("reinit", function() {
     renderInit(loader, loader.resources);
     emitReisze(current_stage);
 });
 current_stage_wrap["_has_custom_resize"] = true;
-current_stage_wrap.on("resize", function () {
+current_stage_wrap.on("resize", function() {
     jump_tween.clear();
     ani_tween.clear();
     emitReisze(this);
@@ -547,14 +605,14 @@ if (!mac_ship_id) {
     localStorage.setItem("MAC-SHIP-ID", mac_ship_id);
 }
 var old_username;
-current_stage_wrap.on("enter", function (username, cb) {
+current_stage_wrap.on("enter", function(username, cb) {
     // 发送名字，初始化角色
     pomelo.request("connector.entryHandler.enter", {
         username: username || old_username,
         mac_ship_id: mac_ship_id,
         width: VIEW.WIDTH,
         height: VIEW.HEIGHT,
-    }, function (game_info) {
+    }, function(game_info) {
         if (game_info.code === 500) {
             console.log(game_info);
             if (game_info.error == "重复登录") {

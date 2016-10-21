@@ -362,10 +362,10 @@ export function shipFire(
 }
 
 
-/** 子弹控制
+/** AI控制
  *
  */
-export function shipControlBullets(
+export function shipControlGunAI(
 	/*事件监听层*/
 	listen_stage: PIXI.Container,
 	/*视觉元素层*/

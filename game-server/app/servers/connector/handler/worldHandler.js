@@ -40,6 +40,7 @@ const WALL_OBJS_list = [];
 
 const SHARED_CACHE = new Map();
 const is_linux = os.platform() === "linux";
+const fs = require("fs");
 
 function getCache(id) {
 	if (SHARED_CACHE.has(id)) {
@@ -52,8 +53,12 @@ function getCache(id) {
 const removeCache = is_linux ? function(id) {
 	var obj = SHARED_CACHE.get(id);
 	if (obj) {
-		// cache.clear(obj);
-		cache.unlink(id); // Linux需要清空/dev/shm下的文件
+		// Linux需要清空/dev/shm下的文件
+		fs.unlink('/dev/shm/' + id, err => {
+			if (err) {
+				console.error("SHARE CLEAR ERROR:", err);
+			}
+		});
 		SHARED_CACHE.set(id, null); // 不使用delete，确保不会被重新创建
 	}
 } : function(id) {

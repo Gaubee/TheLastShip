@@ -341,12 +341,12 @@ export default class Ship extends P2I {
 	reDrawBody() {
 		const config = this.config;
 		const typeInfo = shipShape[config.type];
-		_isBorwser && (this.body.cacheAsBitmap = false);
+		// _isBorwser && (this.body.cacheAsBitmap = false);
 		// 绘制船体
 		ShapeDrawer(this, config, typeInfo.body);
 		// 绘制枪支位置
 		this.reloadWeapon();
-		_isBorwser && (this.body.cacheAsBitmap = true);
+		// _isBorwser && (this.body.cacheAsBitmap = true);
 	}
 	// 卸载武器
 	unloadWeapon() {

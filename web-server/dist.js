@@ -3288,12 +3288,12 @@ define("app/class/Ship", ["require", "exports", "app/engine/Collision", "app/cla
         Ship.prototype.reDrawBody = function () {
             var config = this.config;
             var typeInfo = shipShape[config.type];
-            const_4._isBorwser && (this.body.cacheAsBitmap = false);
+            // _isBorwser && (this.body.cacheAsBitmap = false);
             // 绘制船体
             ShapeDrawer_1.default(this, config, typeInfo.body);
             // 绘制枪支位置
             this.reloadWeapon();
-            const_4._isBorwser && (this.body.cacheAsBitmap = true);
+            // _isBorwser && (this.body.cacheAsBitmap = true);
         };
         // 卸载武器
         Ship.prototype.unloadWeapon = function () {

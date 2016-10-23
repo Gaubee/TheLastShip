@@ -10,8 +10,7 @@ const os = require("os");
 function WorldObj(info) {
 	this.id = info.id;
 	this.info = info;
-	var config_keys = Object.keys(info.config);
-	config_keys.splice(config_keys.indexOf("__TYPE__"), 1);
+	var config_keys = info.config.__KEYS__;
 	this.toJSON = function() {
 		var res = {
 			id: this.id,
@@ -52,6 +51,7 @@ function getCache(id) {
 const removeCache = function(id) {
 	var obj = SHARED_CACHE.get(id);
 	if (obj) {
+		cache.clear(obj);
 		cache.release(id);
 		SHARED_CACHE.set(id, null); // 不使用delete，确保不会被重新创建
 	}
